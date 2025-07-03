@@ -108,6 +108,13 @@ function C.new(bufnr, ft)
         is_return_statement = function(statement)
             return vim.startswith(vim.trim(statement), "return")
         end,
+        should_check_parent_node_print_var = function(node)
+            if node:type() == "field_identifier" then
+                return true
+            end
+
+            return false
+        end,
     }
     return TreeSitter:new(config, bufnr)
 end
