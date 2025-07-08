@@ -113,21 +113,28 @@ function Vim.new(bufnr, ft)
         return_statement = {},
         function_references = {},
         should_check_parent_node_print_var = function(node)
-            if node:type() ~= "identifier" then
-                return false
-            end
-
-            local prev = node:prev_named_sibling()
-            if not prev or prev:type() ~= "scope" then
-                return false
-            end
-
             local parent = node:parent()
-            if not parent or parent:type() ~= "scoped_identifier" then
+            if not parent then
                 return false
             end
 
-            return true
+            local parent_type = parent:type()
+            if parent_type == "scoped_identifier" then
+                if node:type() ~= "identifier" then
+                    return false
+                end
+
+                local prev = node:prev_named_sibling()
+                if not prev or prev:type() ~= "scope" then
+                    return false
+                end
+
+                return true
+            elseif parent_type == "field_expression" then
+                return true
+            end
+
+            return false
         end,
     }
     local ts = TreeSitter:new(config, bufnr)
