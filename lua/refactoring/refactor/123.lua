@@ -1,251 +1,201 @@
-local Pipeline = require("refactoring.pipeline")
-local Region = require("refactoring.region")
-local tasks = require("refactoring.tasks")
-local ui = require("refactoring.ui")
-local notify = require("refactoring.notify")
-
-local text_edits_utils = require("refactoring.text_edits_utils")
-
-local ts_locals = require("refactoring.ts-locals")
-
 local iter = vim.iter
 local ts = vim.treesitter
+local api = vim.api
+local async = require("async")
+local lsp = vim.lsp
 
 local M = {}
 
----@param identifiers TSNode[]
----@param bufnr integer
----@return TSNode|nil, integer|nil
-local function get_node_to_inline(identifiers, bufnr)
-    ---@type TSNode|nil, integer|nil
-    local node_to_inline, identifier_pos
+---@class refactor.QfItem
+---@field filename string
+---@field lnum integer
+---@field end_lnum integer
+---@field col integer
+---@field end_col integer
+---@field text string
 
-    if #identifiers == 1 then
-        identifier_pos = 1
-        node_to_inline = identifiers[identifier_pos]
-    else
-        node_to_inline, identifier_pos = ui.select(
-            identifiers,
-            "123: Select an identifier to inline:",
-            ---@param node TSNode
-            ---@return string
-            function(node)
-                return ts.get_node_text(node, bufnr)
+---@type fun(): refactor.QfItem[]
+local get_definitions = async.wrap(1, function(cb)
+    lsp.buf.definition({
+        on_list = function(args)
+            cb(args.items)
+        end,
+    })
+end)
+
+---@type fun(): refactor.QfItem[]
+local get_references = async.wrap(1, function(cb)
+    lsp.buf.references({
+        includeDeclaration = false,
+    }, {
+        on_list = function(args)
+            cb(args.items)
+        end,
+    })
+end)
+
+---@param range Range4
+---@param point Range2
+local function contains(range, point)
+    if point[1] < range[1] or point[1] > range[3] then
+        return false
+    end
+    if point[1] == range[1] and point[2] < range[2] then
+        return false
+    end
+    if point[1] == range[3] and point[2] > range[4] then
+        return false
+    end
+    return true
+end
+
+---@class refactor.VariableMatchInfo
+---@field identifier TSNode
+---@field value TSNode
+---@field declaration TSNode
+
+-- TODO: preview highlight
+-- TODO: success message (can be disable in config)
+function M.inline_var()
+    local lang_tree, err = ts.get_parser(nil, nil, { error = false })
+    if not lang_tree then
+        vim.notify(err, vim.log.levels.ERROR)
+        return
+    end
+    -- TODO: use async parsing
+    lang_tree:parse(true)
+    local cursor = api.nvim_win_get_cursor(0)
+    local nested_lang_tree = lang_tree:language_for_range({
+        cursor[1] - 1,
+        cursor[2],
+        cursor[1] - 1,
+        cursor[2],
+    })
+    local lang = nested_lang_tree:lang()
+
+    async.run(function()
+        local results = async.await_all({
+            async.run(get_definitions),
+            async.run(get_references),
+        })
+        local definitions = results[1][2] ---@type refactor.QfItem[]
+        local references = results[2][2] ---@type refactor.QfItem[]
+        if #definitions > 1 then
+            vim.print(
+                "Symbol under cursor has multiple definitions. It can't be inlined",
+                vim.log.levels.WARN
+            )
+            return
+        end
+        local definition = definitions[1]
+        local definition_buf = vim.fn.bufadd(definition.filename)
+        if not api.nvim_buf_is_loaded(definition_buf) then
+            vim.fn.bufload(definition_buf)
+        end
+        local definition_lang_tree, err =
+            ts.get_parser(definition_buf, nil, { error = false })
+        if not definition_lang_tree then
+            vim.notify(err, vim.log.levels.ERROR)
+            return
+        end
+        -- TODO: use async parsing
+        definition_lang_tree:parse(true)
+        local definition_nested_lang_tree =
+            definition_lang_tree:language_for_range({
+                definition.lnum - 1,
+                definition.col - 1,
+                definition.end_lnum - 1,
+                definition.end_col - 1,
+            })
+
+        local query = ts.query.get(lang, "refactor")
+        if not query then
+            vim.notify(
+                ("There is no `refactor` query file for language %s"):format(
+                    lang
+                ),
+                vim.log.levels.ERROR
+            )
+            return
+        end
+
+        local definition_matches_info = {} ---@type refactor.VariableMatchInfo[]
+        for _, tree in ipairs(definition_nested_lang_tree:trees()) do
+            for _, match in query:iter_matches(tree:root(), definition_buf) do
+                local match_info = {} ---@type refactor.VariableMatchInfo|{}
+                for capture_id, nodes in pairs(match) do
+                    local name = query.captures[capture_id]
+                    local is_identifier = name == "variable.identifier"
+                    local is_value = name == "variable.value"
+                    local is_declaration = name == "variable.declaration"
+
+                    for _, node in ipairs(nodes) do
+                        if is_identifier then
+                            match_info.identifier = node
+                        elseif is_value then
+                            match_info.value = node
+                        elseif is_declaration then
+                            match_info.declaration = node
+                        end
+                    end
+                end
+                if not vim.tbl_isempty(match_info) then
+                    table.insert(definition_matches_info, match_info)
+                end
+            end
+        end
+
+        ---@type refactor.VariableMatchInfo
+        local definition_match = iter(definition_matches_info):find(
+            ---@param match_info refactor.VariableMatchInfo
+            function(match_info)
+                local start_row, start_col, end_row, end_col =
+                    match_info.identifier:range()
+                return contains(
+                    { start_row, start_col, end_row, end_col },
+                    { definition.lnum - 1, definition.col - 1 }
+                )
             end
         )
-    end
-
-    return node_to_inline, identifier_pos
-end
-
----@param identifiers TSNode[]
----@param values TSNode[]
----@param identifier_to_exclude TSNode[]
----@param bufnr integer
----@return string[] new_identifiers
----@return string[] new_values
-local function construct_new_declaration(
-    identifiers,
-    values,
-    identifier_to_exclude,
-    bufnr
-)
-    local new_identifiers, new_values = {}, {}
-
-    for idx, identifier in pairs(identifiers) do
-        if identifier ~= identifier_to_exclude then
-            table.insert(new_identifiers, ts.get_node_text(identifier, bufnr))
-            table.insert(new_values, ts.get_node_text(values[idx], bufnr))
-        end
-    end
-
-    return new_identifiers, new_values
-end
-
----@param declarator_node TSNode
----@param identifiers TSNode[]
----@param node_to_inline TSNode
----@param refactor refactor.Refactor
----@param definition TSNode[]
----@param identifier_pos integer
----@return refactor.TextEdit[]
-local function get_inline_text_edits(
-    declarator_node,
-    identifiers,
-    node_to_inline,
-    refactor,
-    definition,
-    identifier_pos
-)
-    local text_edits = {}
-
-    local references =
-        ts_locals.find_usages(definition, refactor.scope, refactor.bufnr)
-    references = iter(references):filter(refactor.ts.reference_filter):totable() --[=[@as TSNode[]]=]
-
-    local all_values = refactor.ts:get_local_var_values(declarator_node)
-
-    -- account for python giving multiple results for the values query
-    if refactor.filetype == "python" then
-        if #identifiers > 1 then
-            all_values[#all_values] = nil
-        else
-            all_values = { all_values[#all_values] }
-        end
-    end
-
-    local value_node_to_inline = all_values[identifier_pos]
-
-    -- remove the whole declaration if there is only one identifier, else construct a new declaration
-    if #identifiers == 1 then
-        table.insert(
-            text_edits,
-            text_edits_utils.delete_text(
-                Region:from_node(declarator_node, refactor.bufnr)
+        if not definition_match then
+            vim.notify(
+                "Couldn't find the definition of the symbol under cursor using treesitter",
+                vim.log.levels.ERROR
             )
-        )
-    else
-        local new_identifiers_text, new_values_text = construct_new_declaration(
-            identifiers,
-            all_values,
-            node_to_inline,
-            refactor.bufnr
-        )
-
-        table.insert(
-            text_edits,
-            text_edits_utils.replace_text(
-                Region:from_node(declarator_node, refactor.bufnr),
-                refactor.code.constant({
-                    multiple = true,
-                    identifiers = new_identifiers_text,
-                    values = new_values_text,
-                })
-            )
-        )
-    end
-
-    local value_text = ts.get_node_text(value_node_to_inline, refactor.bufnr)
-
-    if
-        refactor.filetype == "cpp"
-        and value_node_to_inline:type() == "initializer_list"
-    then
-        -- HACK: The text contains the surrounding brackets. Since the parser does not
-        -- expose a node that includes everything inside the brackets, we need
-        -- to manually remove them.
-        --
-        -- {1} -> 1
-        --
-        -- https://github.com/ThePrimeagen/refactoring.nvim/issues/427
-        value_text = value_text:sub(2, #value_text - 1) ---@type string
-    end
-
-    for _, ref in pairs(references) do
-        -- TODO: In my mind, if nothing is left on the line when you remove, it should get deleted.
-        -- Could be done via opts into replace_text.
-
-        if refactor.ts.should_check_parent_node(ref) then
-            ref = assert(ref:parent())
+            return
         end
 
-        refactor.success_message = ("Inlined %d variable occurrences"):format(
-            #references
+        local value_text =
+            ts.get_node_text(definition_match.value, definition_buf)
+        iter(references):each(
+            ---@param reference refactor.QfItem
+            function(reference)
+                local buf = vim.fn.bufadd(reference.filename)
+                if not api.nvim_buf_is_loaded(buf) then
+                    vim.fn.bufload(buf)
+                end
+                api.nvim_buf_set_text(
+                    buf,
+                    reference.lnum - 1,
+                    reference.col - 1,
+                    reference.end_lnum - 1,
+                    reference.end_col - 1,
+                    vim.split(value_text, "\n")
+                )
+            end
         )
 
-        table.insert(
-            text_edits,
-            text_edits_utils.replace_text(Region:from_node(ref), value_text)
+        local start_row, start_col, end_row, end_col =
+            definition_match.declaration:range()
+        api.nvim_buf_set_text(
+            definition_buf,
+            start_row,
+            start_col,
+            end_row,
+            end_col,
+            {}
         )
-    end
-    return text_edits
-end
-
----@param refactor refactor.Refactor
----@return boolean, refactor.Refactor|string
-local function inline_var_setup(refactor)
-    ---@type boolean
-    local ok, declarator_nodes = pcall(
-        refactor.ts.local_declarations_in_region,
-        refactor.ts,
-        refactor.scope,
-        refactor.region
-    )
-    if not ok then
-        return ok, declarator_nodes
-    end
-    -- only deal with first declaration
-    local declarator_node = declarator_nodes[1] ---@type TSNode?
-
-    if declarator_node == nil then
-        -- if the selection does not contain a declaration and it only contains a reference
-        -- (which is under the cursor)
-        local identifier_node = ts.get_node()
-        if identifier_node == nil then
-            return false, "Identifier_node is nil"
-        end
-        local definition =
-            ts_locals.find_definition(identifier_node, refactor.bufnr)
-        declarator_node =
-            refactor.ts.get_container(definition, refactor.ts.variable_scope)
-
-        if declarator_node == nil then
-            return false, "Couldn't determine declarator node"
-        end
-    end
-
-    local ok2, identifiers =
-        pcall(refactor.ts.get_local_var_names, refactor.ts, declarator_node)
-    if not ok2 then
-        return ok2, identifiers
-    end
-
-    if #identifiers == 0 then
-        return false, "No declarations in selected area"
-    end
-
-    local node_to_inline, identifier_pos =
-        get_node_to_inline(identifiers, refactor.bufnr)
-
-    if node_to_inline == nil or identifier_pos == nil then
-        return false, "Couldn't determine node to inline"
-    end
-
-    local definition = ts_locals.find_definition(node_to_inline, refactor.bufnr)
-
-    local ok3, text_edits = pcall(
-        get_inline_text_edits,
-        declarator_node,
-        identifiers,
-        node_to_inline,
-        refactor,
-        definition,
-        identifier_pos
-    )
-    if not ok3 then
-        return ok3, identifiers
-    end
-
-    refactor.text_edits = text_edits
-    return true, refactor
-end
-
----@param bufnr integer
----@param region_type 'v' | 'V' | '' | nil
----@param opts refactor.Config
-local function inline_var(bufnr, region_type, opts)
-    local seed = tasks.refactor_seed(bufnr, region_type, opts)
-    Pipeline:from_task(tasks.operator_setup)
-        :add_task(inline_var_setup)
-        :after(tasks.post_refactor)
-        :run(nil, notify.error, seed)
-end
-
----@param bufnr integer
----@param region_type 'v' | 'V' | '' | nil
----@param opts refactor.Config
-function M.inline_var(bufnr, region_type, opts)
-    inline_var(bufnr, region_type, opts)
+    end)
 end
 
 return M

@@ -15,8 +15,6 @@ function Lua.new(bufnr, ft)
         filetype = ft,
         bufnr = bufnr,
         scope_names = {
-            program = "program",
-            local_function = "function",
             function_declaration = "function",
             function_definition = "function",
             chunk = "chunk",
