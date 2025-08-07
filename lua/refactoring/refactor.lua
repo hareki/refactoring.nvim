@@ -1,7 +1,7 @@
-local extract = require("refactoring.refactor.106")
-local inline_func = require("refactoring.refactor.115")
-local extract_var = require("refactoring.refactor.119")
-local inline_var = require("refactoring.refactor.123")
+local extract = require("refactoring.refactor.extract_var")
+local inline_func = require("refactoring.refactor.inline_func")
+local extract_var = require("refactoring.refactor.extract_func")
+local inline_var = require("refactoring.refactor.inline_var")
 
 ---@type table<string|integer, refactor.RefactorFunc> | {refactor_names: table<string, string>}
 local M = {}
