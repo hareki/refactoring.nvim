@@ -30,7 +30,6 @@ local iter = vim.iter
 ---@field require_special_var_format? boolean: flag to require special variable format for codegen
 ---@field should_check_parent_node? fun(current_node: TSNode): boolean function to check if it's necesary to check the parent node
 ---@field should_check_parent_node_print_var? fun(curren_node: TSNode): boolean function to check if it's necesary to check the parent node for print_var
----@field reference_filter? fun(node: TSNode): boolean
 ---@field include_end_of_line? boolean flag to indicate if end of line should be included in a region
 ---@field return_values? refactor.InlineNodeFunc[] nodes that are return values
 ---@field function_references? refactor.InlineNodeFunc[] nodes that are references of function
@@ -76,9 +75,6 @@ function TreeSitter:new(config, bufnr)
         end,
         should_check_parent_node_print_var = function()
             return false
-        end,
-        reference_filter = function()
-            return true
         end,
         include_end_of_line = false,
         filetype = config.filetype,

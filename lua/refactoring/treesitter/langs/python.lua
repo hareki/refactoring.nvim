@@ -120,19 +120,6 @@ function Python.new(bufnr, ft)
         is_return_statement = function(statement)
             return vim.startswith(vim.trim(statement), "return ")
         end,
-        reference_filter = function(node)
-            local parent = node:parent()
-            if not parent then
-                return true
-            end
-            if parent:type() == "default_parameter" then
-                return false
-            end
-            if parent:type() == "keyword_argument" then
-                return parent:field("value")[1] == node
-            end
-            return true
-        end,
         include_end_of_line = true,
     }
     local ts = TreeSitter:new(config, bufnr)
