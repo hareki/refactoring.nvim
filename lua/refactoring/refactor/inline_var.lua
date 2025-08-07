@@ -92,10 +92,10 @@ function M.inline_var()
         if not api.nvim_buf_is_loaded(definition_buf) then
             vim.fn.bufload(definition_buf)
         end
-        local definition_lang_tree, err =
+        local definition_lang_tree, err2 =
             ts.get_parser(definition_buf, nil, { error = false })
         if not definition_lang_tree then
-            vim.notify(err, vim.log.levels.ERROR)
+            vim.notify(err2, vim.log.levels.ERROR)
             return
         end
         -- TODO: use async parsing
