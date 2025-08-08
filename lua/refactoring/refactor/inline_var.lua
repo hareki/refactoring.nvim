@@ -93,7 +93,7 @@ function M.inline_var()
             return
         end
         if #definitions > 1 then
-            vim.print(
+            vim.notify(
                 "Symbol under cursor has multiple definitions. It can't be inlined",
                 vim.log.levels.WARN
             )
