@@ -50,22 +50,20 @@ local function contains(range, point)
 end
 
 ---@class refactor.VariableMatchInfo
----@field identifier TSNode
----@field value TSNode
----@field declaration TSNode
+---@field identifier TSNode[]
+---@field value TSNode[]
+---@field declaration TSNode[]
 
 -- TODO: preview highlight
--- TODO: success message (can be disable in config)
+-- TODO: success message (can be disabled in config)
 -- TODO: add lua_ls to GitHub actions
--- TODO: gracefully handle multiple assignment
---   inline correct value
---   delete correct value instead of whole assignment
--- TODO: use `should_check_parent_node` (maybe move it somewhere else) to correctly handle dot indexed expressions (or maybe do it in some other way? captures?)
--- TODO: servers may still return a reference to the declaration. manually filter it
+-- TODO: use `should_check_parent_node` (maybe move it somewhere else) to
+-- correctly handle dot indexed expressions (or maybe do it in some other way?
+-- captures?)
 function M.inline_var()
-    local lang_tree, err = ts.get_parser(nil, nil, { error = false })
+    local lang_tree, err1 = ts.get_parser(nil, nil, { error = false })
     if not lang_tree then
-        vim.notify(err, vim.log.levels.ERROR)
+        vim.notify(err1, vim.log.levels.ERROR)
         return
     end
     -- TODO: use async parsing
@@ -84,8 +82,16 @@ function M.inline_var()
             async.run(get_definitions),
             async.run(get_references),
         })
-        local definitions = results[1][2] ---@type refactor.QfItem[]
-        local references = results[2][2] ---@type refactor.QfItem[]
+        local err3, definitions = unpack(results[1], 1, results[1].n) ---@type string?, refactor.QfItem[]
+        if err3 then
+            vim.notify(err3, vim.log.levels.ERROR)
+            return
+        end
+        local err4, references = unpack(results[2], 1, results[2].n) ---@type string?, refactor.QfItem[]
+        if err4 then
+            vim.notify(err4, vim.log.levels.ERROR)
+            return
+        end
         if #definitions > 1 then
             vim.print(
                 "Symbol under cursor has multiple definitions. It can't be inlined",
@@ -94,6 +100,18 @@ function M.inline_var()
             return
         end
         local definition = definitions[1]
+
+        ---@type refactor.QfItem
+        references = iter(references):filter(
+            ---@param r refactor.QfItem
+            function(r)
+                return not contains(
+                    { r.lnum - 1, r.col - 1, r.end_lnum - 1, r.end_col - 1 },
+                    { definition.lnum - 1, definition.col - 1 }
+                )
+            end
+        ):totable()
+
         local definition_buf = vim.fn.bufadd(definition.filename)
         if not api.nvim_buf_is_loaded(definition_buf) then
             vim.fn.bufload(definition_buf)
@@ -135,14 +153,12 @@ function M.inline_var()
                     local is_value = name == "variable.value"
                     local is_declaration = name == "variable.declaration"
 
-                    for _, node in ipairs(nodes) do
-                        if is_identifier then
-                            match_info.identifier = node
-                        elseif is_value then
-                            match_info.value = node
-                        elseif is_declaration then
-                            match_info.declaration = node
-                        end
+                    if is_identifier then
+                        match_info.identifier = nodes
+                    elseif is_value then
+                        match_info.value = nodes
+                    elseif is_declaration then
+                        match_info.declaration = nodes
                     end
                 end
                 if not vim.tbl_isempty(match_info) then
@@ -155,11 +171,15 @@ function M.inline_var()
         local definition_match = iter(definition_matches_info):find(
             ---@param match_info refactor.VariableMatchInfo
             function(match_info)
-                local start_row, start_col, end_row, end_col =
-                    match_info.identifier:range()
-                return contains(
-                    { start_row, start_col, end_row, end_col },
-                    { definition.lnum - 1, definition.col - 1 }
+                return iter(match_info.identifier):any(
+                    ---@param i TSNode
+                    function(i)
+                        local start_row, start_col, end_row, end_col = i:range()
+                        return contains(
+                            { start_row, start_col, end_row, end_col },
+                            { definition.lnum - 1, definition.col - 1 }
+                        )
+                    end
                 )
             end
         )
@@ -170,9 +190,39 @@ function M.inline_var()
             )
             return
         end
+        local has_multiple_values = #definition_match.identifier > 1
 
-        local value_text =
-            ts.get_node_text(definition_match.value, definition_buf)
+        local declaration_node ---@type TSNode?
+        local identifier_node ---@type TSNode?
+        local value_node ---@type TSNode?
+        -- TODO: do this inside of the iter above
+        for i, identifier in ipairs(definition_match.identifier) do
+            local declaration = definition_match.declaration[1]
+            local value = definition_match.value[i]
+
+            local start_row, start_col, end_row, end_col = identifier:range()
+
+            if
+                contains(
+                    { start_row, start_col, end_row, end_col },
+                    { definition.lnum - 1, definition.col - 1 }
+                )
+            then
+                declaration_node = declaration
+                identifier_node = identifier
+                value_node = value
+                break
+            end
+        end
+        if not declaration_node or not identifier_node or not value_node then
+            vim.notify(
+                "Couldn't find corredct definition on a statement with multiple values",
+                vim.log.levels.ERROR
+            )
+            return
+        end
+
+        local value_text = ts.get_node_text(value_node, definition_buf)
         iter(references):each(
             ---@param reference refactor.QfItem
             function(reference)
@@ -191,16 +241,59 @@ function M.inline_var()
             end
         )
 
-        local start_row, start_col, end_row, end_col =
-            definition_match.declaration:range()
-        api.nvim_buf_set_text(
-            definition_buf,
-            start_row,
-            start_col,
-            end_row,
-            end_col,
-            {}
-        )
+        if has_multiple_values then
+            for _, node in ipairs({
+                value_node,
+                identifier_node,
+            }) do
+                local previous = node:prev_sibling()
+                local next = node:next_sibling()
+                local previous_anonymous = previous and not previous:named()
+                local next_anonymous = next and not next:named()
+                if next_anonymous then
+                    local start_row, start_col, end_row, end_col = next:range()
+                    api.nvim_buf_set_text(
+                        definition_buf,
+                        start_row,
+                        start_col,
+                        end_row,
+                        end_col,
+                        {}
+                    )
+                end
+                local start_row, start_col, end_row, end_col = node:range()
+                api.nvim_buf_set_text(
+                    definition_buf,
+                    start_row,
+                    start_col,
+                    end_row,
+                    end_col,
+                    {}
+                )
+                if not next_anonymous and previous_anonymous then
+                    start_row, start_col, end_row, end_col = previous:range()
+                    api.nvim_buf_set_text(
+                        definition_buf,
+                        start_row,
+                        start_col,
+                        end_row,
+                        end_col,
+                        {}
+                    )
+                end
+            end
+        else
+            local start_row, start_col, end_row, end_col =
+                declaration_node:range()
+            api.nvim_buf_set_text(
+                definition_buf,
+                start_row,
+                start_col,
+                end_row,
+                end_col,
+                {}
+            )
+        end
     end)
     task:raise_on_error()
 end
