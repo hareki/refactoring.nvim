@@ -1,4 +1,4 @@
-; variable
+; local foo = 'foo'
 (variable_declaration
   (assignment_statement
     (variable_list
@@ -6,6 +6,7 @@
     (expression_list
       value: (_) @variable.value))) @variable.declaration
 
+; foo.bar = 'bar'
 (assignment_statement
   (variable_list
     name: (dot_index_expression) @variable.identifier)

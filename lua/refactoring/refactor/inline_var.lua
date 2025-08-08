@@ -57,6 +57,11 @@ end
 -- TODO: preview highlight
 -- TODO: success message (can be disable in config)
 -- TODO: add lua_ls to GitHub actions
+-- TODO: gracefully handle multiple assignment
+--   inline correct value
+--   delete correct value instead of whole assignment
+-- TODO: use `should_check_parent_node` (maybe move it somewhere else) to correctly handle dot indexed expressions (or maybe do it in some other way? captures?)
+-- TODO: servers may still return a reference to the declaration. manually filter it
 function M.inline_var()
     local lang_tree, err = ts.get_parser(nil, nil, { error = false })
     if not lang_tree then
@@ -74,7 +79,7 @@ function M.inline_var()
     })
     local lang = nested_lang_tree:lang()
 
-    async.run(function()
+    local task = async.run(function()
         local results = async.await_all({
             async.run(get_definitions),
             async.run(get_references),
@@ -197,6 +202,7 @@ function M.inline_var()
             {}
         )
     end)
+    task:raise_on_error()
 end
 
 return M
