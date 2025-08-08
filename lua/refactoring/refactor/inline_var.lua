@@ -57,9 +57,6 @@ end
 -- TODO: preview highlight
 -- TODO: success message (can be disabled in config)
 -- TODO: add lua_ls to GitHub actions
--- TODO: use `should_check_parent_node` (maybe move it somewhere else) to
--- correctly handle dot indexed expressions (or maybe do it in some other way?
--- captures?)
 function M.inline_var()
     local lang_tree, err1 = ts.get_parser(nil, nil, { error = false })
     if not lang_tree then
@@ -223,6 +220,8 @@ function M.inline_var()
         end
 
         local value_text = ts.get_node_text(value_node, definition_buf)
+        local identifier_text =
+            ts.get_node_text(identifier_node, definition_buf)
         iter(references):each(
             ---@param reference refactor.QfItem
             function(reference)
@@ -233,7 +232,11 @@ function M.inline_var()
                 api.nvim_buf_set_text(
                     buf,
                     reference.lnum - 1,
-                    reference.col - 1,
+                    -- NOTE: references of `bar` on `foo.bar` won't include
+                    -- `foo.`. So, account for all of the identifier length
+                    reference.end_col
+                        - 1
+                        - #identifier_text,
                     reference.end_lnum - 1,
                     reference.end_col - 1,
                     vim.split(value_text, "\n")
