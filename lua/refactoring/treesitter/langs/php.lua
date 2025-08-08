@@ -64,11 +64,6 @@ function Php.new(bufnr, ft)
                 "(formal_parameters (simple_parameter (variable_name) @tmp_capture))"
             ),
         },
-        local_var_values = {
-            InlineNode(
-                "(expression_statement (assignment_expression right: (_) @tmp_capture))"
-            ),
-        },
         local_declarations = {
             InlineNode(
                 "(expression_statement (assignment_expression)) @definition.local_declarator"

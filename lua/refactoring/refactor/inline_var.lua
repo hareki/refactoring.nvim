@@ -56,6 +56,7 @@ end
 
 -- TODO: preview highlight
 -- TODO: success message (can be disable in config)
+-- TODO: add lua_ls to GitHub actions
 function M.inline_var()
     local lang_tree, err = ts.get_parser(nil, nil, { error = false })
     if not lang_tree then

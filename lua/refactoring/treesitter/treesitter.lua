@@ -14,7 +14,6 @@ local iter = vim.iter
 ---@field variable_scope table<string, true> scopes that contain variables in current buffer
 ---@field local_var_names refactor.InlineNodeFunc[] nodes for local variable names
 ---@field function_args refactor.InlineNodeFunc[] nodes to find args for a function
----@field local_var_values refactor.InlineNodeFunc[] nodes for local variable values
 ---@field local_declarations refactor.InlineNodeFunc[] nodes for local declarations
 ---@field indent_scopes table<string, true> nodes where code has addition indent inside
 ---@field debug_paths table<string, refactor.FieldNodeFunc> map of node types to FieldNodeFunc
@@ -53,7 +52,6 @@ function TreeSitter:new(config, bufnr)
         class_names = {},
         class_type = {},
         local_var_names = {},
-        local_var_values = {},
         local_declarations = {},
         debug_paths = {},
         statements = {},
@@ -188,13 +186,6 @@ end
 function TreeSitter:get_local_var_names(node)
     self:validate_setting("local_var_names")
     return self:loop_thru_nodes(node, self.local_var_names)
-end
-
----@param node TSNode
----@return TSNode[]
-function TreeSitter:get_local_var_values(node)
-    self:validate_setting("local_var_values")
-    return self:loop_thru_nodes(node, self.local_var_values)
 end
 
 ---@param scope TSNode

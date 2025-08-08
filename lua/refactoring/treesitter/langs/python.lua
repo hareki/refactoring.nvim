@@ -62,12 +62,6 @@ function Python.new(bufnr, ft)
                 '(function_definition (parameters (typed_default_parameter (identifier) @capture)) (#not-eq? @capture "self"))'
             ),
         },
-        local_var_values = {
-            InlineNode(
-                "(assignment right: (expression_list (_) @tmp_capture))"
-            ),
-            InlineNode("(assignment right: (_) @tmp_capture)"),
-        },
         local_declarations = {
             InlineNode("(assignment) @tmp_capture"),
         },

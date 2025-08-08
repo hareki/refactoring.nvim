@@ -38,11 +38,6 @@ function Cpp.new(bufnr, ft)
                 "((parameter_list (parameter_declaration declarator: (_) @definition.function_argument)))"
             ),
         },
-        local_var_values = {
-            InlineNode(
-                "(declaration declarator: (init_declarator value: (_) @tmp_capture))"
-            ),
-        },
         local_declarations = {
             InlineNode("((declaration) @tmp_capture)"),
         },

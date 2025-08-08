@@ -66,11 +66,6 @@ function TypescriptReact.new(bufnr, ft)
             ),
             InlineNode("(for_in_statement left: (identifier) @tmp_capture)"),
         },
-        local_var_values = {
-            InlineNode(
-                "(lexical_declaration (variable_declarator value: (_) @tmp_capture))"
-            ),
-        },
         local_declarations = {
             InlineNode("(lexical_declaration) @definition.local_declarator"),
         },

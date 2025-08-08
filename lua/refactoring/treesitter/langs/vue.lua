@@ -15,7 +15,6 @@ function Vue.new(bufnr, ft)
         valid_class_nodes = {},
         local_var_names = {},
         function_args = {},
-        local_var_values = {},
         local_declarations = {},
         debug_paths = {},
         statements = {},

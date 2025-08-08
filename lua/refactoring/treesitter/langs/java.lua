@@ -36,9 +36,6 @@ function Java.new(bufnr, ft)
                 " (formal_parameters (formal_parameter name: (_) @tmp_capture))"
             ),
         },
-        local_var_values = {
-            InlineNode("(variable_declarator value: (_) @tmp_capture)"),
-        },
         local_declarations = {
             InlineNode("(local_variable_declaration) @tmp_capture"),
         },

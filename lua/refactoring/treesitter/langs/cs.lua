@@ -36,9 +36,6 @@ function CS.new(bufnr, ft)
         function_args = {
             InlineNode("(parameter_list (parameter name: (_) @tmp_capture))"),
         },
-        local_var_values = {
-            InlineNode("(variable_declarator  (_) @tmp_capture . )"),
-        },
         local_declarations = {
             InlineNode("(local_declaration_statement) @tmp_capture"),
         },

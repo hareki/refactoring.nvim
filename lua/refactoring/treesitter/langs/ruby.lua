@@ -34,9 +34,6 @@ function Ruby.new(bufnr, ft)
         local_var_names = {
             InlineNode("(assignment left: (_) @tmp_capture)"),
         },
-        local_var_values = {
-            InlineNode("(assignment right: (_) @tmp_capture)"),
-        },
         local_declarations = {
             InlineNode("((assignment) @tmp_capture)"),
         },
