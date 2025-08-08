@@ -12,7 +12,6 @@ local _needed_args = {
     inline_var = 0,
     inline_func = 0,
     extract_to_file = 2,
-    extract_block_to_file = 2,
     default = 1,
 }
 

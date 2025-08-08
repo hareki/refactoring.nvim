@@ -309,64 +309,6 @@ end
 
 ---@param refactor refactor.Refactor
 ---@return boolean, refactor.Refactor|string
-local function extract_block_setup(refactor)
-    local region = Region:from_point(Point:from_cursor(), refactor.bufnr)
-    local region_node = region:to_ts_node(refactor.ts:get_root())
-    ---@type boolean, TSNode|nil|string
-    local ok, scope = pcall(refactor.ts.get_scope, refactor.ts, region_node)
-    if not ok then
-        ---@cast scope string
-        return ok, scope
-    end
-    ---@cast scope TSNode
-
-    if scope == nil then
-        return false, "Scope is nil. Couldn't find scope for current block"
-    end
-
-    local ok2, function_body =
-        pcall(refactor.ts.get_function_body, refactor.ts, scope)
-    if not ok2 then
-        return ok2, function_body
-    end
-    local block_first_child = function_body[1]
-    local block_last_child = function_body[#function_body]
-
-    if not block_first_child then
-        return false, "block_first_child is nil"
-    end
-    if not block_last_child then
-        return false, "block_last_child is nil"
-    end
-
-    local first_line_region = Region:from_node(block_first_child)
-    local last_line_region = Region:from_node(block_last_child)
-
-    -- update the region and its node with the block scope found
-    region = Region:from_values(
-        refactor.bufnr,
-        first_line_region.start_row,
-        -- The Tresitter delimited region never includes the blank spaces
-        -- before the first line which causes problems with indentation.
-        1,
-        last_line_region.end_row,
-        last_line_region.end_col
-    )
-    region_node = region:to_ts_node(refactor.ts:get_root())
-
-    refactor.region = region
-    refactor.region_node = region_node
-    refactor.scope = scope
-
-    if refactor.scope == nil then
-        return false, "Scope is nil"
-    end
-
-    return true, refactor
-end
-
----@param refactor refactor.Refactor
----@return boolean, refactor.Refactor|string
 local function extract_setup(refactor)
     local function_name = ui.input("106: Extract Function Name > ")
     if not function_name or function_name == "" then
@@ -604,33 +546,6 @@ M.extract = function(bufnr, region_type, opts)
         :run(nil, notify.error, seed)
 end
 
----@param bufnr integer
----@param region_type 'v' | 'V' | '' | nil
----@param opts refactor.Config
-M.extract_block = function(bufnr, region_type, opts)
-    bufnr = bufnr or vim.api.nvim_get_current_buf()
-
-    local seed = tasks.refactor_seed(bufnr, region_type, opts)
-    Pipeline:from_task(ensure_code_gen_106)
-        :add_task(extract_block_setup)
-        :add_task(extract_setup)
-        :after(tasks.post_refactor)
-        :run(nil, notify.error, seed)
-end
-
----@param bufnr integer
----@param region_type 'v' | 'V' | '' | nil
----@param opts refactor.Config
-M.extract_block_to_file = function(bufnr, region_type, opts)
-    bufnr = bufnr or vim.api.nvim_get_current_buf()
-
-    local seed = tasks.refactor_seed(bufnr, region_type, opts)
-    Pipeline:from_task(ensure_code_gen_106)
-        :add_task(extract_block_setup)
-        :add_task(tasks.create_file_from_input)
-        :add_task(extract_setup)
-        :after(tasks.multiple_files_post_refactor)
-        :run(nil, notify.error, seed)
-end
+-- NOTE: post-rewrite
 
 return M

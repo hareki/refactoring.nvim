@@ -55,6 +55,7 @@ end
 ---@field declaration TSNode[]
 
 -- TODO: preview highlight
+-- TODO: preview is not working at all
 -- TODO: success message (can be disabled in config)
 -- TODO: add lua_ls to GitHub actions
 function M.inline_var()

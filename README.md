@@ -102,9 +102,6 @@ are supported (with individual support for each function may vary):
     - Extracts the last highlighted code from visual mode to a separate function
     - Optionally prompts for function param types and return types (see
       [configuration for type prompt operations](#config-prompt))
-    - Also possible to Extract Block.
-    - Both Extract Function and Extract Block have the capability to extract to
-      a separate file.
   - **115: Inline Function**
     - Inverse of extract function
     - In normal mode, inline occurrences of the function under the cursor
@@ -198,9 +195,9 @@ The first argument to the command selects the type of refactor to perform.
 Additional arguments will be passed to each refactor if needed (e.g. the name
 of the extracted function for `extract`).
 
-The first argument can be tab completed, so there is no need to memorize them all.
-(e.g. `:Refactor e<tab>` will suggest `extract_block_to_file`, `extract`, `extract_block`,
-`extract_var` and `extract_to_file`).
+The first argument can be tab completed, so there is no need to memorize them
+all. (e.g. `:Refactor e<tab>` will suggest `extract`, `extract_var` and
+`extract_to_file`).
 
 The main advantage of using an Ex command instead of the Lua API is that you
 will be able to preview the changes made by the refactor before committing to
@@ -219,10 +216,6 @@ vim.keymap.set("x", "<leader>rv", ":Refactor extract_var ")
 vim.keymap.set({ "n", "x" }, "<leader>ri", ":Refactor inline_var")
 
 vim.keymap.set( "n", "<leader>rI", ":Refactor inline_func")
-
-vim.keymap.set("n", "<leader>rb", ":Refactor extract_block")
-vim.keymap.set("n", "<leader>rbf", ":Refactor extract_block_to_file")
-
 ```
 
 The ` ` (space) at the end of some mappings is intentional because those
@@ -240,9 +233,6 @@ vim.keymap.set({ "n", "x" }, "<leader>rf", function() return require('refactorin
 vim.keymap.set({ "n", "x" }, "<leader>rv", function() return require('refactoring').refactor('Extract Variable') end, { expr = true })
 vim.keymap.set({ "n", "x" }, "<leader>rI", function() return require('refactoring').refactor('Inline Function') end, { expr = true })
 vim.keymap.set({ "n", "x" }, "<leader>ri", function() return require('refactoring').refactor('Inline Variable') end, { expr = true })
-
-vim.keymap.set({ "n", "x" }, "<leader>rbb", function() return require('refactoring').refactor('Extract Block') end, { expr = true })
-vim.keymap.set({ "n", "x" }, "<leader>rbf", function() return require('refactoring').refactor('Extract Block To File') end, { expr = true })
 ```
 
 IMPORTANT: the keymaps **MUST** to be created using the `{ expr = true }` option and return the value of the `require('refactoring').refactor` function (like in the example above).

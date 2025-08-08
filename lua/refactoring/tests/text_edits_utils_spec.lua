@@ -2,7 +2,7 @@ local Region = require("refactoring.region")
 local text_edits_utils = require("refactoring.text_edits_utils")
 local test_utils = require("refactoring.tests.utils")
 local ts_locals = require("refactoring.ts-locals")
----@module 'luassert'
+---@module "luassert"
 
 local function setup()
     vim.cmd(":new")

@@ -30,7 +30,6 @@ end
 local default_motions = {
     [refactors.inline_var] = "iw",
     [refactors.inline_func] = "iw",
-    [refactors.extract_block] = "l",
 }
 
 ---@param name string|number
