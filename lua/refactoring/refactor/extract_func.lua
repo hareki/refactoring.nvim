@@ -546,7 +546,7 @@ local input = async.wrap(2, function(opts, cb)
 end)
 
 ---@class refactor.code_generation
----@field function_declaration {[string]: fun(opts: {args: string[], name: string, body: string, return_values: string[]}):string}
+---@field function_declaration {[string]: fun(opts: {args: string[], name: string, body: string, return_values: string[], indent_width: integer}):string}
 ---@field function_call {[string]: fun(opts: {args: string[], name: string, return_values: string[]}):string}
 
 -- TODO: move into it's own file or something(?
@@ -564,8 +564,11 @@ end]]):format(
                 args,
                 opts.body,
                 not vim.tbl_isempty(opts.return_values)
-                        and ("\nreturn %s\n"):format(
-                            table.concat(opts.return_values, ",")
+                        and vim.text.indent(
+                            1 * opts.indent_width,
+                            ("\n\nreturn %s"):format(
+                                table.concat(opts.return_values, ",")
+                            )
                         )
                     or ""
             )
@@ -593,8 +596,7 @@ end]]):format(
 ---@field fn TSNode
 
 -- TODO: `extract_to_file`
--- TODO: when using `extraact_to_file` maybe also generate the import logic
--- TODO: handle indentation (maybe using the builtin [Neo]vim functions)
+-- TODO: when using `extract_to_file` maybe also generate the import logic
 -- TODO: remove `buf` from all calls after the rewrite is finished
 ---@param buf integer
 ---@param region_type 'v' | 'V' | ''
@@ -616,6 +618,11 @@ M.extract_func = function(buf, region_type)
         vim.fn.getregion(range_start, range_end, { type = region_type })
 
     local task = async.run(function()
+        local fn_name = input({ prompt = "Function name: " })
+        if not fn_name then
+            return
+        end
+
         local lang_tree, err1 = ts.get_parser(nil, nil, { error = false })
         if not lang_tree then
             vim.notify(err1, vim.log.levels.ERROR)
@@ -872,19 +879,25 @@ M.extract_func = function(buf, region_type)
             end
         ):totable()
 
+        local indent_width = vim.bo[buf].shiftwidth > 0
+                and vim.bo[buf].shiftwidth
+            or vim.bo[buf].tabstop
         local body = table.concat(lines, "\n")
-        local fn_name = input({ prompt = "Function name: " })
+        local body_indent ---@type integer
+        body, body_indent = vim.text.indent(1 * indent_width, body)
         local function_definition = code_generation.function_declaration[lang]({
             args = args,
             body = body,
             name = fn_name,
             return_values = return_values,
+            indent_width = indent_width,
         }) .. "\n\n"
         local function_call = code_generation.function_call[lang]({
             args = args,
             name = fn_name,
             return_values = return_values,
         })
+        function_call = vim.text.indent(body_indent, function_call)
 
         api.nvim_buf_set_text(
             buf,
