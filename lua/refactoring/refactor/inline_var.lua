@@ -1,3 +1,4 @@
+local contains = require("refactoring.range").contains
 local iter = vim.iter
 local ts = vim.treesitter
 local api = vim.api
@@ -13,6 +14,7 @@ local M = {}
 ---@field col integer
 ---@field end_col integer
 ---@field text string
+---@field kind string?
 
 ---@type fun(): refactor.QfItem[]
 local get_definitions = async.wrap(1, function(cb)
@@ -33,21 +35,6 @@ local get_references = async.wrap(1, function(cb)
         end,
     })
 end)
-
----@param range Range4
----@param point Range2
-local function contains(range, point)
-    if point[1] < range[1] or point[1] > range[3] then
-        return false
-    end
-    if point[1] == range[1] and point[2] < range[2] then
-        return false
-    end
-    if point[1] == range[3] and point[2] > range[4] then
-        return false
-    end
-    return true
-end
 
 ---@class refactor.VariableMatchInfo
 ---@field identifier TSNode[]

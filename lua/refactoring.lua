@@ -20,10 +20,7 @@ local last_config ---@type refactor.Config
 
 ---@param type "line" | "char" | "block"
 function M.refactor_operatorfunc(type)
-    local region_type = type == "line" and "V"
-        or type == "char" and "v"
-        or type == "block" and ""
-        or nil
+    local region_type = type == "line" and "V" or type == "char" and "v" or ""
     last_refactor(api.nvim_get_current_buf(), region_type, last_config)
 end
 
