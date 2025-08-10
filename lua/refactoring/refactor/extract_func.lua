@@ -644,6 +644,7 @@ M.extract_func = function(buf, region_type)
         end
         local reference_nodes = {} ---@type TSNode[]
         local outputs = {} ---@type refactor.Output[]
+        local scopes = {} ---@type TSNode[]
         for _, tree in ipairs(nested_lang_tree:trees()) do
             for _, match in query:iter_matches(tree:root(), buf) do
                 local output ---@type table|refactor.Output|nil
@@ -652,6 +653,7 @@ M.extract_func = function(buf, region_type)
                     local is_identifier = name == "reference.identifier"
                     local is_output_function = name == "output.function"
                     local is_output_comment = name == "output.comment"
+                    local is_scope = name == "scope"
                     if is_identifier then
                         for _, node in ipairs(nodes) do
                             table.insert(reference_nodes, node)
@@ -662,6 +664,10 @@ M.extract_func = function(buf, region_type)
                     elseif is_output_function then
                         output = output or {}
                         output.fn = nodes[1]
+                    elseif is_scope then
+                        for _, node in ipairs(nodes) do
+                            table.insert(scopes, node)
+                        end
                     end
                 end
                 if output then
@@ -791,17 +797,67 @@ M.extract_func = function(buf, region_type)
                 end
             )
             :totable()
+
+        -- TODO: maybe check that all the treesitter captures are not empty(?
+        ---@type TSNode[]
+        local scopes_for_range = iter(scopes):filter(
+            ---@param s TSNode
+            function(s)
+                local scope_range = { s:range() }
+                return contains(
+                    scope_range,
+                    { extract_range[1], extract_range[2] }
+                ) and contains(
+                    scope_range,
+                    { extract_range[3], extract_range[4] }
+                )
+            end
+        ):totable()
         ---@type refactor.QfItem
-        local declarations_above_output_range = iter(declarations)
+        local declarations_before_output_range = iter(declarations)
             :filter(
-                ---@param s refactor.QfItem
-                function(s)
-                    local start_symbol = { s.lnum - 1, s.col - 1 }
-                    local end_symbol = { s.end_lnum - 1, s.end_col - 1 }
+                ---@param d refactor.QfItem
+                function(d)
+                    local start_symbol = { d.lnum - 1, d.col - 1 }
+                    local end_symbol = { d.end_lnum - 1, d.end_col - 1 }
+
+                    ---@type TSNode|nil
+                    local declaration_scope = iter(scopes):filter(
+                        ---@param s TSNode
+                        function(s)
+                            local scope_range = { s:range() }
+                            return contains(scope_range, start_symbol)
+                                and contains(scope_range, end_symbol)
+                        end
+                    ):fold(
+                        nil,
+                        ---@param acc nil|TSNode
+                        ---@param s TSNode
+                        function(acc, s)
+                            if not acc then
+                                return s
+                            end
+                            if s:byte_length() < acc:byte_length() then
+                                return s
+                            end
+                            return acc
+                        end
+                    )
+
+                    local is_in_scope = declaration_scope
+                        and iter(scopes_for_range):find(
+                            ---@param s TSNode
+                            function(s)
+                                return s:equal(declaration_scope)
+                            end
+                        )
+
                     local start_output = { output_range[1], output_range[2] }
                     local compare_start = compare(start_symbol, start_output)
                     local compare_end = compare(end_symbol, start_output)
-                    return compare_start ~= 1 and compare_end ~= 1
+                    return compare_start ~= 1
+                        and compare_end ~= 1
+                        and is_in_scope
                 end
             )
             :map(
@@ -812,16 +868,50 @@ M.extract_func = function(buf, region_type)
             )
             :totable()
         ---@type refactor.QfItem
-        local declarations_above_range = iter(declarations)
+        local declarations_before_range = iter(declarations)
             :filter(
-                ---@param s refactor.QfItem
-                function(s)
-                    local start_symbol = { s.lnum - 1, s.col - 1 }
-                    local end_symbol = { s.end_lnum - 1, s.end_col - 1 }
+                ---@param d refactor.QfItem
+                function(d)
                     local start_extract = { extract_range[1], extract_range[2] }
+                    local end_extract = { extract_range[3], extract_range[4] }
+
+                    ---@type TSNode|nil
+                    local declaration_scope = iter(scopes):filter(
+                        ---@param s TSNode
+                        function(s)
+                            local scope_range = { s:range() }
+                            return contains(scope_range, start_extract)
+                                and contains(scope_range, end_extract)
+                        end
+                    ):fold(
+                        nil,
+                        ---@param acc nil|TSNode
+                        ---@param s TSNode
+                        function(acc, s)
+                            if not acc then
+                                return s
+                            end
+                            if s:byte_length() < acc:byte_length() then
+                                return s
+                            end
+                            return acc
+                        end
+                    )
+                    local is_in_scope = declaration_scope
+                        and iter(scopes_for_range):find(
+                            ---@param s TSNode
+                            function(s)
+                                return s:equal(declaration_scope)
+                            end
+                        )
+
+                    local start_symbol = { d.lnum - 1, d.col - 1 }
+                    local end_symbol = { d.end_lnum - 1, d.end_col - 1 }
                     local compare_start = compare(start_symbol, start_extract)
                     local compare_end = compare(end_symbol, start_extract)
-                    return compare_start ~= 1 and compare_end ~= 1
+                    return compare_start ~= 1
+                        and compare_end ~= 1
+                        and is_in_scope
                 end
             )
             :map(
@@ -836,8 +926,11 @@ M.extract_func = function(buf, region_type)
             ---@param r string
             function(r)
                 return not vim.tbl_contains(declarations_inside_range, r)
-                    and not vim.tbl_contains(declarations_above_output_range, r)
-                    and vim.tbl_contains(declarations_above_range, r)
+                    and not vim.tbl_contains(
+                        declarations_before_output_range,
+                        r
+                    )
+                    and vim.tbl_contains(declarations_before_range, r)
             end
         ):totable()
 

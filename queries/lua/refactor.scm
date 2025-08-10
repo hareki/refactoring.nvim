@@ -53,3 +53,14 @@
 ((comment)* @output.comment
   .
   (function_declaration) @output.function)
+
+[
+  (chunk)
+  (do_statement)
+  (while_statement)
+  (repeat_statement)
+  (if_statement)
+  (for_statement)
+  (function_declaration)
+  (function_definition)
+] @scope
