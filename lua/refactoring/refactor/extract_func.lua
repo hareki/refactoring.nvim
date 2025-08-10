@@ -588,48 +588,6 @@ end]]):format(
     },
 }
 
----@type {[string]: string[]}
-local globals = {
-    lua = {
-        "dofile",
-        "next",
-        "print",
-        "tonumber",
-        "tostring",
-        "type",
-        "error",
-        "collectgarbage",
-        "getfenv",
-        "getmetatable",
-        "setmetatable",
-        "ipairs",
-        "pairs",
-        "loadfile",
-        "loadstring",
-        "module",
-        "package",
-        "pcall",
-        "xpcall",
-        "rawequal",
-        "rawget",
-        "rawset",
-        "require",
-        "select",
-        "setfenv",
-        "unpack",
-
-        "debug",
-        "os",
-        "coroutine",
-        "math",
-        "io",
-        "string",
-        "table",
-
-        "vim",
-    },
-}
-
 ---@class refactor.Output
 ---@field comment TSNode[]?
 ---@field fn TSNode
@@ -808,7 +766,7 @@ M.extract_func = function(buf, region_type)
 
         local declarations = get_symbols()
         ---@type refactor.QfItem
-        local declarations_inside_region = iter(declarations)
+        local declarations_inside_range = iter(declarations)
             :filter(
                 ---@param s refactor.QfItem
                 function(s)
@@ -827,7 +785,7 @@ M.extract_func = function(buf, region_type)
             )
             :totable()
         ---@type refactor.QfItem
-        local declarations_above_output_region = iter(declarations)
+        local declarations_above_output_range = iter(declarations)
             :filter(
                 ---@param s refactor.QfItem
                 function(s)
@@ -846,16 +804,33 @@ M.extract_func = function(buf, region_type)
                 end
             )
             :totable()
+        ---@type refactor.QfItem
+        local declarations_above_range = iter(declarations)
+            :filter(
+                ---@param s refactor.QfItem
+                function(s)
+                    local start_symbol = { s.lnum - 1, s.col - 1 }
+                    local end_symbol = { s.end_lnum - 1, s.end_col - 1 }
+                    local start_extract = { extract_range[1], extract_range[2] }
+                    local compare_start = compare(start_symbol, start_extract)
+                    local compare_end = compare(end_symbol, start_extract)
+                    return compare_start ~= 1 and compare_end ~= 1
+                end
+            )
+            :map(
+                ---@param s refactor.QfItem
+                function(s)
+                    return s.text:match("^%[[^%]]+%] (.*)$")
+                end
+            )
+            :totable()
 
         local args = iter(references_inside_region):filter(
             ---@param r string
             function(r)
-                return not vim.tbl_contains(declarations_inside_region, r)
-                    and not vim.tbl_contains(
-                        declarations_above_output_region,
-                        r
-                    )
-                    and not vim.tbl_contains(globals[lang], r)
+                return not vim.tbl_contains(declarations_inside_range, r)
+                    and not vim.tbl_contains(declarations_above_output_range, r)
+                    and vim.tbl_contains(declarations_above_range, r)
             end
         ):totable()
 
@@ -893,7 +868,7 @@ M.extract_func = function(buf, region_type)
         local return_values = iter(references_after_region):filter(
             ---@param r string
             function(r)
-                return vim.tbl_contains(declarations_inside_region, r)
+                return vim.tbl_contains(declarations_inside_range, r)
             end
         ):totable()
 
