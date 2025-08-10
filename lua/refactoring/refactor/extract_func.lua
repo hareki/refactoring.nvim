@@ -555,21 +555,35 @@ local code_generation = {
     function_declaration = {
         lua = function(opts)
             local args = table.concat(opts.args, ", ")
-            local return_values = table.concat(opts.return_values, ",")
+
             return ([[
 local function %s(%s)
-%s
-
-  return %s
-end]]):format(opts.name, args, opts.body, return_values)
+%s%s
+end]]):format(
+                opts.name,
+                args,
+                opts.body,
+                not vim.tbl_isempty(opts.return_values)
+                        and ("\nreturn %s\n"):format(
+                            table.concat(opts.return_values, ",")
+                        )
+                    or ""
+            )
         end,
     },
     function_call = {
         lua = function(opts)
             local args = table.concat(opts.args, ", ")
-            local return_values = table.concat(opts.return_values, ",")
-            return ([[
-local %s = %s(%s)]]):format(return_values, opts.name, args)
+
+            return ("%s%s(%s)"):format(
+                not vim.tbl_isempty(opts.return_values)
+                        and ("local %s ="):format(
+                            table.concat(opts.return_values, ",")
+                        )
+                    or "",
+                opts.name,
+                args
+            )
         end,
     },
 }
