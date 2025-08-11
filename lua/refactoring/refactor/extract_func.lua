@@ -164,6 +164,7 @@ local function get_output_node(nested_lang_tree, query, buf, extract_range)
     return selected_output_node
 end
 
+---@param declarations refactor.QfItem
 ---@param extract_range Range4
 ---@param buf integer
 ---@param output_range Range4
@@ -173,6 +174,7 @@ end
 ---@param nested_lang_tree vim.treesitter.LanguageTree
 ---@param query vim.treesitter.Query
 local function extract_func(
+    declarations,
     extract_range,
     buf,
     output_range,
@@ -234,7 +236,6 @@ local function extract_func(
         )
         :totable()
 
-    local declarations = get_symbols()
     ---@type refactor.QfItem
     local declarations_inside_range = iter(declarations)
         :filter(
@@ -512,8 +513,6 @@ local function ts_parse(buf, extract_range)
 end
 
 -- TODO: support all languages
--- TODO: `extract_to_file`
--- TODO: when using `extract_to_file` maybe also generate the import logic
 -- TODO: remove `buf` from all calls after the rewrite is finished
 ---@param buf integer
 ---@param region_type 'v' | 'V' | ''
@@ -542,7 +541,9 @@ M.extract_func = function(buf, region_type)
         end
         local output_range = { output_node:range() }
 
+        local declarations = get_symbols()
         extract_func(
+            declarations,
             extract_range,
             buf,
             output_range,
@@ -556,6 +557,7 @@ M.extract_func = function(buf, region_type)
     task:raise_on_error()
 end
 
+-- TODO: maybe also generate the import logic(?
 ---@param buf integer
 ---@param region_type 'v' | 'V' | ''
 M.extract_func_to_file = function(buf, region_type)
@@ -581,16 +583,15 @@ M.extract_func_to_file = function(buf, region_type)
             return
         end
 
+        -- NOTE: `lua_ls` sends a ContentModified error if `out_buf` is created
+        -- before this. That makes the callback of `get_symbols` never be
+        -- called. So, we call it before creating `out_buf`
+        local declarations = get_symbols()
+
         local out_buf = vim.fn.bufadd(file_name)
         if not api.nvim_buf_is_loaded(out_buf) then
             vim.fn.bufload(out_buf)
         end
-        -- TODO: for some reason theres a content modified error in here if the
-        -- function is called after creating the above buffer within a certain
-        -- timming (specifically, when the buffer is loaded)
-        get_symbols()
-        vim.bo[out_buf].buflisted = true
-
         local out_nested_lang_tree = ts_parse(out_buf, extract_range)
         if not out_nested_lang_tree then
             return
@@ -601,6 +602,7 @@ M.extract_func_to_file = function(buf, region_type)
             or { 0, 0, 0, 0 }
 
         extract_func(
+            declarations,
             extract_range,
             buf,
             output_range,
