@@ -7,7 +7,7 @@ local inline_var = require("refactoring.refactor.inline_var")
 local M = {}
 
 M.extract_func = extract_func.extract_func
-M.extract_to_file = extract_func.extract_to_file
+M.extract_func_to_file = extract_func.extract_func_to_file
 M.inline_func = inline_func.inline_func
 M.extract_var = extract_var.extract_var
 M.inline_var = inline_var.inline_var
@@ -21,7 +21,7 @@ M.refactor_names = {
     ["Inline Variable"] = "inline_var",
     ["Extract Variable"] = "extract_var",
     ["Extract Function"] = "extract_func",
-    ["Extract Function To File"] = "extract_to_file",
+    ["Extract Function To File"] = "extract_func_to_file",
     ["Inline Function"] = "inline_func",
 }
 
