@@ -72,6 +72,34 @@ end]]):format(
                     or ""
             )
         end,
+        c_sharp = function(opts)
+            local return_type = #opts.return_values == 1 and "P"
+                or #opts.return_values == 0 and "void"
+                or ("(%s)"):format(iter(opts.return_values):map(function(r)
+                    return "P"
+                end):join(", "))
+            local return_statement = #opts.return_values == 1
+                    and ("\n\nreturn %s"):format(opts.return_values[1])
+                or #opts.return_values == 0 and ""
+                or ("\n\nreturn (%s)"):format(
+                    iter(opts.return_values):map(function(r)
+                        return "P"
+                    end):join(", ")
+                )
+
+            return ([[
+public static %s %s(%s) {
+%s%s
+}]]):format(
+                return_type,
+                opts.name,
+                iter(opts.args):map(function(a)
+                    return "P " .. a
+                end):join(", "),
+                opts.body,
+                return_statement
+            )
+        end,
     },
     function_call = {
         lua = function(opts)
@@ -98,6 +126,16 @@ end]]):format(
                 table.concat(opts.args, ", ")
             )
         end,
+        c_sharp = function(opts)
+            return ("%s%s(%s);"):format(
+                #opts.return_values == 1
+                        and ("var %s = "):format(opts.return_values[1])
+                    or #opts.return_values == 0 and ""
+                    or "var out",
+                opts.name,
+                table.concat(opts.args, ", ")
+            )
+        end,
     },
 }
 code_generation.function_declaration.cpp =
@@ -107,6 +145,7 @@ code_generation.function_call.cpp = code_generation.function_call.c
 ---@class refactor.Output
 ---@field comment TSNode[]?
 ---@field fn TSNode
+---@field top_level TSNode?
 
 ---@param nested_lang_tree vim.treesitter.LanguageTree
 ---@param query vim.treesitter.Query
@@ -122,12 +161,16 @@ local function get_output_node(nested_lang_tree, query, buf, extract_range)
                 local name = query.captures[capture_id]
                 local is_output_function = name == "output.function"
                 local is_output_comment = name == "output.comment"
+                local is_output_top_level = "output.top_level"
                 if is_output_comment then
                     output = output or {}
                     output.comment = nodes
                 elseif is_output_function then
                     output = output or {}
                     output.fn = nodes[1]
+                elseif is_output_top_level then
+                    output = output or {}
+                    output.top_level = nodes[1]
                 end
             end
             if output then
@@ -141,7 +184,8 @@ local function get_output_node(nested_lang_tree, query, buf, extract_range)
         :filter(
             ---@param o refactor.Output
             function(o)
-                local parent = o.fn:parent()
+                local top_level = o.top_level or o.fn
+                local parent = top_level:parent()
                 if not parent then
                     return false
                 end
@@ -567,6 +611,7 @@ M.extract_func = function(buf, region_type)
 
         local output_node =
             get_output_node(nested_lang_tree, query, buf, extract_range)
+        -- TODO: default to some range (current location?) if no `output_node` found
         if not output_node then
             vim.notify(
                 "Couldn't find an output region in which to extract the function"
@@ -575,7 +620,7 @@ M.extract_func = function(buf, region_type)
         end
         local output_range = { output_node:range() }
 
-        -- TODO: clangd doesn't return symbols for local variables. So,
+        -- TODO: clangd and roslyn don't return symbols for local variables. So,
         -- fallback to treesitter somehow
         local declarations = get_symbols()
         extract_func(

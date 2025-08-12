@@ -40,4 +40,4 @@
   (function_definition)
   (compound_statement)
   (struct_specifier)
-] @local.scope
+] @scope
