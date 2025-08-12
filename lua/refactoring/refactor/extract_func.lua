@@ -100,6 +100,9 @@ end]]):format(
         end,
     },
 }
+code_generation.function_declaration.cpp =
+    code_generation.function_declaration.c
+code_generation.function_call.cpp = code_generation.function_call.c
 
 ---@class refactor.Output
 ---@field comment TSNode[]?
