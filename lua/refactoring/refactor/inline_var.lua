@@ -175,6 +175,7 @@ function M.inline_var()
             )
             return
         end
+        -- TODO: this isn't working in C
         local has_multiple_values = #definition_match.identifier > 1
 
         local declaration_node ---@type TSNode?

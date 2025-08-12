@@ -50,19 +50,52 @@ end]]):format(
                     or ""
             )
         end,
+        -- TODO: handle multiple return values
+        c = function(opts)
+            -- TODO: infer types somehow
+
+            local has_return_value = #opts.return_values == 1
+            local return_type = has_return_value and "void" or "P"
+            local args = iter(opts.args):map(function(a)
+                return "P " .. a
+            end):join(", ")
+            return ([[
+%s %s(%s) {
+%s%s
+}]]):format(
+                return_type,
+                opts.name,
+                args,
+                opts.body,
+                has_return_value
+                        and ("\n\nreturn %s"):format(opts.return_values[1])
+                    or ""
+            )
+        end,
     },
     function_call = {
         lua = function(opts)
             local args = table.concat(opts.args, ", ")
 
+            local has_return_values = not vim.tbl_isempty(opts.return_values)
             return ("%s%s(%s)"):format(
-                not vim.tbl_isempty(opts.return_values)
+                has_return_values
                         and ("local %s = "):format(
                             table.concat(opts.return_values, ",")
                         )
                     or "",
                 opts.name,
                 args
+            )
+        end,
+        -- TODO: handle mutiple return values
+        c = function(opts)
+            local has_return_value = #opts.return_values == 1
+            return ("%s%s(%s);"):format(
+                has_return_value and ("P %s = "):format(opts.return_values[1])
+                    or "",
+                opts.name,
+                table.concat(opts.args, ", ")
             )
         end,
     },
@@ -459,8 +492,6 @@ local function extract_func(
         vim.split(function_definition, "\n")
     )
 
-    -- TODO: maybe use LSP to infer the types of parameters for code
-    -- generation if possible(?
     -- TODO: maybe use snippets to expand the generated function and
     -- navigate through type placeholders?
 end
@@ -541,6 +572,8 @@ M.extract_func = function(buf, region_type)
         end
         local output_range = { output_node:range() }
 
+        -- TODO: clangd doesn't return symbols for local variables. So,
+        -- fallback to treesitter somehow
         local declarations = get_symbols()
         extract_func(
             declarations,
