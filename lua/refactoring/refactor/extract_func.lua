@@ -23,8 +23,9 @@ local input = async.wrap(2, function(opts, cb)
 end)
 
 ---@class refactor.code_generation
----@field function_declaration {[string]: fun(opts: {args: string[], name: string, body: string, return_values: string[], indent_width: integer}):string}
----@field function_call {[string]: fun(opts: {args: string[], name: string, return_values: string[]}):string}
+---@field function_declaration {[string]: fun(opts: {args: string[], name: string, body: string, method: boolean?, return_values: striing[]}): string}
+---@field function_call {[string]: fun(opts: {args: string[], name: string, return_values: string[], method: boolean?}): string}
+---@field return_statement {[string]: fun(opts: {return_values: string[]}): string}
 
 -- TODO: move into it's own file or something(?
 ---@type refactor.code_generation
@@ -35,42 +36,20 @@ local code_generation = {
 
             return ([[
 local function %s(%s)
-%s%s
-end]]):format(
-                opts.name,
-                args,
-                opts.body,
-                not vim.tbl_isempty(opts.return_values)
-                        and vim.text.indent(
-                            1 * opts.indent_width,
-                            ("\n\nreturn %s"):format(
-                                table.concat(opts.return_values, ",")
-                            )
-                        )
-                    or ""
-            )
+%s
+end]]):format(opts.name, args, opts.body)
         end,
         -- TODO: handle multiple return values
         c = function(opts)
             -- TODO: infer types somehow
-
-            local has_return_value = #opts.return_values == 1
-            local return_type = has_return_value and "void" or "P"
+            local return_type = #opts.return_values > 0 and "void" or "P"
             local args = iter(opts.args):map(function(a)
                 return "P " .. a
             end):join(", ")
             return ([[
 %s %s(%s) {
-%s%s
-}]]):format(
-                return_type,
-                opts.name,
-                args,
-                opts.body,
-                has_return_value
-                        and ("\n\nreturn %s"):format(opts.return_values[1])
-                    or ""
-            )
+%s
+}]]):format(return_type, opts.name, args, opts.body)
         end,
         c_sharp = function(opts)
             local return_type = #opts.return_values == 1 and "P"
@@ -78,26 +57,28 @@ end]]):format(
                 or ("(%s)"):format(iter(opts.return_values):map(function(r)
                     return "P"
                 end):join(", "))
-            local return_statement = #opts.return_values == 1
-                    and ("\n\nreturn %s"):format(opts.return_values[1])
-                or #opts.return_values == 0 and ""
-                or ("\n\nreturn (%s)"):format(
-                    iter(opts.return_values):map(function(r)
-                        return "P"
-                    end):join(", ")
-                )
 
             return ([[
 public static %s %s(%s) {
-%s%s
+%s
 }]]):format(
                 return_type,
                 opts.name,
                 iter(opts.args):map(function(a)
                     return "P " .. a
                 end):join(", "),
-                opts.body,
-                return_statement
+                opts.body
+            )
+        end,
+        javascript = function(opts)
+            return ([[
+%s%s(%s){
+%s
+}]]):format(
+                opts.method and "" or "function ",
+                opts.name,
+                table.concat(opts.args, ", "),
+                opts.body
             )
         end,
     },
@@ -136,22 +117,92 @@ public static %s %s(%s) {
                 table.concat(opts.args, ", ")
             )
         end,
+        javascript = function(opts)
+            return ("%s%s(%s)"):format(
+                #opts.return_values == 0 and ""
+                    or #opts.return_values == 1 and ("let %s = "):format(
+                        opts.return_values[1]
+                    )
+                    or ("let [%s]"):format(
+                        table.concat(opts.return_values, ", ")
+                    ),
+                opts.name,
+                table.concat(opts.args, ", ")
+            )
+        end,
+    },
+    return_statement = {
+        lua = function(opts)
+            return ("\n\nreturn %s"):format(
+                table.concat(opts.return_values, ",")
+            )
+        end,
+        c = function(opts)
+            if #opts.return_values > 1 then
+                return ""
+            end
+            return ("\n\nreturn %s"):format(opts.return_values[1])
+        end,
+        c_sharp = function(opts)
+            if #opts.return_values == 1 then
+                return ("\n\nreturn %s"):format(opts.return_values[1])
+            end
+            return ("\n\nreturn (%s)"):format(
+                table.concat(opts.return_values, ", ")
+            )
+        end,
+        javascript = function(opts)
+            if #opts.return_values == 1 then
+                return ("\n\nreturn %s"):format(opts.return_values[1])
+            end
+            return ("\n\nreturn [%s]"):format(
+                table.concat(opts.return_values, ", ")
+            )
+        end,
     },
 }
 code_generation.function_declaration.cpp =
     code_generation.function_declaration.c
 code_generation.function_call.cpp = code_generation.function_call.c
+code_generation.return_statement.cpp = code_generation.return_statement.c
+code_generation.function_declaration.typescript =
+    code_generation.function_declaration.javascript
+code_generation.function_call.typescript =
+    code_generation.function_call.javascript
+code_generation.return_statement.typescript =
+    code_generation.return_statement.javascript
+
+---@type {[string]: {fn: integer, method?: integer}}
+local parents_till_nil = {
+    lua = {
+        fn = 2,
+    },
+    c = {
+        fn = 2,
+    },
+    c_sharp = {
+        fn = 2,
+        method = 4,
+    },
+    javascript = {
+        fn = 2,
+        method = 4,
+    },
+}
+parents_till_nil.cpp = parents_till_nil.c
+parents_till_nil.typescript = parents_till_nil.javascript
 
 ---@class refactor.Output
 ---@field comment TSNode[]?
 ---@field fn TSNode
----@field top_level TSNode?
+---@field method boolean?
 
 ---@param nested_lang_tree vim.treesitter.LanguageTree
 ---@param query vim.treesitter.Query
 ---@param buf integer
 ---@param extract_range Range4
 ---@return TSNode?
+---@return {method: boolean}?
 local function get_output_node(nested_lang_tree, query, buf, extract_range)
     local outputs = {} ---@type refactor.Output[]
     for _, tree in ipairs(nested_lang_tree:trees()) do
@@ -161,16 +212,17 @@ local function get_output_node(nested_lang_tree, query, buf, extract_range)
                 local name = query.captures[capture_id]
                 local is_output_function = name == "output.function"
                 local is_output_comment = name == "output.comment"
-                local is_output_top_level = "output.top_level"
+                local is_output_method = name == "output.method"
                 if is_output_comment then
                     output = output or {}
                     output.comment = nodes
                 elseif is_output_function then
                     output = output or {}
                     output.fn = nodes[1]
-                elseif is_output_top_level then
+                elseif is_output_method then
                     output = output or {}
-                    output.top_level = nodes[1]
+                    output.fn = nodes[1]
+                    output.method = true
                 end
             end
             if output then
@@ -179,30 +231,30 @@ local function get_output_node(nested_lang_tree, query, buf, extract_range)
         end
     end
 
-    ---@type TSNode|nil
-    local selected_output_node = iter(outputs)
+    local lang = nested_lang_tree:lang()
+    ---@type refactor.Output|nil
+    local selected_output = iter(outputs)
         :filter(
             ---@param o refactor.Output
             function(o)
-                local top_level = o.top_level or o.fn
-                local parent = top_level:parent()
-                if not parent then
-                    return false
+                local expected = o.method and parents_till_nil[lang].method
+                    or parents_till_nil[lang].fn
+
+                local current = o.fn ---@type TSNode|nil
+                local p_till_nil = 0
+                while current do
+                    current = current:parent()
+                    p_till_nil = p_till_nil + 1
                 end
-                local grandparent = parent:parent()
-                return grandparent == nil
+
+                return p_till_nil == expected
             end
         )
-        :map(
+        :filter(
             ---@param o refactor.Output
             function(o)
                 -- TODO: add decorators for languages like python
-                return o.comment and o.comment[1] or o.fn
-            end
-        )
-        :filter(
-            ---@param n TSNode
-            function(n)
+                local n = o.comment and o.comment[1] or o.fn
                 local start_row, start_col = n:start()
                 return compare(
                     { start_row, start_col },
@@ -212,14 +264,18 @@ local function get_output_node(nested_lang_tree, query, buf, extract_range)
         )
         :fold(
             nil,
-            ---@param acc TSNode|nil
-            ---@param n TSNode
-            function(acc, n)
+            ---@param acc refactor.Output|nil
+            ---@param o refactor.Output
+            function(acc, o)
                 if not acc then
-                    return n
+                    return o
                 end
+                -- TODO: add decorators for languages like python
+                local n = o.comment and o.comment[1] or o.fn
                 local n_start_row, n_start_col = n:start()
-                local acc_start_row, acc_start_col = acc:start()
+                -- TODO: add decorators for languages like python
+                local acc_n = acc.comment and acc.comment[1] or acc.fn
+                local acc_start_row, acc_start_col = acc_n:start()
 
                 local o_row_distance = math.abs(n_start_row - extract_range[1])
                 local acc_row_distance =
@@ -237,11 +293,18 @@ local function get_output_node(nested_lang_tree, query, buf, extract_range)
                 then
                     return acc
                 end
-                return n
+                return o
             end
         )
 
-    return selected_output_node
+    if not selected_output then
+        return
+    end
+
+    -- TODO: add decorators for languages like python
+    return selected_output.comment and selected_output.comment[1]
+        or selected_output.fn,
+        { method = selected_output.method }
 end
 
 ---@param declarations refactor.QfItem
@@ -253,6 +316,7 @@ end
 ---@param fn_name string
 ---@param nested_lang_tree vim.treesitter.LanguageTree
 ---@param query vim.treesitter.Query
+---@param opts {method: boolean?}
 local function extract_func(
     declarations,
     extract_range,
@@ -262,7 +326,8 @@ local function extract_func(
     out_buf,
     fn_name,
     nested_lang_tree,
-    query
+    query,
+    opts
 )
     local reference_nodes = {} ---@type TSNode[]
     local scopes = {} ---@type TSNode[]
@@ -454,6 +519,11 @@ local function extract_func(
         )
         :totable()
 
+    -- __AUTO_GENERATED_PRINT_VAR_START__
+    print(
+        [==[extract_func#(anon) declarations_before_range:]==],
+        vim.inspect(declarations_before_range)
+    ) -- __AUTO_GENERATED_PRINT_VAR_END__
     local args = iter(references_inside_region):filter(
         ---@param r string
         function(r)
@@ -501,23 +571,35 @@ local function extract_func(
         end
     ):totable()
 
-    local indent_width = vim.bo[buf].shiftwidth > 0 and vim.bo[buf].shiftwidth
-        or vim.bo[buf].tabstop
     local body = table.concat(lines, "\n")
     local body_indent ---@type integer
-    body, body_indent = vim.text.indent(1 * indent_width, body)
+    body, body_indent = vim.text.indent(0, body)
     local lang = nested_lang_tree:lang()
+    if #return_values > 0 then
+        local return_statement =
+            code_generation.function_declaration[lang]({ return_values })
+        body = body .. return_statement
+    end
+    local indent_width = vim.bo[buf].shiftwidth > 0 and vim.bo[buf].shiftwidth
+        or vim.bo[buf].tabstop
+    body = vim.text.indent(1 * indent_width, body)
     local function_definition = code_generation.function_declaration[lang]({
         args = args,
         body = body,
         name = fn_name,
         return_values = return_values,
         indent_width = indent_width,
+        method = opts.method,
     }) .. "\n\n"
+    function_definition = vim.text.indent(
+        (opts.method and 1 or 0) * indent_width,
+        function_definition
+    )
     local function_call = code_generation.function_call[lang]({
         args = args,
         name = fn_name,
         return_values = return_values,
+        method = opts.method,
     })
     function_call = vim.text.indent(body_indent, function_call)
 
@@ -609,7 +691,7 @@ M.extract_func = function(buf, region_type)
             return
         end
 
-        local output_node =
+        local output_node, opts =
             get_output_node(nested_lang_tree, query, buf, extract_range)
         -- TODO: default to some range (current location?) if no `output_node` found
         if not output_node then
@@ -632,7 +714,8 @@ M.extract_func = function(buf, region_type)
             buf,
             fn_name,
             nested_lang_tree,
-            query
+            query,
+            { method = opts and opts.method }
         )
     end)
     task:raise_on_error()
@@ -677,7 +760,7 @@ M.extract_func_to_file = function(buf, region_type)
         if not out_nested_lang_tree then
             return
         end
-        local output_node =
+        local output_node, opts =
             get_output_node(out_nested_lang_tree, query, out_buf, extract_range)
         local output_range = output_node and { output_node:range() }
             or { 0, 0, 0, 0 }
@@ -691,7 +774,8 @@ M.extract_func_to_file = function(buf, region_type)
             out_buf,
             fn_name,
             nested_lang_tree,
-            query
+            query,
+            { method = opts and opts.method }
         )
     end)
     task:raise_on_error()

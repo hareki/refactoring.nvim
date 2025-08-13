@@ -218,6 +218,7 @@ function M.inline_var()
                 if not api.nvim_buf_is_loaded(buf) then
                     vim.fn.bufload(buf)
                 end
+                -- TODO: sort all text edits from the bottom-up
                 api.nvim_buf_set_text(
                     buf,
                     reference.lnum - 1,
