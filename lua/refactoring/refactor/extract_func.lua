@@ -22,10 +22,28 @@ local input = async.wrap(2, function(opts, cb)
     vim.ui.input(opts, cb)
 end)
 
+---@class refactor.code_generation.function_declaration.opts
+---@field args string[]
+---@field name string
+---@field body string
+---@field return_values string[]
+---@field method boolean?
+---@field struct_var_name string?
+---@field struct_name string?
+
+---@class refactor.code_generation.function_call.opts
+---@field args string[]
+---@field name string
+---@field return_values string[]
+---@field method boolean?
+
+---@class refactor.code_generation.return_statement.opts
+---@field return_values string[]
+
 ---@class refactor.code_generation
----@field function_declaration {[string]: fun(opts: {args: string[], name: string, body: string, method: boolean?, return_values: striing[]}): string}
----@field function_call {[string]: fun(opts: {args: string[], name: string, return_values: string[], method: boolean?}): string}
----@field return_statement {[string]: fun(opts: {return_values: string[]}): string}
+---@field function_declaration {[string]: fun(opts: refactor.code_generation.function_declaration.opts): string}
+---@field function_call {[string]: fun(opts: refactor.code_generation.function_call.opts): string}
+---@field return_statement {[string]: fun(opts: refactor.code_generation.return_statement.opts): string}
 
 -- TODO: move into it's own file or something(?
 ---@type refactor.code_generation
@@ -39,17 +57,28 @@ local function %s(%s)
 %s
 end]]):format(opts.name, args, opts.body)
         end,
-        -- TODO: handle multiple return values
         c = function(opts)
             -- TODO: infer types somehow
-            local return_type = #opts.return_values > 0 and "void" or "P"
+            local return_type = #opts.return_values == 1 and "P" or "void"
             local args = iter(opts.args):map(function(a)
                 return "P " .. a
             end):join(", ")
+            local return_values = iter(opts.return_values):map(function(r)
+                return "P *" .. r
+            end):join(", ")
+            local in_n_out = args ~= ""
+                    and table.concat({ args, return_values }, ", ")
+                or return_values
+
             return ([[
 %s %s(%s) {
 %s
-}]]):format(return_type, opts.name, args, opts.body)
+}]]):format(
+                return_type,
+                opts.name,
+                #opts.return_values < 2 and args or in_n_out,
+                opts.body
+            )
         end,
         c_sharp = function(opts)
             local return_type = #opts.return_values == 1 and "P"
@@ -81,6 +110,27 @@ public static %s %s(%s) {
                 opts.body
             )
         end,
+        go = function(opts)
+            local args = iter(opts.args):map(function(a)
+                return a .. "P"
+            end):join(", ")
+            if opts.struct_name and opts.struct_var_name then
+                return ([[
+func (%s *%s) %s(%s) {
+%s
+}]]):format(
+                    opts.struct_var_name,
+                    opts.struct_name,
+                    opts.name,
+                    args,
+                    opts.body
+                )
+            end
+            return ([[
+func %s(%s) {
+%s
+}]]):format(opts.name, args, opts.body)
+        end,
     },
     function_call = {
         lua = function(opts)
@@ -99,35 +149,68 @@ public static %s %s(%s) {
         end,
         -- TODO: handle mutiple return values
         c = function(opts)
-            local has_return_value = #opts.return_values == 1
-            return ("%s%s(%s);"):format(
-                has_return_value and ("P %s = "):format(opts.return_values[1])
-                    or "",
-                opts.name,
-                table.concat(opts.args, ", ")
-            )
+            local args = table.concat(opts.args, ", ")
+            if #opts.return_values == 0 then
+                return ("%s(%s)"):format(opts.name, args)
+            end
+            if #opts.return_values == 1 then
+                return ("P %s = %s(%s)"):format(
+                    opts.return_values[1],
+                    opts.name,
+                    args
+                )
+            end
+            local return_values = iter(opts.return_values):map(function(r)
+                return "&" .. r
+            end):join(", ")
+            local in_n_out = args ~= ""
+                    and table.concat({ args, return_values }, ", ")
+                or return_values
+            return ("%s(%s)"):format(opts.name, in_n_out)
         end,
         c_sharp = function(opts)
-            return ("%s%s(%s);"):format(
-                #opts.return_values == 1
-                        and ("var %s = "):format(opts.return_values[1])
-                    or #opts.return_values == 0 and ""
-                    or "var out",
-                opts.name,
-                table.concat(opts.args, ", ")
-            )
+            local args = table.concat(opts.args, ", ")
+            if #opts.return_values == 0 then
+                return ("%s(%s)"):format(opts.name, args)
+            end
+            if #opts.return_values == 1 then
+                return ("var %s = %s(%s)"):format(
+                    opts.return_values[1],
+                    opts.name,
+                    args
+                )
+            end
+            return ("var out = %s(%s);"):format(opts.name, args)
         end,
         javascript = function(opts)
-            return ("%s%s(%s)"):format(
-                #opts.return_values == 0 and ""
-                    or #opts.return_values == 1 and ("let %s = "):format(
-                        opts.return_values[1]
-                    )
-                    or ("let [%s]"):format(
-                        table.concat(opts.return_values, ", ")
-                    ),
+            local args = table.concat(opts.args, ", ")
+            if #opts.return_values == 0 then
+                return ("%s(%s)"):format(opts.name, args)
+            end
+            if #opts.return_values == 1 then
+                return ("let %s = %s(%s)"):format(
+                    opts.return_values[1],
+                    opts.name,
+                    args
+                )
+            end
+            return ("let [%s] = %s(%s)"):format(
+                table.concat(opts.return_values, ", "),
                 opts.name,
-                table.concat(opts.args, ", ")
+                args
+            )
+        end,
+        -- TODO: account for structs. requires function name
+        go = function(opts)
+            local args = table.concat(opts.args, ", ")
+            if #opts.return_values == 0 then
+                return ("%s(%s)"):format(opts.name, args)
+            end
+
+            return ("var %s := %s(%s)"):format(
+                table.concat(opts.return_values, ", "),
+                opts.name,
+                args
             )
         end,
     },
@@ -156,6 +239,11 @@ public static %s %s(%s) {
                 return ("\n\nreturn %s"):format(opts.return_values[1])
             end
             return ("\n\nreturn [%s]"):format(
+                table.concat(opts.return_values, ", ")
+            )
+        end,
+        go = function(opts)
+            return ("\n\nreturn %s"):format(
                 table.concat(opts.return_values, ", ")
             )
         end,
@@ -188,6 +276,9 @@ local parents_till_nil = {
         fn = 2,
         method = 4,
     },
+    go = {
+        fn = 2,
+    },
 }
 parents_till_nil.cpp = parents_till_nil.c
 parents_till_nil.typescript = parents_till_nil.javascript
@@ -196,13 +287,15 @@ parents_till_nil.typescript = parents_till_nil.javascript
 ---@field comment TSNode[]?
 ---@field fn TSNode
 ---@field method boolean?
+---@field struct_name string?
+---@field struct_var_name string?
 
 ---@param nested_lang_tree vim.treesitter.LanguageTree
 ---@param query vim.treesitter.Query
 ---@param buf integer
 ---@param extract_range Range4
 ---@return TSNode?
----@return {method: boolean}?
+---@return {method: boolean?, struct_name: string?, struct_var_name: string?}?
 local function get_output_node(nested_lang_tree, query, buf, extract_range)
     local outputs = {} ---@type refactor.Output[]
     for _, tree in ipairs(nested_lang_tree:trees()) do
@@ -213,6 +306,9 @@ local function get_output_node(nested_lang_tree, query, buf, extract_range)
                 local is_output_function = name == "output.function"
                 local is_output_comment = name == "output.comment"
                 local is_output_method = name == "output.method"
+                local is_output_struct_name = name == "output.struct_name"
+                local is_output_struct_var_name = name
+                    == "output.struct_var_name"
                 if is_output_comment then
                     output = output or {}
                     output.comment = nodes
@@ -223,6 +319,12 @@ local function get_output_node(nested_lang_tree, query, buf, extract_range)
                     output = output or {}
                     output.fn = nodes[1]
                     output.method = true
+                elseif is_output_struct_name then
+                    output = output or {}
+                    output.struct_name = ts.get_node_text(nodes[1], buf)
+                elseif is_output_struct_var_name then
+                    output = output or {}
+                    output.struct_var_name = ts.get_node_text(nodes[1], buf)
                 end
             end
             if output then
@@ -304,7 +406,11 @@ local function get_output_node(nested_lang_tree, query, buf, extract_range)
     -- TODO: add decorators for languages like python
     return selected_output.comment and selected_output.comment[1]
         or selected_output.fn,
-        { method = selected_output.method }
+        {
+            method = selected_output.method,
+            struct_name = selected_output.struct_name,
+            struct_var_name = selected_output.struct_var_name,
+        }
 end
 
 ---@param declarations refactor.QfItem
@@ -316,7 +422,7 @@ end
 ---@param fn_name string
 ---@param nested_lang_tree vim.treesitter.LanguageTree
 ---@param query vim.treesitter.Query
----@param opts {method: boolean?}
+---@param opts {method: boolean?, struct_name: string?, struct_var_name: string?}
 local function extract_func(
     declarations,
     extract_range,
@@ -519,11 +625,6 @@ local function extract_func(
         )
         :totable()
 
-    -- __AUTO_GENERATED_PRINT_VAR_START__
-    print(
-        [==[extract_func#(anon) declarations_before_range:]==],
-        vim.inspect(declarations_before_range)
-    ) -- __AUTO_GENERATED_PRINT_VAR_END__
     local args = iter(references_inside_region):filter(
         ---@param r string
         function(r)
@@ -588,8 +689,9 @@ local function extract_func(
         body = body,
         name = fn_name,
         return_values = return_values,
-        indent_width = indent_width,
         method = opts.method,
+        struct_name = opts.struct_name,
+        struct_var_name = opts.struct_var_name,
     }) .. "\n\n"
     function_definition = vim.text.indent(
         (opts.method and 1 or 0) * indent_width,
@@ -702,7 +804,7 @@ M.extract_func = function(buf, region_type)
         end
         local output_range = { output_node:range() }
 
-        -- TODO: clangd and roslyn don't return symbols for local variables. So,
+        -- TODO: clangd, gopls and roslyn don't return symbols for local variables. So,
         -- fallback to treesitter somehow
         local declarations = get_symbols()
         extract_func(
@@ -715,7 +817,11 @@ M.extract_func = function(buf, region_type)
             fn_name,
             nested_lang_tree,
             query,
-            { method = opts and opts.method }
+            {
+                method = opts and opts.method,
+                struct_name = opts and opts.struct_name,
+                struct_var_name = opts and opts.struct_var_name,
+            }
         )
     end)
     task:raise_on_error()
@@ -775,7 +881,11 @@ M.extract_func_to_file = function(buf, region_type)
             fn_name,
             nested_lang_tree,
             query,
-            { method = opts and opts.method }
+            {
+                method = opts and opts.method,
+                struct_name = opts and opts.struct_name,
+                struct_var_name = opts and opts.struct_var_name,
+            }
         )
     end)
     task:raise_on_error()
