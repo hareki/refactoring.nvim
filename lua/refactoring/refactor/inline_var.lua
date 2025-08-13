@@ -67,16 +67,8 @@ function M.inline_var()
             async.run(get_definitions),
             async.run(get_references),
         })
-        local err3, definitions = unpack(results[1], 1, results[1].n) ---@type string?, refactor.QfItem[]
-        if err3 then
-            vim.notify(err3, vim.log.levels.ERROR)
-            return
-        end
-        local err4, references = unpack(results[2], 1, results[2].n) ---@type string?, refactor.QfItem[]
-        if err4 then
-            vim.notify(err4, vim.log.levels.ERROR)
-            return
-        end
+        local definitions = unpack(results[1]) ---@type string?, refactor.QfItem[]
+        local references = unpack(results[2]) ---@type string?, refactor.QfItem[]
         if #definitions > 1 then
             vim.notify(
                 "Symbol under cursor has multiple definitions. It can't be inlined",
