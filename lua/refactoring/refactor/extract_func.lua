@@ -576,16 +576,16 @@ local function extract_func(
         :filter(
             ---@param d refactor.QfItem
             function(d)
-                local start_extract = { extract_range[1], extract_range[2] }
-                local end_extract = { extract_range[3], extract_range[4] }
+                local start_symbol = { d.lnum - 1, d.col - 1 }
+                local end_symbol = { d.end_lnum - 1, d.end_col - 1 }
 
                 ---@type TSNode|nil
                 local declaration_scope = iter(scopes):filter(
                     ---@param s TSNode
                     function(s)
                         local scope_range = { s:range() }
-                        return contains(scope_range, start_extract)
-                            and contains(scope_range, end_extract)
+                        return contains(scope_range, start_symbol)
+                            and contains(scope_range, end_symbol)
                     end
                 ):fold(
                     nil,
@@ -609,8 +609,7 @@ local function extract_func(
                         end
                     )
 
-                local start_symbol = { d.lnum - 1, d.col - 1 }
-                local end_symbol = { d.end_lnum - 1, d.end_col - 1 }
+                local start_extract = { extract_range[1], extract_range[2] }
                 local compare_start = compare(start_symbol, start_extract)
                 local compare_end = compare(end_symbol, start_extract)
                 return compare_start ~= 1 and compare_end ~= 1 and is_in_scope
@@ -623,6 +622,11 @@ local function extract_func(
             end
         )
         :totable()
+    -- __AUTO_GENERATED_PRINT_VAR_START__
+    print(
+        [==[extract_func declarations_before_range:]==],
+        vim.inspect(declarations_before_range)
+    ) -- __AUTO_GENERATED_PRINT_VAR_END__
 
     local args = iter(references_inside_range):filter(
         ---@param r string
