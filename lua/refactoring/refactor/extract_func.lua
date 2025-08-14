@@ -677,8 +677,9 @@ local function extract_func(
     body, body_indent = vim.text.indent(0, body)
     local lang = nested_lang_tree:lang()
     if #return_values > 0 then
-        local return_statement =
-            code_generation.function_declaration[lang]({ return_values })
+        local return_statement = code_generation.return_statement[lang]({
+            return_values = return_values,
+        })
         body = body .. return_statement
     end
     local indent_width = vim.bo[buf].shiftwidth > 0 and vim.bo[buf].shiftwidth
