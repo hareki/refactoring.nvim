@@ -136,13 +136,12 @@ func %s(%s) {
         lua = function(opts)
             local args = table.concat(opts.args, ", ")
 
-            local has_return_values = not vim.tbl_isempty(opts.return_values)
-            return ("%s%s(%s)"):format(
-                has_return_values
-                        and ("local %s = "):format(
-                            table.concat(opts.return_values, ",")
-                        )
-                    or "",
+            if #opts.return_values == 0 then
+                return ("%s(%s)"):format(opts.name, args)
+            end
+
+            return ("local %s = %s(%s)"):format(
+                table.concat(opts.return_values, ","),
                 opts.name,
                 args
             )
@@ -668,7 +667,8 @@ local function extract_func(
     local return_values = iter(references_after_region):filter(
         ---@param r string
         function(r)
-            return vim.tbl_contains(declarations_inside_range, r)
+            -- TODO: maybe limit this to write references somehow
+            return vim.tbl_contains(references_inside_region, r)
         end
     ):totable()
 
