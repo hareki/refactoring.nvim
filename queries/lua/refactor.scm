@@ -17,6 +17,9 @@
   (expression_list
     value: (_) @variable.value)) @variable.declaration
 
+; TODO: maybe distinguisth between references and declarations(? that would
+; allow me to fallback to treesitter if there are no LSP results and to filter
+; references from declarations in extract_func after range
 (variable_list
   name: (identifier) @reference.identifier)
 

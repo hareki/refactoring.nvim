@@ -45,7 +45,6 @@ end)
 ---@field function_call {[string]: fun(opts: refactor.code_generation.function_call.opts): string}
 ---@field return_statement {[string]: fun(opts: refactor.code_generation.return_statement.opts): string}
 
--- TODO: move into it's own file or something(?
 ---@type refactor.code_generation
 local code_generation = {
     function_declaration = {
@@ -199,7 +198,6 @@ func %s(%s) {
                 args
             )
         end,
-        -- TODO: account for structs. requires function name
         go = function(opts)
             local args = table.concat(opts.args, ", ")
             if #opts.return_values == 0 then
@@ -694,11 +692,6 @@ local function extract_func(
             end
         )
         :totable()
-    -- __AUTO_GENERATED_PRINT_VAR_START__
-    print(
-        [==[extract_func references_after_range:]==],
-        vim.inspect(references_after_range)
-    ) -- __AUTO_GENERATED_PRINT_VAR_END__
     local return_values = iter(references_after_range):filter(
         ---@param r string
         function(r)
@@ -750,13 +743,20 @@ local function extract_func(
         vim.split(function_call, "\n")
     )
 
+    local function_definition_lines = vim.split(function_definition, "\n")
+    if opts.method then
+        -- NOTE: treesitter nodes don't include whitespace. So, output region's
+        -- first line it's (probably) already indented
+        function_definition_lines[1] =
+            vim.text.indent(0, function_definition_lines[1])
+    end
     api.nvim_buf_set_text(
         out_buf,
         output_range[1],
         output_range[2],
         output_range[1],
         output_range[2],
-        vim.split(function_definition, "\n")
+        function_definition_lines
     )
 
     -- TODO: maybe use snippets to expand the generated function and
@@ -832,6 +832,8 @@ M.extract_func = function(buf, range_type)
         local output_node, opts =
             get_output_node(nested_lang_tree, query, buf, extract_range)
         -- TODO: default to some range (current location?) if no `output_node` found
+        -- TODO: define treesitter fallback captures (like root node or current
+        -- statement) to use as default location
         if not output_node then
             vim.notify(
                 "Couldn't find an output range in which to extract the function"
