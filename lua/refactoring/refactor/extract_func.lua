@@ -622,11 +622,6 @@ local function extract_func(
             end
         )
         :totable()
-    -- __AUTO_GENERATED_PRINT_VAR_START__
-    print(
-        [==[extract_func declarations_before_range:]==],
-        vim.inspect(declarations_before_range)
-    ) -- __AUTO_GENERATED_PRINT_VAR_END__
 
     local args = iter(references_inside_range):filter(
         ---@param r string
@@ -645,10 +640,41 @@ local function extract_func(
                 local start_row, start_col, end_row, end_col = r:range()
                 local start_node = { start_row, start_col }
                 local end_node = { end_row, end_col }
+
+                ---@type TSNode|nil
+                local declaration_scope = iter(scopes):filter(
+                    ---@param s TSNode
+                    function(s)
+                        local scope_range = { s:range() }
+                        return contains(scope_range, start_node)
+                            and contains(scope_range, end_node)
+                    end
+                ):fold(
+                    nil,
+                    ---@param acc nil|TSNode
+                    ---@param s TSNode
+                    function(acc, s)
+                        if not acc then
+                            return s
+                        end
+                        if s:byte_length() < acc:byte_length() then
+                            return s
+                        end
+                        return acc
+                    end
+                )
+                local is_in_scope = declaration_scope
+                    and iter(scopes_for_range):find(
+                        ---@param s TSNode
+                        function(s)
+                            return s:equal(declaration_scope)
+                        end
+                    )
+
                 local extract_end = { extract_range[3], extract_range[4] }
                 local compare_start = compare(start_node, extract_end)
                 local compare_end = compare(end_node, extract_end)
-                return compare_start == 1 and compare_end == 1
+                return compare_start == 1 and compare_end == 1 and is_in_scope
             end
         )
         :map(
@@ -668,6 +694,11 @@ local function extract_func(
             end
         )
         :totable()
+    -- __AUTO_GENERATED_PRINT_VAR_START__
+    print(
+        [==[extract_func references_after_range:]==],
+        vim.inspect(references_after_range)
+    ) -- __AUTO_GENERATED_PRINT_VAR_END__
     local return_values = iter(references_after_range):filter(
         ---@param r string
         function(r)
