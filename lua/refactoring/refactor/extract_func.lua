@@ -82,7 +82,7 @@ end]]):format(opts.name, args, opts.body)
         c_sharp = function(opts)
             local return_type = #opts.return_values == 1 and "P"
                 or #opts.return_values == 0 and "void"
-                or ("(%s)"):format(iter(opts.return_values):map(function(r)
+                or ("(%s)"):format(iter(opts.return_values):map(function()
                     return "P"
                 end):join(", "))
 
@@ -811,10 +811,10 @@ local function ts_parse(buf, extract_range)
 end
 
 -- TODO: support all languages
--- TODO: remove `buf` from all calls after the rewrite is finished
----@param buf integer
+-- TODO: remove `buf` (first var) from all calls after the rewrite is finished
+---@param _ integer
 ---@param range_type 'v' | 'V' | ''
-M.extract_func = function(buf, range_type)
+M.extract_func = function(_, range_type)
     local buf = api.nvim_get_current_buf()
     local extract_range, lines = get_extracted_range(range_type)
 
@@ -866,9 +866,9 @@ M.extract_func = function(buf, range_type)
 end
 
 -- TODO: maybe also generate the import logic(?
----@param buf integer
+---@param _ integer
 ---@param range_type 'v' | 'V' | ''
-M.extract_func_to_file = function(buf, range_type)
+M.extract_func_to_file = function(_, range_type)
     local buf = api.nvim_get_current_buf()
     local extract_range, lines = get_extracted_range(range_type)
 
