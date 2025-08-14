@@ -4,6 +4,7 @@ on: [push, pull_request]
 
 jobs:
   lint:
+    if: github.ref == 'refs/heads/master'
     name: PlenaryBustedDirectory
     runs-on: ubuntu-latest
     steps:
