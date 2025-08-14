@@ -456,7 +456,7 @@ local function extract_func(
     end
 
     local already_seen = {} ---@type {[string]: boolean}
-    local references_inside_region = iter(reference_nodes)
+    local references_inside_range = iter(reference_nodes)
         :filter(
             ---@param r TSNode
             function(r)
@@ -624,7 +624,7 @@ local function extract_func(
         )
         :totable()
 
-    local args = iter(references_inside_region):filter(
+    local args = iter(references_inside_range):filter(
         ---@param r string
         function(r)
             return not vim.tbl_contains(declarations_inside_range, r)
@@ -634,7 +634,7 @@ local function extract_func(
     ):totable()
 
     already_seen = {}
-    local references_after_region = iter(reference_nodes)
+    local references_after_range = iter(reference_nodes)
         :filter(
             ---@param r TSNode
             function(r)
@@ -664,11 +664,11 @@ local function extract_func(
             end
         )
         :totable()
-    local return_values = iter(references_after_region):filter(
+    local return_values = iter(references_after_range):filter(
         ---@param r string
         function(r)
             -- TODO: maybe limit this to write references somehow
-            return vim.tbl_contains(references_inside_region, r)
+            return vim.tbl_contains(references_inside_range, r)
         end
     ):totable()
 
@@ -728,9 +728,9 @@ local function extract_func(
     -- navigate through type placeholders?
 end
 
----@param region_type 'v'|'V'|''
+---@param range_type 'v'|'V'|''
 ---@return Range4, string[]
-local function get_extracted_region(region_type)
+local function get_extracted_range(range_type)
     local buf = api.nvim_get_current_buf()
     local range_start = vim.fn.getpos("'[")
     local range_end = vim.fn.getpos("']")
@@ -740,12 +740,12 @@ local function get_extracted_region(region_type)
 
     local extract_range = {
         range_start[2] - 1,
-        region_type ~= "V" and range_start[3] - 1 or 0,
+        range_type ~= "V" and range_start[3] - 1 or 0,
         range_end[2] - 1,
-        region_type ~= "V" and range_end[3] - 1 or #range_last_line,
+        range_type ~= "V" and range_end[3] - 1 or #range_last_line,
     }
     local lines =
-        vim.fn.getregion(range_start, range_end, { type = region_type })
+        vim.fn.getregion(range_start, range_end, { type = range_type })
 
     return extract_range, lines
 end
@@ -778,10 +778,10 @@ end
 -- TODO: support all languages
 -- TODO: remove `buf` from all calls after the rewrite is finished
 ---@param buf integer
----@param region_type 'v' | 'V' | ''
-M.extract_func = function(buf, region_type)
+---@param range_type 'v' | 'V' | ''
+M.extract_func = function(buf, range_type)
     local buf = api.nvim_get_current_buf()
-    local extract_range, lines = get_extracted_region(region_type)
+    local extract_range, lines = get_extracted_range(range_type)
 
     local task = async.run(function()
         local fn_name = input({ prompt = "Function name: " })
@@ -799,7 +799,7 @@ M.extract_func = function(buf, region_type)
         -- TODO: default to some range (current location?) if no `output_node` found
         if not output_node then
             vim.notify(
-                "Couldn't find an output region in which to extract the function"
+                "Couldn't find an output range in which to extract the function"
             )
             return
         end
@@ -830,10 +830,10 @@ end
 
 -- TODO: maybe also generate the import logic(?
 ---@param buf integer
----@param region_type 'v' | 'V' | ''
-M.extract_func_to_file = function(buf, region_type)
+---@param range_type 'v' | 'V' | ''
+M.extract_func_to_file = function(buf, range_type)
     local buf = api.nvim_get_current_buf()
-    local extract_range, lines = get_extracted_region(region_type)
+    local extract_range, lines = get_extracted_range(range_type)
 
     local task = async.run(function()
         local file_name = input({
