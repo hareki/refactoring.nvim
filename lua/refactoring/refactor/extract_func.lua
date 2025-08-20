@@ -130,6 +130,16 @@ func %s(%s) {
 %s
 }]]):format(opts.name, args, opts.body)
         end,
+        java = function(opts)
+            local return_type = #opts.return_values == 0 and "void" or "P"
+            local args = iter(opts.args):map(function(a)
+                return "P " .. a
+            end):join(", ")
+            return ([[
+private %s %s(%s) {
+%s
+}]]):format(return_type, opts.name, args, opts.body)
+        end,
     },
     function_call = {
         lua = function(opts)
@@ -145,7 +155,6 @@ func %s(%s) {
                 args
             )
         end,
-        -- TODO: handle mutiple return values
         c = function(opts)
             local args = table.concat(opts.args, ", ")
             if #opts.return_values == 0 then
@@ -210,6 +219,18 @@ func %s(%s) {
                 args
             )
         end,
+        java = function(opts)
+            local args = table.concat(opts.args, ", ")
+            if #opts.return_values == 0 then
+                return ("%s(%s);"):format(opts.name, args)
+            end
+
+            return ("var %s = %s(%s);"):format(
+                opts.return_values[1],
+                opts.name,
+                args
+            )
+        end,
     },
     return_statement = {
         lua = function(opts)
@@ -244,6 +265,9 @@ func %s(%s) {
                 table.concat(opts.return_values, ", ")
             )
         end,
+        java = function(opts)
+            return ("\n\nreturn %s;"):format(opts.return_values[1])
+        end,
     },
 }
 code_generation.function_declaration.cpp =
@@ -275,6 +299,9 @@ local parents_till_nil = {
     },
     go = {
         fn = 2,
+    },
+    java = {
+        method = 4,
     },
 }
 parents_till_nil.cpp = parents_till_nil.c
@@ -842,8 +869,8 @@ M.extract_func = function(_, range_type)
         end
         local output_range = { output_node:range() }
 
-        -- TODO: clangd, gopls and roslyn don't return symbols for local variables. So,
-        -- fallback to treesitter somehow
+        -- TODO: clangd, gopls, jdt.ls and roslyn don't return symbols for
+        -- local variables. So, fallback to treesitter somehow
         local declarations = get_symbols()
         extract_func(
             declarations,
