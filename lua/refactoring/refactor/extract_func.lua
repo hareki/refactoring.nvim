@@ -140,6 +140,18 @@ private %s %s(%s) {
 %s
 }]]):format(return_type, opts.name, args, opts.body)
         end,
+        php = function(opts)
+            return ([[
+%sfunction %s(%s)
+{
+%s
+}]]):format(
+                opts.method and "private " or "",
+                opts.name,
+                table.concat(opts.args, ", "),
+                opts.body
+            )
+        end,
     },
     function_call = {
         lua = function(opts)
@@ -231,6 +243,25 @@ private %s %s(%s) {
                 args
             )
         end,
+        php = function(opts)
+            local args = table.concat(opts.args, ", ")
+            local name = opts.method and "self->" .. opts.name or opts.name
+            if #opts.return_values == 0 then
+                return ("%s(%s);"):format(name, args)
+            end
+            local return_values = iter(opts.return_values):map(function(r)
+                return r:match("^$") and r or "$" .. r
+            end)
+            if #opts.return_values == 1 then
+                return ("%s = %s(%s);"):format(return_values:next(), name, args)
+            end
+
+            return ("[%s] = %s(%s);"):format(
+                return_values:join(", "),
+                name,
+                args
+            )
+        end,
     },
     return_statement = {
         lua = function(opts)
@@ -268,6 +299,16 @@ private %s %s(%s) {
         java = function(opts)
             return ("\n\nreturn %s;"):format(opts.return_values[1])
         end,
+        php = function(opts)
+            local return_values = iter(opts.return_values):map(function(r)
+                return r:match("^$") and r or "$" .. r
+            end)
+            if #opts.return_values == 1 then
+                return ("\n\nreturn %s;"):format(return_values:next())
+            end
+
+            return ("\n\nreturn [%s];"):format(return_values:join(", "))
+        end,
     },
 }
 code_generation.function_declaration.cpp =
@@ -301,6 +342,10 @@ local parents_till_nil = {
         fn = 2,
     },
     java = {
+        method = 4,
+    },
+    php = {
+        fn = 2,
         method = 4,
     },
 }
@@ -869,8 +914,9 @@ M.extract_func = function(_, range_type)
         end
         local output_range = { output_node:range() }
 
-        -- TODO: clangd, gopls, jdt.ls and roslyn don't return symbols for
-        -- local variables. So, fallback to treesitter somehow
+        -- TODO: clangd, gopls, jdt.ls, phpactor and roslyn don't return
+        -- symbols for local variables. So, fallback to treesitter somehow (or
+        -- maybe don't use symbols at all)
         local declarations = get_symbols()
         extract_func(
             declarations,
