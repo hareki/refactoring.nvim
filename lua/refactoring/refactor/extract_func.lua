@@ -438,6 +438,13 @@ parents_till_nil.typescript = parents_till_nil.javascript
 ---@field struct_name string?
 ---@field struct_var_name string?
 
+---@param o refactor.Output
+---@return TSNode
+local function choose_output(o)
+    -- TODO: add decorators(?
+    return o.comment and o.comment[1] or o.fn
+end
+
 ---@param nested_lang_tree vim.treesitter.LanguageTree
 ---@param query vim.treesitter.Query
 ---@param buf integer
@@ -503,8 +510,7 @@ local function get_output_node(nested_lang_tree, query, buf, extract_range)
         :filter(
             ---@param o refactor.Output
             function(o)
-                -- TODO: add decorators for languages like python
-                local n = o.comment and o.comment[1] or o.fn
+                local n = choose_output(o)
                 local start_row, start_col = n:start()
                 return compare(
                     { start_row, start_col },
@@ -520,11 +526,9 @@ local function get_output_node(nested_lang_tree, query, buf, extract_range)
                 if not acc then
                     return o
                 end
-                -- TODO: add decorators for languages like python
-                local n = o.comment and o.comment[1] or o.fn
+                local n = choose_output(o)
                 local n_start_row, n_start_col = n:start()
-                -- TODO: add decorators for languages like python
-                local acc_n = acc.comment and acc.comment[1] or acc.fn
+                local acc_n = choose_output(o)
                 local acc_start_row, acc_start_col = acc_n:start()
 
                 local o_row_distance = math.abs(n_start_row - extract_range[1])
@@ -551,9 +555,7 @@ local function get_output_node(nested_lang_tree, query, buf, extract_range)
         return
     end
 
-    -- TODO: add decorators for languages like python
-    return selected_output.comment and selected_output.comment[1]
-        or selected_output.fn,
+    return choose_output(selected_output),
         {
             method = selected_output.method,
             struct_name = selected_output.struct_name,
