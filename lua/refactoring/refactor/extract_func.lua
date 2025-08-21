@@ -172,6 +172,15 @@ param (%s)
 %s
 }]]):format(opts.name, table.concat(opts.args, ",\n"), opts.body)
         end,
+        python = function(opts)
+            local args = table.concat(opts.args, ", ")
+            if opts.method then
+                args = "self, " .. args
+            end
+            return ([[
+def %s(%s):
+%s]]):format(opts.name, args, opts.body)
+        end,
     },
     function_call = {
         lua = function(opts)
@@ -297,6 +306,18 @@ param (%s)
 
             return ("$out = %s %s"):format(opts.name, args)
         end,
+        python = function(opts)
+            local args = table.concat(opts.args, ", ")
+            local name = opts.method and "self." .. opts.name or opts.name
+            if #opts.return_values == 0 then
+                return ("%s(%s)"):format(name, args)
+            end
+            return ("%s = %s(%s)"):format(
+                table.concat(opts.return_values, ", "),
+                name,
+                args
+            )
+        end,
     },
     return_statement = {
         lua = function(opts)
@@ -354,6 +375,11 @@ param (%s)
                 table.concat(opts.return_values, ", ")
             )
         end,
+        python = function(opts)
+            return ("\n\nreturn %s"):format(
+                table.concat(opts.return_values, ", ")
+            )
+        end,
     },
 }
 code_generation.function_declaration.cpp =
@@ -395,6 +421,10 @@ local parents_till_nil = {
     },
     powershell = {
         fn = 3,
+        method = 4,
+    },
+    python = {
+        fn = 2,
         method = 4,
     },
 }
@@ -956,7 +986,7 @@ M.extract_func = function(_, range_type)
             get_output_node(nested_lang_tree, query, buf, extract_range)
         -- TODO: default to some range (current location?) if no `output_node` found
         -- TODO: define treesitter fallback captures (like root node or current
-        -- statement) to use as default location
+        -- statement) to use as default location. Or maybe nearest top level statement (?
         if not output_node then
             vim.notify(
                 "Couldn't find an output range in which to extract the function"
