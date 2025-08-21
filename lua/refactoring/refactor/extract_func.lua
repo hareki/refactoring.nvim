@@ -563,7 +563,7 @@ end
 
 ---@param declarations refactor.QfItem
 ---@param extract_range Range4
----@param buf integer
+---@param in_buf integer
 ---@param output_range Range4
 ---@param lines string[]
 ---@param out_buf integer
@@ -574,7 +574,7 @@ end
 local function extract_func(
     declarations,
     extract_range,
-    buf,
+    in_buf,
     output_range,
     lines,
     out_buf,
@@ -586,7 +586,7 @@ local function extract_func(
     local reference_nodes = {} ---@type TSNode[]
     local scopes = {} ---@type TSNode[]
     for _, tree in ipairs(nested_lang_tree:trees()) do
-        for _, match in query:iter_matches(tree:root(), buf) do
+        for _, match in query:iter_matches(tree:root(), in_buf) do
             for capture_id, nodes in pairs(match) do
                 local name = query.captures[capture_id]
                 local is_identifier = name == "reference.identifier"
@@ -620,7 +620,7 @@ local function extract_func(
         :map(
             ---@param r TSNode
             function(r)
-                return ts.get_node_text(r, buf)
+                return ts.get_node_text(r, in_buf)
             end
         )
         :filter(
@@ -829,7 +829,7 @@ local function extract_func(
         :map(
             ---@param r TSNode
             function(r)
-                return ts.get_node_text(r, buf)
+                return ts.get_node_text(r, in_buf)
             end
         )
         :filter(
@@ -861,8 +861,9 @@ local function extract_func(
         })
         body = body .. return_statement
     end
-    local indent_width = vim.bo[buf].shiftwidth > 0 and vim.bo[buf].shiftwidth
-        or vim.bo[buf].tabstop
+    local indent_width = vim.bo[in_buf].shiftwidth > 0
+            and vim.bo[in_buf].shiftwidth
+        or vim.bo[in_buf].tabstop
     body = vim.text.indent(1 * indent_width, body)
     local function_definition = code_generation.function_declaration[lang]({
         args = args,
@@ -886,7 +887,7 @@ local function extract_func(
     function_call = vim.text.indent(body_indent, function_call)
 
     api.nvim_buf_set_text(
-        buf,
+        in_buf,
         extract_range[1],
         extract_range[2],
         extract_range[3],
