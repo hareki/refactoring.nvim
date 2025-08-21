@@ -152,6 +152,26 @@ private %s %s(%s) {
                 opts.body
             )
         end,
+        powershell = function(opts)
+            if opts.method then
+                return ([[
+[%s] %s(%s)
+{
+%s
+}]]):format(
+                    opts.return_values == 0 and "Void" or "P",
+                    opts.name,
+                    table.concat(opts.args, ", "),
+                    opts.body
+                )
+            end
+            return ([[
+function %s
+{
+param (%s)
+%s
+}]]):format(opts.name, table.concat(opts.args, ",\n"), opts.body)
+        end,
     },
     function_call = {
         lua = function(opts)
@@ -262,6 +282,21 @@ private %s %s(%s) {
                 args
             )
         end,
+        powershell = function(opts)
+            local args = table.concat(opts.args, " ")
+            if #opts.return_values == 0 then
+                return ("%s %s"):format(opts.name, args)
+            end
+            if #opts.return_values == 1 then
+                return ("%s = %s %s"):format(
+                    opts.return_values[1],
+                    opts.name,
+                    args
+                )
+            end
+
+            return ("$out = %s %s"):format(opts.name, args)
+        end,
     },
     return_statement = {
         lua = function(opts)
@@ -300,6 +335,7 @@ private %s %s(%s) {
             return ("\n\nreturn %s;"):format(opts.return_values[1])
         end,
         php = function(opts)
+            -- TODO: capture variable names including `$` instead?
             local return_values = iter(opts.return_values):map(function(r)
                 return r:match("^$") and r or "$" .. r
             end)
@@ -308,6 +344,15 @@ private %s %s(%s) {
             end
 
             return ("\n\nreturn [%s];"):format(return_values:join(", "))
+        end,
+        powershell = function(opts)
+            if #opts.return_values == 1 then
+                return ("\n\nreturn %s"):format(opts.return_values[1])
+            end
+
+            return ("\n\nreturn @(%s)"):format(
+                table.concat(opts.return_values, ", ")
+            )
         end,
     },
 }
@@ -346,6 +391,10 @@ local parents_till_nil = {
     },
     php = {
         fn = 2,
+        method = 4,
+    },
+    powershell = {
+        fn = 3,
         method = 4,
     },
 }
@@ -821,6 +870,8 @@ local function extract_func(
         -- first line it's (probably) already indented
         function_definition_lines[1] =
             vim.text.indent(0, function_definition_lines[1])
+        -- TODO: manually indent (without `vim.text.indent`) the last (empty)
+        -- line
     end
     api.nvim_buf_set_text(
         out_buf,
@@ -914,9 +965,9 @@ M.extract_func = function(_, range_type)
         end
         local output_range = { output_node:range() }
 
-        -- TODO: clangd, gopls, jdt.ls, phpactor and roslyn don't return
-        -- symbols for local variables. So, fallback to treesitter somehow (or
-        -- maybe don't use symbols at all)
+        -- TODO: clangd, gopls, jdt.ls, phpactor, powershell_es  and roslyn
+        -- don't return symbols for local variables. So, fallback to treesitter
+        -- somehow (or maybe don't use symbols at all)
         local declarations = get_symbols()
         extract_func(
             declarations,
