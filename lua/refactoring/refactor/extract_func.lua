@@ -28,6 +28,7 @@ end)
 ---@field body string
 ---@field return_values string[]
 ---@field method boolean?
+---@field singleton boolean?
 ---@field struct_var_name string?
 ---@field struct_name string?
 
@@ -181,6 +182,12 @@ param (%s)
 def %s(%s):
 %s]]):format(opts.name, args, opts.body)
         end,
+        ruby = function(opts)
+            local name = opts.singleton and "self." .. opts.name or opts.name
+            return ([[
+def %s(%s):
+%s]]):format(name, table.concat(opts.args, ", "), opts.body)
+        end,
     },
     function_call = {
         lua = function(opts)
@@ -318,6 +325,17 @@ def %s(%s):
                 args
             )
         end,
+        ruby = function(opts)
+            local args = table.concat(opts.args, ", ")
+            if #opts.return_values == 0 then
+                return ("%s(%s)"):format(opts.name, args)
+            end
+            return ("%s = %s(%s)"):format(
+                table.concat(opts.return_values, ", "),
+                opts.name,
+                args
+            )
+        end,
     },
     return_statement = {
         lua = function(opts)
@@ -380,6 +398,11 @@ def %s(%s):
                 table.concat(opts.return_values, ", ")
             )
         end,
+        ruby = function(opts)
+            return ("\n\nreturn %s"):format(
+                table.concat(opts.return_values, ", ")
+            )
+        end,
     },
 }
 code_generation.function_declaration.cpp =
@@ -427,6 +450,10 @@ local parents_till_nil = {
         fn = 2,
         method = 4,
     },
+    ruby = {
+        fn = 2,
+        method = 4,
+    },
 }
 parents_till_nil.cpp = parents_till_nil.c
 parents_till_nil.typescript = parents_till_nil.javascript
@@ -435,6 +462,7 @@ parents_till_nil.typescript = parents_till_nil.javascript
 ---@field comment TSNode[]?
 ---@field fn TSNode
 ---@field method boolean?
+---@field singleton boolean?
 ---@field struct_name string?
 ---@field struct_var_name string?
 
@@ -450,7 +478,7 @@ end
 ---@param buf integer
 ---@param extract_range Range4
 ---@return TSNode?
----@return {method: boolean?, struct_name: string?, struct_var_name: string?}?
+---@return {method: boolean?, singleton: boolean?, struct_name: string?, struct_var_name: string?}?
 local function get_output_node(nested_lang_tree, query, buf, extract_range)
     local outputs = {} ---@type refactor.Output[]
     for _, tree in ipairs(nested_lang_tree:trees()) do
@@ -458,26 +486,30 @@ local function get_output_node(nested_lang_tree, query, buf, extract_range)
             local output ---@type table|refactor.Output|nil
             for capture_id, nodes in pairs(match) do
                 local name = query.captures[capture_id]
-                local is_output_function = name == "output.function"
-                local is_output_comment = name == "output.comment"
-                local is_output_method = name == "output.method"
-                local is_output_struct_name = name == "output.struct_name"
-                local is_output_struct_var_name = name
-                    == "output.struct_var_name"
-                if is_output_comment then
+
+                if name == "output.comment" then
                     output = output or {}
                     output.comment = nodes
-                elseif is_output_function then
+                elseif name == "output.function" then
                     output = output or {}
                     output.fn = nodes[1]
-                elseif is_output_method then
+                elseif name == "output.function.singleton" then
+                    output = output or {}
+                    output.fn = nodes[1]
+                    output.singleton = true
+                elseif name == "output.method" then
                     output = output or {}
                     output.fn = nodes[1]
                     output.method = true
-                elseif is_output_struct_name then
+                elseif name == "output.method.singleton" then
+                    output = output or {}
+                    output.fn = nodes[1]
+                    output.method = true
+                    output.singleton = true
+                elseif name == "output.struct_name" then
                     output = output or {}
                     output.struct_name = ts.get_node_text(nodes[1], buf)
-                elseif is_output_struct_var_name then
+                elseif name == "output.struct_var_name" then
                     output = output or {}
                     output.struct_var_name = ts.get_node_text(nodes[1], buf)
                 end
@@ -558,6 +590,7 @@ local function get_output_node(nested_lang_tree, query, buf, extract_range)
     return choose_output(selected_output),
         {
             method = selected_output.method,
+            singleton = selected_output.singleton,
             struct_name = selected_output.struct_name,
             struct_var_name = selected_output.struct_var_name,
         }
@@ -572,7 +605,7 @@ end
 ---@param fn_name string
 ---@param nested_lang_tree vim.treesitter.LanguageTree
 ---@param query vim.treesitter.Query
----@param opts {method: boolean?, struct_name: string?, struct_var_name: string?}
+---@param opts {method: boolean?, singleton: boolean?, struct_name: string?, struct_var_name: string?}
 local function extract_func(
     declarations,
     extract_range,
@@ -873,6 +906,7 @@ local function extract_func(
         name = fn_name,
         return_values = return_values,
         method = opts.method,
+        singleton = opts.singleton,
         struct_name = opts.struct_name,
         struct_var_name = opts.struct_var_name,
     }) .. "\n\n"
@@ -1014,6 +1048,7 @@ M.extract_func = function(_, range_type)
             query,
             {
                 method = opts and opts.method,
+                singleton = opts and opts.singleton,
                 struct_name = opts and opts.struct_name,
                 struct_var_name = opts and opts.struct_var_name,
             }
@@ -1078,6 +1113,7 @@ M.extract_func_to_file = function(_, range_type)
             query,
             {
                 method = opts and opts.method,
+                singleton = opts and opts.singleton,
                 struct_name = opts and opts.struct_name,
                 struct_var_name = opts and opts.struct_var_name,
             }
