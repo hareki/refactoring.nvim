@@ -5,11 +5,13 @@ local async = require("plenary.async")
 
 ---@type fun(items: unknown[], prompt?: string, format?: function, kind?: string) : unknown?, integer?
 local select = async.wrap(function(items, prompt, format, kind, callback)
-    vim.ui.select(items, {
-        prompt = prompt,
-        format_item = format,
-        kind = kind,
-    }, callback)
+    vim.schedule(function()
+        vim.ui.select(items, {
+            prompt = prompt,
+            format_item = format,
+            kind = kind,
+        }, callback)
+    end)
 end, 5)
 
 ---@param items unknown[]
@@ -29,11 +31,13 @@ function M.select(items, question, format)
 end
 
 local input = async.wrap(function(prompt, text, completion, callback)
-    vim.ui.input({
-        prompt = prompt,
-        default = text,
-        completion = completion,
-    }, callback)
+    vim.schedule(function()
+        vim.ui.input({
+            prompt = prompt,
+            default = text,
+            completion = completion,
+        }, callback)
+    end)
 end, 4)
 
 ---@param question string
