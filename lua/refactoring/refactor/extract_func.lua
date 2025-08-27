@@ -46,6 +46,7 @@ end)
 ---@field function_call {[string]: fun(opts: refactor.code_generation.function_call.opts): string}
 ---@field return_statement {[string]: fun(opts: refactor.code_generation.return_statement.opts): string}
 
+-- TODO: add code_generation for `vimscript`
 ---@type refactor.code_generation
 local code_generation = {
     function_declaration = {
