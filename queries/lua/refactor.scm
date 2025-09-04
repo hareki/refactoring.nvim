@@ -63,11 +63,11 @@
 
 (binary_expression
   (identifier) @reference.identifier
-  (#set! reference_type read))
+  (#set! reference_type write))
 
 (for_numeric_clause
   (identifier) @reference.identifier
-  (#set! reference_type read))
+  (#set! reference_type write))
 
 ((comment)* @output.comment
   .

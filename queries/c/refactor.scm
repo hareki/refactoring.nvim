@@ -11,30 +11,61 @@
       declarator: (_) @variable.identifier
       value: (_) @variable.value))*) @variable.declaration
 
-(declaration
-  (init_declarator
-    (identifier) @reference.identifier))
+(parameter_declaration
+  type: (_) @_type
+  declarator: (identifier) @reference.identifier
+  (#set! reference_type write)
+  (#set-type! c @_type @reference.identifier))
 
+; int foo = 1;
 (declaration
-  (identifier) @reference.identifier)
+  .
+  type: (_) @_type
+  .
+  declarator: (init_declarator
+    declarator: (_) @reference.identifier)
+  .
+  (","
+    declarator: (init_declarator
+      declarator: (_) @reference.identifier))*
+  (#set! reference_type write)
+  (#set-type! c @_type @reference.identifier))
+
+; int foo;
+(declaration
+  .
+  type: (_) @_type
+  .
+  (identifier) @reference.identifier
+  .
+  (","
+    (identifier) @reference.identifier)*
+  (#set! reference_type write)
+  (#set-type! c @_type @reference.identifier))
 
 (binary_expression
-  (identifier) @reference.identifier)
+  (identifier) @reference.identifier
+  (#set! reference_type write))
 
 (update_expression
-  (identifier) @reference.identifier)
+  (identifier) @reference.identifier
+  (#set! reference_type write))
 
 (assignment_expression
-  (identifier) @reference.identifier)
+  (identifier) @reference.identifier
+  (#set! reference_type write))
 
 (argument_list
-  (identifier) @reference.identifier)
+  (identifier) @reference.identifier
+  (#set! reference_type read))
 
 (return_statement
-  (identifier) @reference.identifier)
+  (identifier) @reference.identifier
+  (#set! reference_type read))
 
 (call_expression
-  (identifier) @reference.identifier)
+  (identifier) @reference.identifier
+  (#set! reference_type read))
 
 ((comment)* @output.comment
   .
