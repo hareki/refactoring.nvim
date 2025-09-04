@@ -10,6 +10,7 @@
       (","
         value: (_) @variable.value)*))) @variable.declaration
 
+; TODO: fix for multiple assignments
 ; foo.bar = 'bar'
 (assignment_statement
   (variable_list

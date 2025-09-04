@@ -1,3 +1,4 @@
+-- TODO: add ts_query_ls config for custom directives
 local iter = vim.iter
 local ts = vim.treesitter
 
@@ -66,6 +67,7 @@ local get_type = {
         return types
     end,
 }
+get_type.c_sharp = get_type.c
 
 ts.query.add_directive(
     "set-type!",

@@ -231,6 +231,7 @@ function M.inline_var()
                 value_node,
                 identifier_node,
             }) do
+                -- TODO: this logic is spefic to Lua, it doens't work for c and c_sharp
                 local previous = node:prev_sibling()
                 local next = node:next_sibling()
                 local previous_anonymous = previous and not previous:named()

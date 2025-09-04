@@ -125,7 +125,7 @@ end]]):format(opts.name, args, opts.body)
             ):join(", ")
 
             return ([[
-public static %s %s(%s) {
+public %s %s(%s) {
 %s
 }]]):format(return_type, opts.name, args, opts.body)
         end,
@@ -1008,7 +1008,7 @@ local function extract_func(
                 )
         end
     ):totable()
-    ---@type refactor.QfItem
+    ---@type string[]
     local declarations_before_output_range = iter(declarations)
         :filter(
             ---@param r refactor.Reference
@@ -1035,7 +1035,7 @@ local function extract_func(
         )
         :map(reference_to_text)
         :totable()
-    ---@type refactor.QfItem
+    ---@type string[]
     local declarations_before_range = iter(declarations)
         :filter(
             ---@param r refactor.Reference
@@ -1108,6 +1108,7 @@ local function extract_func(
         :map(reference_to_text)
         :filter(is_unique())
         :totable()
+    -- TODO: add support for types for return_values
     local return_values = iter(identifiers_after_range):filter(
         ---@param r string
         function(r)
