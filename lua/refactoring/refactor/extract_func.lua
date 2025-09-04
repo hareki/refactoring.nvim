@@ -296,10 +296,10 @@ def %s(%s):
                 end
             ):join(", ")
             if #opts.return_values == 0 then
-                return ("%s(%s)"):format(opts.name, args)
+                return ("%s(%s);"):format(opts.name, args)
             end
             if #opts.return_values == 1 then
-                return ("P %s = %s(%s)"):format(
+                return ("P %s = %s(%s);"):format(
                     opts.return_values[1],
                     opts.name,
                     args
@@ -311,7 +311,7 @@ def %s(%s):
             local in_n_out = args ~= ""
                     and table.concat({ args, return_values }, ", ")
                 or return_values
-            return ("%s(%s)"):format(opts.name, in_n_out)
+            return ("%s(%s);"):format(opts.name, in_n_out)
         end,
         c_sharp = function(opts)
             local args = iter(opts.args):map(
