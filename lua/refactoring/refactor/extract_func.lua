@@ -1,7 +1,6 @@
 local contains = require("refactoring.range").contains
 local compare = require("refactoring.range").compare
 local async = require("async")
-local lsp = vim.lsp
 local iter = vim.iter
 local ts = vim.treesitter
 local api = vim.api
@@ -925,14 +924,6 @@ local function extract_func(
             function(r)
                 local identifier = ts.get_node_text(r.identifier, in_buf)
 
-                local start_row, start_col, end_row, end_col =
-                    r.identifier:range()
-
-                local scope = get_declaration_scope(
-                    scopes,
-                    { start_row, start_col },
-                    { end_row, end_col }
-                )
                 ---@type {[string]: string}|nil
                 local types = iter(scoped_types):find(
                     ---@param types {[string]: string}
