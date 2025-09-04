@@ -1,13 +1,20 @@
+; TODO: clean reference @query similar to @variable ones on every language
+; TODO: add support for write/read and declaration for every language
+; TODO: add support for type queries (`set-type!` or `infer-type!`) for every language
 (local_declaration_statement
   (variable_declaration
+    .
+    type: (_)
+    .
     (variable_declarator
       name: (_) @variable.identifier
-      (_) @variable.value .))) @variable.declaration
-
-(expression_statement
-  (assignment_expression
-    left: (_) @variable.identifier
-    right: (_) @variable.value)) @variable.declaration
+      (_) @variable.value .)
+    .
+    (","
+      (variable_declarator
+        (_) @variable.identifier
+        .
+        (_) @variable.value .))*)) @variable.declaration
 
 (variable_declarator
   (identifier) @reference.identifier)
