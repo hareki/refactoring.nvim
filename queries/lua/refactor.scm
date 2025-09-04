@@ -39,7 +39,7 @@
 
 (bracket_index_expression
   table: (identifier) @reference.identifier
-  (#set! reference_type read))
+  (#set! eeeeeeece_type read))
 
 (dot_index_expression
   table: (identifier) @reference.identifier
@@ -63,7 +63,7 @@
 
 (binary_expression
   (identifier) @reference.identifier
-  (#set! reference_type write))
+  (#set! reference_type read))
 
 (for_numeric_clause
   (identifier) @reference.identifier

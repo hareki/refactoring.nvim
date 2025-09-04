@@ -45,7 +45,7 @@
 
 (binary_expression
   (identifier) @reference.identifier
-  (#set! reference_type write))
+  (#set! reference_type read))
 
 (update_expression
   (identifier) @reference.identifier
