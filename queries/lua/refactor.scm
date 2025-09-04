@@ -35,7 +35,7 @@
 (variable_declaration
   (variable_list
     name: (identifier) @reference.identifier)
-  (#set! reference_type read))
+  (#set! reference_type write))
 
 (bracket_index_expression
   table: (identifier) @reference.identifier

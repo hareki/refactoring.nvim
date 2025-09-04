@@ -23,7 +23,7 @@ local input = async.wrap(2, function(opts, cb)
 end)
 
 ---@class refactor.code_generation.function_declaration.opts
----@field args string[]
+---@field args refactor.Variable[]
 ---@field name string
 ---@field body string
 ---@field return_values string[]
@@ -50,9 +50,44 @@ end)
 ---@type refactor.code_generation
 local code_generation = {
     function_declaration = {
-        -- TODO: use type information in code_generation for lua
         lua = function(opts)
-            local args = table.concat(opts.args, ", ")
+            local args = iter(opts.args):map(
+                ---@param v refactor.Variable
+                function(v)
+                    return v.identifier
+                end
+            ):join(", ")
+            if
+                iter(opts.args):any(
+                    ---@param v refactor.Variable
+                    function(v)
+                        return v.type ~= nil
+                    end
+                )
+            then
+                local annotations = iter(opts.args)
+                    :filter(
+                        ---@param v refactor.Variable
+                        function(v)
+                            return v.type ~= nil
+                        end
+                    )
+                    :map(
+                        ---@param v refactor.Variable
+                        function(v)
+                            return ("---@param %s %s"):format(
+                                v.identifier,
+                                v.type
+                            )
+                        end
+                    )
+                    :join("\n")
+                return ([[
+%s
+local function %s(%s)
+%s
+end]]):format(annotations, opts.name, args, opts.body)
+            end
 
             return ([[
 local function %s(%s)
@@ -61,9 +96,12 @@ end]]):format(opts.name, args, opts.body)
         end,
         c = function(opts)
             local return_type = #opts.return_values == 1 and "P" or "void"
-            local args = iter(opts.args):map(function(a)
-                return "P " .. a
-            end):join(", ")
+            local args = iter(opts.args):map(
+                ---@param v refactor.Variable
+                function(v)
+                    return ("%s %s"):format(v.type or "P", v.identifier)
+                end
+            ):join(", ")
             local return_values = iter(opts.return_values):map(function(r)
                 return "P *" .. r
             end):join(", ")
@@ -88,33 +126,42 @@ end]]):format(opts.name, args, opts.body)
                     return "P"
                 end):join(", "))
 
+            local args = iter(opts.args):map(
+                ---@param v refactor.Variable
+                function(v)
+                    return ("%s %s"):format(v.type or "P", v.identifier)
+                end
+            ):join(", ")
+
             return ([[
 public static %s %s(%s) {
 %s
-}]]):format(
-                return_type,
-                opts.name,
-                iter(opts.args):map(function(a)
-                    return "P " .. a
-                end):join(", "),
-                opts.body
-            )
+}]]):format(return_type, opts.name, args, opts.body)
         end,
         javascript = function(opts)
+            local args = iter(opts.args):map(
+                ---@param v refactor.Variable
+                function(v)
+                    return v.identifier
+                end
+            ):join(", ")
             return ([[
 %s%s(%s){
 %s
 }]]):format(
                 opts.method and "" or "function ",
                 opts.name,
-                table.concat(opts.args, ", "),
+                args,
                 opts.body
             )
         end,
         go = function(opts)
-            local args = iter(opts.args):map(function(a)
-                return a .. "P"
-            end):join(", ")
+            local args = iter(opts.args):map(
+                ---@param v refactor.Variable
+                function(v)
+                    return ("%s %s"):format(v.identifier, v.type or "P")
+                end
+            ):join(", ")
             if opts.struct_name and opts.struct_var_name then
                 return ([[
 func (%s *%s) %s(%s) {
@@ -134,15 +181,24 @@ func %s(%s) {
         end,
         java = function(opts)
             local return_type = #opts.return_values == 0 and "void" or "P"
-            local args = iter(opts.args):map(function(a)
-                return "P " .. a
-            end):join(", ")
+            local args = iter(opts.args):map(
+                ---@param v refactor.Variable
+                function(v)
+                    return ("%s %s"):format(v.type or "P", v.identifier)
+                end
+            ):join(", ")
             return ([[
 private %s %s(%s) {
 %s
 }]]):format(return_type, opts.name, args, opts.body)
         end,
         php = function(opts)
+            local args = iter(opts.args):map(
+                ---@param v refactor.Variable
+                function(v)
+                    return v.identifier
+                end
+            ):join(", ")
             return ([[
 %sfunction %s(%s)
 {
@@ -150,12 +206,18 @@ private %s %s(%s) {
 }]]):format(
                 opts.method and "private " or "",
                 opts.name,
-                table.concat(opts.args, ", "),
+                args,
                 opts.body
             )
         end,
         powershell = function(opts)
             if opts.method then
+                local args = iter(opts.args):map(
+                    ---@param v refactor.Variable
+                    function(v)
+                        return v.identifier
+                    end
+                ):join(", ")
                 return ([[
 [%s] %s(%s)
 {
@@ -163,19 +225,30 @@ private %s %s(%s) {
 }]]):format(
                     opts.return_values == 0 and "Void" or "P",
                     opts.name,
-                    table.concat(opts.args, ", "),
+                    args,
                     opts.body
                 )
             end
+            local args = iter(opts.args):map(
+                ---@param v refactor.Variable
+                function(v)
+                    return v.identifier
+                end
+            ):join(",\n")
             return ([[
 function %s
 {
 param (%s)
 %s
-}]]):format(opts.name, table.concat(opts.args, ",\n"), opts.body)
+}]]):format(opts.name, args, opts.body)
         end,
         python = function(opts)
-            local args = table.concat(opts.args, ", ")
+            local args = iter(opts.args):map(
+                ---@param v refactor.Variable
+                function(v)
+                    return v.identifier
+                end
+            ):join(", ")
             if opts.method then
                 args = "self, " .. args
             end
@@ -185,14 +258,25 @@ def %s(%s):
         end,
         ruby = function(opts)
             local name = opts.singleton and "self." .. opts.name or opts.name
+            local args = iter(opts.args):map(
+                ---@param v refactor.Variable
+                function(v)
+                    return v.identifier
+                end
+            ):join(", ")
             return ([[
 def %s(%s):
-%s]]):format(name, table.concat(opts.args, ", "), opts.body)
+%s]]):format(name, args, opts.body)
         end,
     },
     function_call = {
         lua = function(opts)
-            local args = table.concat(opts.args, ", ")
+            local args = iter(opts.args):map(
+                ---@param v refactor.Variable
+                function(v)
+                    return v.identifier
+                end
+            ):join(", ")
 
             if #opts.return_values == 0 then
                 return ("%s(%s)"):format(opts.name, args)
@@ -205,7 +289,12 @@ def %s(%s):
             )
         end,
         c = function(opts)
-            local args = table.concat(opts.args, ", ")
+            local args = iter(opts.args):map(
+                ---@param v refactor.Variable
+                function(v)
+                    return v.identifier
+                end
+            ):join(", ")
             if #opts.return_values == 0 then
                 return ("%s(%s)"):format(opts.name, args)
             end
@@ -225,7 +314,12 @@ def %s(%s):
             return ("%s(%s)"):format(opts.name, in_n_out)
         end,
         c_sharp = function(opts)
-            local args = table.concat(opts.args, ", ")
+            local args = iter(opts.args):map(
+                ---@param v refactor.Variable
+                function(v)
+                    return v.identifier
+                end
+            ):join(", ")
             if #opts.return_values == 0 then
                 return ("%s(%s)"):format(opts.name, args)
             end
@@ -239,7 +333,12 @@ def %s(%s):
             return ("var out = %s(%s);"):format(opts.name, args)
         end,
         javascript = function(opts)
-            local args = table.concat(opts.args, ", ")
+            local args = iter(opts.args):map(
+                ---@param v refactor.Variable
+                function(v)
+                    return v.identifier
+                end
+            ):join(", ")
             if #opts.return_values == 0 then
                 return ("%s(%s)"):format(opts.name, args)
             end
@@ -257,7 +356,12 @@ def %s(%s):
             )
         end,
         go = function(opts)
-            local args = table.concat(opts.args, ", ")
+            local args = iter(opts.args):map(
+                ---@param v refactor.Variable
+                function(v)
+                    return v.identifier
+                end
+            ):join(", ")
             if #opts.return_values == 0 then
                 return ("%s(%s)"):format(opts.name, args)
             end
@@ -269,7 +373,12 @@ def %s(%s):
             )
         end,
         java = function(opts)
-            local args = table.concat(opts.args, ", ")
+            local args = iter(opts.args):map(
+                ---@param v refactor.Variable
+                function(v)
+                    return v.identifier
+                end
+            ):join(", ")
             if #opts.return_values == 0 then
                 return ("%s(%s);"):format(opts.name, args)
             end
@@ -281,7 +390,12 @@ def %s(%s):
             )
         end,
         php = function(opts)
-            local args = table.concat(opts.args, ", ")
+            local args = iter(opts.args):map(
+                ---@param v refactor.Variable
+                function(v)
+                    return v.identifier
+                end
+            ):join(", ")
             local name = opts.method and "self->" .. opts.name or opts.name
             if #opts.return_values == 0 then
                 return ("%s(%s);"):format(name, args)
@@ -300,7 +414,12 @@ def %s(%s):
             )
         end,
         powershell = function(opts)
-            local args = table.concat(opts.args, " ")
+            local args = iter(opts.args):map(
+                ---@param v refactor.Variable
+                function(v)
+                    return v.identifier
+                end
+            ):join(" ")
             if #opts.return_values == 0 then
                 return ("%s %s"):format(opts.name, args)
             end
@@ -315,7 +434,12 @@ def %s(%s):
             return ("$out = %s %s"):format(opts.name, args)
         end,
         python = function(opts)
-            local args = table.concat(opts.args, ", ")
+            local args = iter(opts.args):map(
+                ---@param v refactor.Variable
+                function(v)
+                    return v.identifier
+                end
+            ):join(", ")
             local name = opts.method and "self." .. opts.name or opts.name
             if #opts.return_values == 0 then
                 return ("%s(%s)"):format(name, args)
@@ -327,7 +451,12 @@ def %s(%s):
             )
         end,
         ruby = function(opts)
-            local args = table.concat(opts.args, ", ")
+            local args = iter(opts.args):map(
+                ---@param v refactor.Variable
+                function(v)
+                    return v.identifier
+                end
+            ):join(", ")
             if #opts.return_values == 0 then
                 return ("%s(%s)"):format(opts.name, args)
             end
@@ -596,37 +725,65 @@ local function get_output_node(nested_lang_tree, query, buf, extract_range)
         }
 end
 
----@param buf integer
-local function buf_reference_to_text(buf)
-    ---@param reference refactor.Reference
-    return function(reference)
-        return ts.get_node_text(reference.identifier, buf)
-    end
-end
-
 ---@param declaration refactor.QfItem
 local function declaration_to_text(declaration)
     return declaration.text:match("^%[[^%]]+%] (.*)$")
 end
 
-local function is_unique()
+---@param get_key nil|fun(value: any): any
+---@return fun(value: any): boolean
+local function is_unique(get_key)
     ---@type {[string]: boolean}
     local already_seen = {}
 
     ---@param value any
     return function(value)
-        if already_seen[value] then
+        local key = get_key and get_key(value) or value
+        if already_seen[key] then
             return false
         end
-        already_seen[value] = true
+        already_seen[key] = true
         return true
     end
 end
 
+---@param scopes TSNode[]
+---@param start Range2
+---@param end_ Range2
+---@return TSNode|nil
+local function get_declaration_scope(scopes, start, end_)
+    local declaration_scope = iter(scopes):filter(
+        ---@param s TSNode
+        function(s)
+            local scope_range = { s:range() }
+            return contains(scope_range, start) and contains(scope_range, end_)
+        end
+    ):fold(
+        nil,
+        ---@param acc nil|TSNode
+        ---@param s TSNode
+        function(acc, s)
+            if not acc then
+                return s
+            end
+            if s:byte_length() < acc:byte_length() then
+                return s
+            end
+            return acc
+        end
+    )
+
+    return declaration_scope
+end
+
 ---@class refactor.Reference
 ---@field identifier TSNode
----@field type string
+---@field type string|nil
 ---@field reference_type 'read'|'write'
+
+---@class refactor.Variable
+---@field identifier string
+---@field type string|nil
 
 ---@param declarations refactor.QfItem
 ---@param extract_range Range4
@@ -673,6 +830,94 @@ local function extract_func(
         end
     end
 
+    local typed_references = iter(references):filter(
+        ---@param r refactor.Reference
+        function(r)
+            return r.type ~= nil
+        end
+    ):totable()
+    table.sort(
+        typed_references,
+        ---@param a refactor.Reference
+        ---@param b refactor.Reference
+        function(a, b)
+            local compare_start = compare(
+                ---@diagnostic disable-next-line: missing-fields
+                { a.identifier:start() },
+                ---@diagnostic disable-next-line: missing-fields
+                { b.identifier:start() }
+            )
+            if compare_start == -1 then
+                return true
+            elseif compare_start == 1 then
+                return false
+            end
+            local compare_end = compare(
+                ---@diagnostic disable-next-line: missing-fields
+                { a.identifier:end_() },
+                ---@diagnostic disable-next-line: missing-fields
+                { b.identifier:end_() }
+            )
+            return compare_end == -1
+        end
+    )
+    ---@type {[TSNode]: {scope: TSNode, types: {[string]: string}}}
+    local types_by_scope = iter(typed_references):fold(
+        {},
+        ---@param acc {[TSNode]: {scope: TSNode, types: {[string]: string}}}
+        ---@param r refactor.Reference
+        function(acc, r)
+            local start_row, start_col, end_row, end_col = r.identifier:range()
+            local start_node = { start_row, start_col }
+            local end_node = { end_row, end_col }
+
+            local scope = get_declaration_scope(scopes, start_node, end_node)
+            if not scope then
+                return acc
+            end
+
+            acc[scope] = acc[scope] or {}
+            acc[scope].types = acc[scope].types or {}
+            local identifier = ts.get_node_text(r.identifier, in_buf)
+            acc[scope].types[identifier] = r.type --[[@as string]]
+            acc[scope].scope = scope
+            return acc
+        end
+    )
+    ---@type {scope: TSNode, types: {[string]: string}}[]
+    local types_with_scopes = vim.tbl_values(types_by_scope)
+    table.sort(
+        types_with_scopes,
+        ---@param a {scope: TSNode, types: {[string]: string}}
+        ---@param b {scope: TSNode, types: {[string]: string}}
+        function(a, b)
+            local compare_start = compare(
+                ---@diagnostic disable-next-line: missing-fields
+                { a.scope:start() },
+                ---@diagnostic disable-next-line: missing-fields
+                { b.scope:start() }
+            )
+            if compare_start == -1 then
+                return false
+            elseif compare_start == 1 then
+                return true
+            end
+            local compare_end = compare(
+                ---@diagnostic disable-next-line: missing-fields
+                { a.scope:end_() },
+                ---@diagnostic disable-next-line: missing-fields
+                { b.scope:end_() }
+            )
+            return compare_end ~= -1
+        end
+    )
+    local scoped_types = iter(types_with_scopes):map(
+        ---@param a {scope: TSNode, types: {[string]: string}}
+        function(a)
+            return a.types
+        end
+    ):totable()
+
     ---@type refactor.Reference[]
     local references_inside_range = iter(references):filter(
         ---@param r refactor.Reference
@@ -687,13 +932,48 @@ local function extract_func(
         end
     ):totable()
 
-    local reference_to_text = buf_reference_to_text(in_buf)
-    ---@type string[]
-    local identifiers_inside_range = iter(references_inside_range)
-        :map(reference_to_text)
-        :filter(is_unique())
+    ---@type refactor.Variable[]
+    local variables_inside_range = iter(references_inside_range)
+        :map(
+            ---@param r refactor.Reference
+            function(r)
+                local identifier = ts.get_node_text(r.identifier, in_buf)
+
+                local start_row, start_col, end_row, end_col =
+                    r.identifier:range()
+
+                local scope = get_declaration_scope(
+                    scopes,
+                    { start_row, start_col },
+                    { end_row, end_col }
+                )
+                ---@type {[string]: string}|nil
+                local types = iter(scoped_types):find(
+                    ---@param types {[string]: string}
+                    function(types)
+                        return types[identifier] ~= nil
+                    end
+                )
+                local type = types and types[identifier]
+                return {
+                    identifier = identifier,
+                    type = type,
+                }
+            end
+        )
+        :filter(is_unique(
+            ---@param r refactor.Reference
+            function(r)
+                return r.identifier
+            end
+        ))
         :totable()
 
+    local reference_to_text =
+        ---@param reference refactor.Reference
+        function(reference)
+            return ts.get_node_text(reference.identifier, in_buf)
+        end
     ---@type string[]
     local write_identifiers_inside_range = iter(references_inside_range)
         :filter(
@@ -743,28 +1023,8 @@ local function extract_func(
                 local start_symbol = { d.lnum - 1, d.col - 1 }
                 local end_symbol = { d.end_lnum - 1, d.end_col - 1 }
 
-                ---@type TSNode|nil
-                local declaration_scope = iter(scopes):filter(
-                    ---@param s TSNode
-                    function(s)
-                        local scope_range = { s:range() }
-                        return contains(scope_range, start_symbol)
-                            and contains(scope_range, end_symbol)
-                    end
-                ):fold(
-                    nil,
-                    ---@param acc nil|TSNode
-                    ---@param s TSNode
-                    function(acc, s)
-                        if not acc then
-                            return s
-                        end
-                        if s:byte_length() < acc:byte_length() then
-                            return s
-                        end
-                        return acc
-                    end
-                )
+                local declaration_scope =
+                    get_declaration_scope(scopes, start_symbol, end_symbol)
 
                 local is_in_scope = declaration_scope
                     and iter(scopes_for_range):find(
@@ -790,28 +1050,9 @@ local function extract_func(
                 local start_symbol = { d.lnum - 1, d.col - 1 }
                 local end_symbol = { d.end_lnum - 1, d.end_col - 1 }
 
-                ---@type TSNode|nil
-                local declaration_scope = iter(scopes):filter(
-                    ---@param s TSNode
-                    function(s)
-                        local scope_range = { s:range() }
-                        return contains(scope_range, start_symbol)
-                            and contains(scope_range, end_symbol)
-                    end
-                ):fold(
-                    nil,
-                    ---@param acc nil|TSNode
-                    ---@param s TSNode
-                    function(acc, s)
-                        if not acc then
-                            return s
-                        end
-                        if s:byte_length() < acc:byte_length() then
-                            return s
-                        end
-                        return acc
-                    end
-                )
+                local declaration_scope =
+                    get_declaration_scope(scopes, start_symbol, end_symbol)
+
                 local is_in_scope = declaration_scope
                     and iter(scopes_for_range):find(
                         ---@param s TSNode
@@ -829,12 +1070,19 @@ local function extract_func(
         :map(declaration_to_text)
         :totable()
 
-    local args = iter(identifiers_inside_range):filter(
-        ---@param r string
+    ---@type refactor.Variable[]
+    local args = iter(variables_inside_range):filter(
+        ---@param r refactor.Variable
         function(r)
-            return not vim.tbl_contains(declarations_inside_range, r)
-                and not vim.tbl_contains(declarations_before_output_range, r)
-                and vim.tbl_contains(declarations_before_range, r)
+            return not vim.tbl_contains(
+                    declarations_inside_range,
+                    r.identifier
+                )
+                and not vim.tbl_contains(
+                    declarations_before_output_range,
+                    r.identifier
+                )
+                and vim.tbl_contains(declarations_before_range, r.identifier)
         end
     ):totable()
 
@@ -848,28 +1096,8 @@ local function extract_func(
                 local start_node = { start_row, start_col }
                 local end_node = { end_row, end_col }
 
-                ---@type TSNode|nil
-                local declaration_scope = iter(scopes):filter(
-                    ---@param s TSNode
-                    function(s)
-                        local scope_range = { s:range() }
-                        return contains(scope_range, start_node)
-                            and contains(scope_range, end_node)
-                    end
-                ):fold(
-                    nil,
-                    ---@param acc nil|TSNode
-                    ---@param s TSNode
-                    function(acc, s)
-                        if not acc then
-                            return s
-                        end
-                        if s:byte_length() < acc:byte_length() then
-                            return s
-                        end
-                        return acc
-                    end
-                )
+                local declaration_scope =
+                    get_declaration_scope(scopes, start_node, end_node)
                 local is_in_scope = declaration_scope
                     and iter(scopes_for_range):find(
                         ---@param s TSNode
