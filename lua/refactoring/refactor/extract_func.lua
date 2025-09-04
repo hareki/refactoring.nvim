@@ -331,16 +331,16 @@ def %s(%s):
                 end
             ):join(", ")
             if #opts.return_values == 0 then
-                return ("%s(%s)"):format(opts.name, args)
+                return ("%s(%s);"):format(opts.name, args)
             end
             if #opts.return_values == 1 then
-                return ("let %s = %s(%s)"):format(
+                return ("let %s = %s(%s);"):format(
                     opts.return_values[1],
                     opts.name,
                     args
                 )
             end
-            return ("let [%s] = %s(%s)"):format(
+            return ("let [%s] = %s(%s);"):format(
                 table.concat(opts.return_values, ", "),
                 opts.name,
                 args
@@ -468,21 +468,21 @@ def %s(%s):
             if #opts.return_values > 1 then
                 return ""
             end
-            return ("\n\nreturn %s"):format(opts.return_values[1])
+            return ("\n\nreturn %s;"):format(opts.return_values[1])
         end,
         c_sharp = function(opts)
             if #opts.return_values == 1 then
-                return ("\n\nreturn %s"):format(opts.return_values[1])
+                return ("\n\nreturn %s;"):format(opts.return_values[1])
             end
-            return ("\n\nreturn (%s)"):format(
+            return ("\n\nreturn (%s);"):format(
                 table.concat(opts.return_values, ", ")
             )
         end,
         javascript = function(opts)
             if #opts.return_values == 1 then
-                return ("\n\nreturn %s"):format(opts.return_values[1])
+                return ("\n\nreturn %s;"):format(opts.return_values[1])
             end
-            return ("\n\nreturn [%s]"):format(
+            return ("\n\nreturn [%s];"):format(
                 table.concat(opts.return_values, ", ")
             )
         end,
