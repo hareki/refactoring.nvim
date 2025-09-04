@@ -1,7 +1,15 @@
 (declaration
+  .
+  (_)
+  .
   declarator: (init_declarator
     declarator: (_) @variable.identifier
-    value: (_) @variable.value)) @variable.declaration
+    value: (_) @variable.value)
+  .
+  (","
+    declarator: (init_declarator
+      declarator: (_) @variable.identifier
+      value: (_) @variable.value))*) @variable.declaration
 
 (declaration
   (init_declarator
