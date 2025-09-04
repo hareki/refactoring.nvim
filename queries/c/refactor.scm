@@ -15,7 +15,8 @@
   type: (_) @_type
   declarator: (identifier) @reference.identifier
   (#set! reference_type write)
-  (#set-type! c @_type @reference.identifier))
+  (#set-type! c @_type @reference.identifier)
+  (#set! declaration true))
 
 ; int foo = 1;
 (declaration
@@ -29,7 +30,8 @@
     declarator: (init_declarator
       declarator: (_) @reference.identifier))*
   (#set! reference_type write)
-  (#set-type! c @_type @reference.identifier))
+  (#set-type! c @_type @reference.identifier)
+  (#set! declaration true))
 
 ; int foo;
 (declaration
@@ -41,7 +43,8 @@
   (","
     (identifier) @reference.identifier)*
   (#set! reference_type write)
-  (#set-type! c @_type @reference.identifier))
+  (#set-type! c @_type @reference.identifier)
+  (#set! declaration true))
 
 (binary_expression
   (identifier) @reference.identifier

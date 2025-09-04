@@ -8,15 +8,6 @@ local api = vim.api
 
 local M = {}
 
----@type fun(): refactor.QfItem[]
-local get_symbols = async.wrap(1, function(cb)
-    lsp.buf.document_symbol({
-        on_list = function(args)
-            cb(args.items)
-        end,
-    })
-end)
-
 ---@type fun(opts: table): string
 local input = async.wrap(2, function(opts, cb)
     vim.ui.input(opts, cb)
@@ -725,11 +716,6 @@ local function get_output_node(nested_lang_tree, query, buf, extract_range)
         }
 end
 
----@param declaration refactor.QfItem
-local function declaration_to_text(declaration)
-    return declaration.text:match("^%[[^%]]+%] (.*)$")
-end
-
 ---@param get_key nil|fun(value: any): any
 ---@return fun(value: any): boolean
 local function is_unique(get_key)
@@ -780,12 +766,12 @@ end
 ---@field identifier TSNode
 ---@field type string|nil
 ---@field reference_type 'read'|'write'
+---@field declaration boolean
 
 ---@class refactor.Variable
 ---@field identifier string
 ---@field type string|nil
 
----@param declarations refactor.QfItem
 ---@param extract_range Range4
 ---@param in_buf integer
 ---@param output_range Range4
@@ -796,7 +782,6 @@ end
 ---@param query vim.treesitter.Query
 ---@param opts {method: boolean?, singleton: boolean?, struct_name: string?, struct_var_name: string?}
 local function extract_func(
-    declarations,
     extract_range,
     in_buf,
     output_range,
@@ -819,6 +804,7 @@ local function extract_func(
                             identifier = node,
                             reference_type = metadata.reference_type,
                             type = metadata.types and metadata.types[i],
+                            declaration = metadata.declaration ~= nil,
                         })
                     end
                 elseif name == "scope" then
@@ -986,20 +972,27 @@ local function extract_func(
         :filter(is_unique())
         :totable()
 
-    -- TODO: unify lsp declarations and treesitter write_references
+    local declarations = iter(references):filter(
+        ---@param r refactor.Reference
+        function(r)
+            return r.declaration
+        end
+    ):totable()
     ---@type string[]
     local declarations_inside_range = iter(declarations)
         :filter(
-            ---@param s refactor.QfItem
-            function(s)
-                local start_symbol = { s.lnum - 1, s.col - 1 }
-                local end_symbol = { s.end_lnum - 1, s.end_col - 1 }
-                local contains_start = contains(extract_range, start_symbol)
-                local contains_end = contains(extract_range, end_symbol)
+            ---@param r refactor.Reference
+            function(r)
+                local contains_start =
+                    ---@diagnostic disable-next-line: missing-fields
+                    contains(extract_range, { r.identifier:start() })
+                local contains_end =
+                    ---@diagnostic disable-next-line: missing-fields
+                    contains(extract_range, { r.identifier:end_() })
                 return contains_start and contains_end
             end
         )
-        :map(declaration_to_text)
+        :map(reference_to_text)
         :totable()
 
     -- TODO: maybe check that all the treesitter captures are not empty(?
@@ -1018,10 +1011,10 @@ local function extract_func(
     ---@type refactor.QfItem
     local declarations_before_output_range = iter(declarations)
         :filter(
-            ---@param d refactor.QfItem
-            function(d)
-                local start_symbol = { d.lnum - 1, d.col - 1 }
-                local end_symbol = { d.end_lnum - 1, d.end_col - 1 }
+            ---@param r refactor.Reference
+            function(r)
+                local start_symbol = { r.identifier:start() }
+                local end_symbol = { r.identifier:end_() }
 
                 local declaration_scope =
                     get_declaration_scope(scopes, start_symbol, end_symbol)
@@ -1040,15 +1033,15 @@ local function extract_func(
                 return compare_start ~= 1 and compare_end ~= 1 and is_in_scope
             end
         )
-        :map(declaration_to_text)
+        :map(reference_to_text)
         :totable()
     ---@type refactor.QfItem
     local declarations_before_range = iter(declarations)
         :filter(
-            ---@param d refactor.QfItem
-            function(d)
-                local start_symbol = { d.lnum - 1, d.col - 1 }
-                local end_symbol = { d.end_lnum - 1, d.end_col - 1 }
+            ---@param r refactor.Reference
+            function(r)
+                local start_symbol = { r.identifier:start() }
+                local end_symbol = { r.identifier:end_() }
 
                 local declaration_scope =
                     get_declaration_scope(scopes, start_symbol, end_symbol)
@@ -1067,7 +1060,7 @@ local function extract_func(
                 return compare_start ~= 1 and compare_end ~= 1 and is_in_scope
             end
         )
-        :map(declaration_to_text)
+        :map(reference_to_text)
         :totable()
 
     ---@type refactor.Variable[]
@@ -1118,6 +1111,7 @@ local function extract_func(
     local return_values = iter(identifiers_after_range):filter(
         ---@param r string
         function(r)
+            -- TODO: maybe limit to write_identifiers that are not declarations
             return vim.tbl_contains(write_identifiers_inside_range, r)
         end
     ):totable()
@@ -1267,12 +1261,7 @@ M.extract_func = function(_, range_type)
         end
         local output_range = { output_node:range() }
 
-        -- TODO: clangd, gopls, jdt.ls, phpactor, powershell_es  and roslyn
-        -- don't return symbols for local variables. So, fallback to treesitter
-        -- somehow (or maybe don't use symbols at all)
-        local declarations = get_symbols()
         extract_func(
-            declarations,
             extract_range,
             buf,
             output_range,
@@ -1318,11 +1307,6 @@ M.extract_func_to_file = function(_, range_type)
             return
         end
 
-        -- NOTE: `lua_ls` sends a ContentModified error if `out_buf` is created
-        -- before this. That makes the callback of `get_symbols` never be
-        -- called. So, we call it before creating `out_buf`
-        local declarations = get_symbols()
-
         local out_buf = vim.fn.bufadd(file_name)
         if not api.nvim_buf_is_loaded(out_buf) then
             vim.fn.bufload(out_buf)
@@ -1337,7 +1321,6 @@ M.extract_func_to_file = function(_, range_type)
             or { 0, 0, 0, 0 }
 
         extract_func(
-            declarations,
             extract_range,
             buf,
             output_range,

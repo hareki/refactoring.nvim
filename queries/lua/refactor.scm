@@ -18,7 +18,9 @@
     value: (_) @variable.value)) @variable.declaration
 
 ; TODO: maybe join @reference and @variable queries in all languages(?
-; local foo = var
+; TODO: this will cause duplicate matches with the capture above (because
+; I can't negate ta parent). Will this cause issues?
+; foo = bar
 (assignment_statement
   (variable_list
     name: (identifier) @reference.identifier
@@ -31,11 +33,27 @@
   (#infer-type! lua @_value)
   (#set! reference_type write))
 
+; local foo = bar
+(variable_declaration
+  (assignment_statement
+    (variable_list
+      name: (identifier) @reference.identifier
+      (","
+        name: (identifier) @reference.identifier)*)
+    (expression_list
+      value: (_) @_value
+      (","
+        value: (_) @_value)*)
+    (#infer-type! lua @_value)
+    (#set! reference_type write)
+    (#set! declaration true)))
+
 ; local foo
 (variable_declaration
   (variable_list
     name: (identifier) @reference.identifier)
-  (#set! reference_type write))
+  (#set! reference_type write)
+  (#set! declaration true))
 
 (bracket_index_expression
   table: (identifier) @reference.identifier
@@ -53,6 +71,11 @@
   (identifier) @reference.identifier
   (#set! reference_type read))
 
+(parameters
+  (identifier) @reference.identifier
+  (#set! reference_type write)
+  (#set! declaration true))
+
 (function_call
   name: (identifier) @reference.identifier
   (#set! reference_type read))
@@ -67,7 +90,8 @@
 
 (for_numeric_clause
   (identifier) @reference.identifier
-  (#set! reference_type write))
+  (#set! reference_type write)
+  (#set! declaration true))
 
 ((comment)* @output.comment
   .
