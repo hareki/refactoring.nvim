@@ -129,15 +129,12 @@ function M.inline_var()
                 local match_info = {} ---@type refactor.VariableMatchInfo|{}
                 for capture_id, nodes in pairs(match) do
                     local name = query.captures[capture_id]
-                    local is_identifier = name == "variable.identifier"
-                    local is_value = name == "variable.value"
-                    local is_declaration = name == "variable.declaration"
 
-                    if is_identifier then
+                    if name == "variable.identifier" then
                         match_info.identifier = nodes
-                    elseif is_value then
+                    elseif name == "variable.value" then
                         match_info.value = nodes
-                    elseif is_declaration then
+                    elseif name == "variable.declaration" then
                         match_info.declaration = nodes
                     end
                 end
