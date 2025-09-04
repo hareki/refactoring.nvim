@@ -312,10 +312,10 @@ def %s(%s):
                 end
             ):join(", ")
             if #opts.return_values == 0 then
-                return ("%s(%s)"):format(opts.name, args)
+                return ("%s(%s);"):format(opts.name, args)
             end
             if #opts.return_values == 1 then
-                return ("var %s = %s(%s)"):format(
+                return ("var %s = %s(%s);"):format(
                     opts.return_values[1],
                     opts.name,
                     args
