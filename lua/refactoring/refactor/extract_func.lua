@@ -50,6 +50,7 @@ end)
 ---@type refactor.code_generation
 local code_generation = {
     function_declaration = {
+        -- TODO: use type information in code_generation for lua
         lua = function(opts)
             local args = table.concat(opts.args, ", ")
 
@@ -59,7 +60,6 @@ local function %s(%s)
 end]]):format(opts.name, args, opts.body)
         end,
         c = function(opts)
-            -- TODO: infer types somehow
             local return_type = #opts.return_values == 1 and "P" or "void"
             local args = iter(opts.args):map(function(a)
                 return "P " .. a
@@ -470,7 +470,6 @@ parents_till_nil.typescript = parents_till_nil.javascript
 ---@param o refactor.Output
 ---@return TSNode
 local function choose_output(o)
-    -- TODO: add decorators(?
     return o.comment and o.comment[1] or o.fn
 end
 
@@ -597,6 +596,38 @@ local function get_output_node(nested_lang_tree, query, buf, extract_range)
         }
 end
 
+---@param buf integer
+local function buf_reference_to_text(buf)
+    ---@param reference refactor.Reference
+    return function(reference)
+        return ts.get_node_text(reference.identifier, buf)
+    end
+end
+
+---@param declaration refactor.QfItem
+local function declaration_to_text(declaration)
+    return declaration.text:match("^%[[^%]]+%] (.*)$")
+end
+
+local function is_unique()
+    ---@type {[string]: boolean}
+    local already_seen = {}
+
+    ---@param value any
+    return function(value)
+        if already_seen[value] then
+            return false
+        end
+        already_seen[value] = true
+        return true
+    end
+end
+
+---@class refactor.Reference
+---@field identifier TSNode
+---@field type string
+---@field reference_type 'read'|'write'
+
 ---@param declarations refactor.QfItem
 ---@param extract_range Range4
 ---@param in_buf integer
@@ -619,19 +650,21 @@ local function extract_func(
     query,
     opts
 )
-    local reference_nodes = {} ---@type TSNode[]
+    local references = {} ---@type refactor.Reference[]
     local scopes = {} ---@type TSNode[]
     for _, tree in ipairs(nested_lang_tree:trees()) do
-        for _, match in query:iter_matches(tree:root(), in_buf) do
+        for _, match, metadata in query:iter_matches(tree:root(), in_buf) do
             for capture_id, nodes in pairs(match) do
                 local name = query.captures[capture_id]
-                local is_identifier = name == "reference.identifier"
-                local is_scope = name == "scope"
-                if is_identifier then
-                    for _, node in ipairs(nodes) do
-                        table.insert(reference_nodes, node)
+                if name == "reference.identifier" then
+                    for i, node in ipairs(nodes) do
+                        table.insert(references, {
+                            identifier = node,
+                            reference_type = metadata.reference_type,
+                            type = metadata.types and metadata.types[i],
+                        })
                     end
-                elseif is_scope then
+                elseif name == "scope" then
                     for _, node in ipairs(nodes) do
                         table.insert(scopes, node)
                     end
@@ -640,38 +673,41 @@ local function extract_func(
         end
     end
 
-    local already_seen = {} ---@type {[string]: boolean}
-    local references_inside_range = iter(reference_nodes)
-        :filter(
-            ---@param r TSNode
-            function(r)
-                local start_row, start_col, end_row, end_col = r:range()
-                local start_node = { start_row, start_col }
-                local end_node = { end_row, end_col }
-                local contains_start = contains(extract_range, start_node)
-                local contains_end = contains(extract_range, end_node)
-                return contains_start and contains_end
-            end
-        )
-        :map(
-            ---@param r TSNode
-            function(r)
-                return ts.get_node_text(r, in_buf)
-            end
-        )
-        :filter(
-            ---@param t string
-            function(t)
-                if already_seen[t] then
-                    return false
-                end
-                already_seen[t] = true
-                return true
-            end
-        )
+    ---@type refactor.Reference[]
+    local references_inside_range = iter(references):filter(
+        ---@param r refactor.Reference
+        function(r)
+            local n = r.identifier
+            local start_row, start_col, end_row, end_col = n:range()
+            local start_node = { start_row, start_col }
+            local end_node = { end_row, end_col }
+            local contains_start = contains(extract_range, start_node)
+            local contains_end = contains(extract_range, end_node)
+            return contains_start and contains_end
+        end
+    ):totable()
+
+    local reference_to_text = buf_reference_to_text(in_buf)
+    ---@type string[]
+    local identifiers_inside_range = iter(references_inside_range)
+        :map(reference_to_text)
+        :filter(is_unique())
         :totable()
 
-    ---@type refactor.QfItem
+    ---@type string[]
+    local write_identifiers_inside_range = iter(references_inside_range)
+        :filter(
+            ---@param r refactor.Reference
+            function(r)
+                return r.reference_type == "write"
+            end
+        )
+        :map(reference_to_text)
+        :filter(is_unique())
+        :totable()
+
+    -- TODO: unify lsp declarations and treesitter write_references
+    ---@type string[]
     local declarations_inside_range = iter(declarations)
         :filter(
             ---@param s refactor.QfItem
@@ -683,12 +719,7 @@ local function extract_func(
                 return contains_start and contains_end
             end
         )
-        :map(
-            ---@param s refactor.QfItem
-            function(s)
-                return s.text:match("^%[[^%]]+%] (.*)$")
-            end
-        )
+        :map(declaration_to_text)
         :totable()
 
     -- TODO: maybe check that all the treesitter captures are not empty(?
@@ -749,12 +780,7 @@ local function extract_func(
                 return compare_start ~= 1 and compare_end ~= 1 and is_in_scope
             end
         )
-        :map(
-            ---@param s refactor.QfItem
-            function(s)
-                return s.text:match("^%[[^%]]+%] (.*)$")
-            end
-        )
+        :map(declaration_to_text)
         :totable()
     ---@type refactor.QfItem
     local declarations_before_range = iter(declarations)
@@ -800,15 +826,10 @@ local function extract_func(
                 return compare_start ~= 1 and compare_end ~= 1 and is_in_scope
             end
         )
-        :map(
-            ---@param s refactor.QfItem
-            function(s)
-                return s.text:match("^%[[^%]]+%] (.*)$")
-            end
-        )
+        :map(declaration_to_text)
         :totable()
 
-    local args = iter(references_inside_range):filter(
+    local args = iter(identifiers_inside_range):filter(
         ---@param r string
         function(r)
             return not vim.tbl_contains(declarations_inside_range, r)
@@ -817,12 +838,13 @@ local function extract_func(
         end
     ):totable()
 
-    already_seen = {}
-    local references_after_range = iter(reference_nodes)
+    ---@type string[]
+    local identifiers_after_range = iter(references)
         :filter(
-            ---@param r TSNode
+            ---@param r refactor.Reference
             function(r)
-                local start_row, start_col, end_row, end_col = r:range()
+                local n = r.identifier
+                local start_row, start_col, end_row, end_col = n:range()
                 local start_node = { start_row, start_col }
                 local end_node = { end_row, end_col }
 
@@ -862,28 +884,13 @@ local function extract_func(
                 return compare_start == 1 and compare_end == 1 and is_in_scope
             end
         )
-        :map(
-            ---@param r TSNode
-            function(r)
-                return ts.get_node_text(r, in_buf)
-            end
-        )
-        :filter(
-            ---@param t string
-            function(t)
-                if already_seen[t] then
-                    return false
-                end
-                already_seen[t] = true
-                return true
-            end
-        )
+        :map(reference_to_text)
+        :filter(is_unique())
         :totable()
-    local return_values = iter(references_after_range):filter(
+    local return_values = iter(identifiers_after_range):filter(
         ---@param r string
         function(r)
-            -- TODO: maybe limit this to write references somehow
-            return vim.tbl_contains(references_inside_range, r)
+            return vim.tbl_contains(write_identifiers_inside_range, r)
         end
     ):totable()
 
@@ -1001,7 +1008,6 @@ local function ts_parse(buf, extract_range)
     return nested_lang_tree, query
 end
 
--- TODO: support all languages
 -- TODO: remove `buf` (first var) from all calls after the rewrite is finished
 ---@param _ integer
 ---@param range_type 'v' | 'V' | ''

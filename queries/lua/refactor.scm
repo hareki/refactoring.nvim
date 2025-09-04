@@ -17,35 +17,57 @@
   (expression_list
     value: (_) @variable.value)) @variable.declaration
 
-; TODO: maybe distinguisth between references and declarations(? that would
-; allow me to fallback to treesitter if there are no LSP results and to filter
-; references from declarations in extract_func after range
-(variable_list
-  name: (identifier) @reference.identifier)
+; TODO: maybe join @reference and @variable queries in all languages(?
+; local foo = var
+(assignment_statement
+  (variable_list
+    name: (identifier) @reference.identifier
+    (","
+      name: (identifier) @reference.identifier)*)
+  (expression_list
+    value: (_) @_value
+    (","
+      value: (_) @_value)*)
+  (#infer-type! lua @_value)
+  (#set! reference_type write))
+
+; local foo
+(variable_declaration
+  (variable_list
+    name: (identifier) @reference.identifier)
+  (#set! reference_type read))
 
 (bracket_index_expression
-  table: (identifier) @reference.identifier)
+  table: (identifier) @reference.identifier
+  (#set! reference_type read))
 
 (dot_index_expression
-  table: (identifier) @reference.identifier)
+  table: (identifier) @reference.identifier
+  (#set! reference_type read))
 
 (method_index_expression
-  table: (identifier) @reference.identifier)
+  table: (identifier) @reference.identifier
+  (#set! reference_type read))
 
 (arguments
-  (identifier) @reference.identifier)
+  (identifier) @reference.identifier
+  (#set! reference_type read))
 
 (function_call
-  name: (identifier) @reference.identifier)
+  name: (identifier) @reference.identifier
+  (#set! reference_type read))
 
 (expression_list
-  (identifier) @reference.identifier)
+  (identifier) @reference.identifier
+  (#set! reference_type read))
 
 (binary_expression
-  (identifier) @reference.identifier)
+  (identifier) @reference.identifier
+  (#set! reference_type read))
 
 (for_numeric_clause
-  (identifier) @reference.identifier)
+  (identifier) @reference.identifier
+  (#set! reference_type read))
 
 ((comment)* @output.comment
   .

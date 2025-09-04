@@ -69,6 +69,9 @@ function M.inline_var()
         })
         local definitions = unpack(results[1]) ---@type string?, refactor.QfItem[]
         local references = unpack(results[2]) ---@type string?, refactor.QfItem[]
+        -- TODO: allow to select one of the multiple definitions
+        -- TODO: filter definitions that do not have a matching treesitter
+        -- capture on their range
         if #definitions > 1 then
             vim.notify(
                 "Symbol under cursor has multiple definitions. It can't be inlined",
