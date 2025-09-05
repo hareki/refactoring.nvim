@@ -47,42 +47,36 @@ local code_generation = {
                     return v.identifier
                 end
             ):join(", ")
-            if
-                iter(opts.args):any(
-                    ---@param v refactor.Variable
-                    function(v)
-                        return v.type ~= nil
-                    end
-                )
-            then
-                local annotations = iter(opts.args)
-                    :filter(
-                        ---@param v refactor.Variable
-                        function(v)
-                            return v.type ~= nil
-                        end
-                    )
-                    :map(
-                        ---@param v refactor.Variable
-                        function(v)
-                            return ("---@param %s %s"):format(
-                                v.identifier,
-                                v.type
-                            )
-                        end
-                    )
-                    :join("\n")
-                return ([[
-%s
-local function %s(%s)
-%s
-end]]):format(annotations, opts.name, args, opts.body)
-            end
+            local has_arg_types = iter(opts.args):any(
+                ---@param v refactor.Variable
+                function(v)
+                    return v.type ~= nil
+                end
+            )
+            local annotations = not has_arg_types and ""
+                or iter(opts.args)
+                        :filter(
+                            ---@param v refactor.Variable
+                            function(v)
+                                return v.type ~= nil
+                            end
+                        )
+                        :map(
+                            ---@param v refactor.Variable
+                            function(v)
+                                return ("---@param %s %s"):format(
+                                    v.identifier,
+                                    v.type
+                                )
+                            end
+                        )
+                        :join("\n")
+                    .. "\n"
 
             return ([[
-local function %s(%s)
+%slocal function %s(%s)
 %s
-end]]):format(opts.name, args, opts.body)
+end]]):format(annotations, opts.name, args, opts.body)
         end,
         c = function(opts)
             local return_type = #opts.return_values == 1 and "P" or "void"
@@ -133,6 +127,57 @@ public %s %s(%s) {
                 ---@param v refactor.Variable
                 function(v)
                     return v.identifier
+                end
+            ):join(", ")
+            local has_arg_types = iter(opts.args):any(
+                ---@param v refactor.Variable
+                function(v)
+                    return v.type ~= nil
+                end
+            )
+            local annotations = ""
+
+            if has_arg_types then
+                annotations = iter(opts.args)
+                    :filter(
+                        ---@param v refactor.Variable
+                        function(v)
+                            return v.type ~= nil
+                        end
+                    )
+                    :map(
+                        ---@param v refactor.Variable
+                        function(v)
+                            return ("* @param {%s} %s"):format(
+                                v.type,
+                                v.identifier
+                            )
+                        end
+                    )
+                    :join("\n")
+                annotations = ([[
+/**
+%s
+*/
+]]):format(annotations)
+            end
+            return ([[
+%s%s%s(%s){
+%s
+}]]):format(
+                annotations,
+                opts.method and "" or "function ",
+                opts.name,
+                args,
+                opts.body
+            )
+        end,
+        typescript = function(opts)
+            local args = iter(opts.args):map(
+                ---@param v refactor.Variable
+                function(v)
+                    return v.type and ("%s: %s"):format(v.identifier, v.type)
+                        or v.identifier
                 end
             ):join(", ")
             return ([[
@@ -329,19 +374,22 @@ def %s(%s):
                     return v.identifier
                 end
             ):join(", ")
+            local name = opts.method and ("this.%s"):format(opts.name)
+                or opts.name
+
             if #opts.return_values == 0 then
-                return ("%s(%s);"):format(opts.name, args)
+                return ("%s(%s);"):format(name, args)
             end
             if #opts.return_values == 1 then
                 return ("let %s = %s(%s);"):format(
                     opts.return_values[1],
-                    opts.name,
+                    name,
                     args
                 )
             end
             return ("let [%s] = %s(%s);"):format(
                 table.concat(opts.return_values, ", "),
-                opts.name,
+                name,
                 args
             )
         end,
@@ -529,8 +577,6 @@ code_generation.function_declaration.cpp =
     code_generation.function_declaration.c
 code_generation.function_call.cpp = code_generation.function_call.c
 code_generation.return_statement.cpp = code_generation.return_statement.c
-code_generation.function_declaration.typescript =
-    code_generation.function_declaration.javascript
 code_generation.function_call.typescript =
     code_generation.function_call.javascript
 code_generation.return_statement.typescript =

@@ -25,7 +25,31 @@ local infer_type = {
         end
         return type
     end,
+    javascript = function(opts)
+        local type ---@type string|vim.NIL
+        local node_type = opts.value:type()
+        if node_type == "number" then
+            type = "number"
+        elseif node_type == "string" or node_type == "template_string" then
+            type = "string"
+        elseif node_type == "true" or node_type == "false" then
+            type = "boolean"
+        elseif node_type == "null" then
+            type = "null"
+        elseif node_type == "undefined" then
+            type = "undefined"
+        elseif node_type == "function_definition" then
+            type = "function"
+        elseif node_type == "arrow_function" then
+            -- TODO: maybe support more complex type inference for functions
+            type = "() => void"
+        else
+            type = vim.NIL
+        end
+        return type
+    end,
 }
+infer_type.typescript = infer_type.javascript
 
 ts.query.add_directive(
     "infer-type!",
@@ -47,9 +71,12 @@ ts.query.add_directive(
 )
 
 -- TODO: move this into another lua file in order to lazy load it with require
----@type {[string]: nil|fun(opts: {types: TSNode[], identifiers: TSNode[], source: integer|string}): string[]}
+---@type {[string]: nil|fun(opts: {types: TSNode[]?, identifiers: TSNode[], source: integer|string}): string[]|nil}
 local get_type = {
     c = function(opts)
+        if not opts.types then
+            return
+        end
         local types ---@type string[]
         if #opts.types == #opts.identifiers then
             types = iter(opts.types):map(
@@ -65,6 +92,17 @@ local get_type = {
             end):totable()
         end
         return types
+    end,
+    typescript = function(opts)
+        if not opts.types then
+            return
+        end
+        return iter(opts.types):map(
+            ---@param t TSNode
+            function(t)
+                return ts.get_node_text(t, opts.source)
+            end
+        ):totable()
     end,
 }
 get_type.c_sharp = get_type.c

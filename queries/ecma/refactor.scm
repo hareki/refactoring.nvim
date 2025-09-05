@@ -22,20 +22,33 @@
     name: (identifier) @variable.identifier
     value: (_) @variable.value)) @variable.declaration
 
-(variable_declarator
-  (identifier) @reference.identifier)
+(assignment_expression
+  left: (identifier) @reference.identifier
+  (#set! reference_type write))
+
+(assignment_expression
+  right: (identifier) @reference.identifier
+  (#set! reference_type read))
 
 (binary_expression
-  (identifier) @reference.identifier)
+  (identifier) @reference.identifier
+  (#set! reference_type read))
 
 (update_expression
-  (identifier) @reference.identifier)
+  (identifier) @reference.identifier
+  (#set! reference_type write))
 
 (augmented_assignment_expression
-  (identifier) @reference.identifier)
+  (identifier) @reference.identifier
+  (#set! reference_type write))
 
 (arguments
-  (identifier) @reference.identifier)
+  (identifier) @reference.identifier
+  (#set! reference_type read))
+
+(return_statement
+  (identifier) @reference.identifier
+  (#set! reference_type read))
 
 ((comment)* @output.comment
   .

@@ -1,6 +1,3 @@
-; TODO: clean reference @query similar to @variable ones on every language
-; TODO: add support for write/read and declaration for every language
-; TODO: add support for type queries (`set-type!` or `infer-type!`) for every language
 (local_declaration_statement
   (variable_declaration
     .
