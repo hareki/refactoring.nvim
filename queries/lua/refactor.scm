@@ -90,9 +90,17 @@
   (#set! reference_type read))
 
 (for_numeric_clause
-  (identifier) @reference.identifier
+  name: (identifier) @reference.identifier
   (#set! reference_type write)
   (#set! declaration true))
+
+(for_numeric_clause
+  end: (identifier) @reference.identifier
+  (#set! reference_type read))
+
+(for_numeric_clause
+  start: (identifier) @reference.identifier
+  (#set! reference_type read))
 
 ((comment)* @output.comment
   .
