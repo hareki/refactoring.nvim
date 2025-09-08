@@ -1,13 +1,28 @@
 (short_var_declaration
   left: (expression_list
-    (identifier) @variable.identifier)
+    .
+    (identifier) @variable.identifier
+    .
+    (","
+      (identifier) @variable.identifier)*)
   right: (expression_list
-    (_) @variable.value)) @variable.declaration
+    .
+    (_) @variable.value
+    .
+    (","
+      (_) @variable.value))) @variable.declaration
 
 (var_declaration
   (var_spec
+    .
     name: (identifier) @variable.identifier
-    value: (_) @variable.value)) @variable.declaration
+    .
+    (","
+      name: (identifier) @variable.identifier)*
+    value: (expression_list
+      (_) @variable.value
+      (","
+        (_) @variable.value)*))) @variable.declaration
 
 (var_spec
   (identifier) @reference.identifier)
