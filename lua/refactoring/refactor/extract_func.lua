@@ -641,10 +641,10 @@ end
 ---@param nested_lang_tree vim.treesitter.LanguageTree
 ---@param query vim.treesitter.Query
 ---@param buf integer
----@param extract_range Range4
+---@param extracted_range Range4
 ---@return TSNode?
 ---@return {method: boolean?, singleton: boolean?, struct_name: string?, struct_var_name: string?}?
-local function get_output_node(nested_lang_tree, query, buf, extract_range)
+local function get_output_node(nested_lang_tree, query, buf, extracted_range)
     local outputs = {} ---@type refactor.Output[]
     for _, tree in ipairs(nested_lang_tree:trees()) do
         for _, match in query:iter_matches(tree:root(), buf) do
@@ -711,7 +711,7 @@ local function get_output_node(nested_lang_tree, query, buf, extract_range)
                 local start_row, start_col = n:start()
                 return compare(
                     { start_row, start_col },
-                    { extract_range[1], extract_range[2] }
+                    { extracted_range[1], extracted_range[2] }
                 ) == -1
             end
         )
@@ -728,16 +728,18 @@ local function get_output_node(nested_lang_tree, query, buf, extract_range)
                 local acc_n = choose_output(o)
                 local acc_start_row, acc_start_col = acc_n:start()
 
-                local o_row_distance = math.abs(n_start_row - extract_range[1])
+                local o_row_distance =
+                    math.abs(n_start_row - extracted_range[1])
                 local acc_row_distance =
-                    math.abs(acc_start_row - extract_range[1])
+                    math.abs(acc_start_row - extracted_range[1])
                 if acc_row_distance < o_row_distance then
                     return acc
                 end
 
-                local o_col_distance = math.abs(n_start_col - extract_range[2])
+                local o_col_distance =
+                    math.abs(n_start_col - extracted_range[2])
                 local acc_col_distance =
-                    math.abs(acc_start_col - extract_range[2])
+                    math.abs(acc_start_col - extracted_range[2])
                 if
                     acc_row_distance == o_row_distance
                     and acc_col_distance < o_col_distance
@@ -817,7 +819,7 @@ end
 ---@field identifier string
 ---@field type string|nil
 
----@param extract_range Range4
+---@param extracted_range Range4
 ---@param in_buf integer
 ---@param output_range Range4
 ---@param lines string[]
@@ -827,7 +829,7 @@ end
 ---@param query vim.treesitter.Query
 ---@param opts {method: boolean?, singleton: boolean?, struct_name: string?, struct_var_name: string?}
 local function extract_func(
-    extract_range,
+    extracted_range,
     in_buf,
     output_range,
     lines,
@@ -860,6 +862,22 @@ local function extract_func(
             end
         end
     end
+    -- TODO: maybe check that all the treesitter captures are not empty(?
+
+    ---@type TSNode[]
+    local scopes_for_extracted_range = iter(scopes):filter(
+        ---@param s TSNode
+        function(s)
+            local scope_range = { s:range() }
+            return contains(
+                scope_range,
+                { extracted_range[1], extracted_range[2] }
+            ) and contains(
+                scope_range,
+                { extracted_range[3], extracted_range[4] }
+            )
+        end
+    ):totable()
 
     local typed_references = iter(references):filter(
         ---@param r refactor.Reference
@@ -893,14 +911,37 @@ local function extract_func(
         end
     )
     ---@type {[TSNode]: {scope: TSNode, types: {[string]: string}}}
-    local types_by_scope = iter(typed_references):fold(
+    local types_by_scope_up_to_extracted_range = iter(typed_references):filter(
+        ---@param r refactor.Reference
+        function(r)
+            -- TODO: maybe extract this filter into some function, there are
+            -- similar ones for all the `before_` variables
+            local start_node = { r.identifier:start() }
+            local end_node = { r.identifier:end_() }
+
+            local declaration_scope =
+                get_declaration_scope(scopes, start_node, end_node)
+
+            local is_in_scope = declaration_scope
+                and iter(scopes_for_extracted_range):find(
+                    ---@param s TSNode
+                    function(s)
+                        return s:equal(declaration_scope)
+                    end
+                )
+
+            local end_extract = { extracted_range[3], extracted_range[4] }
+            local compare_start = compare(start_node, end_extract)
+            local compare_end = compare(end_node, end_extract)
+            return compare_start ~= 1 and compare_end ~= 1 and is_in_scope
+        end
+    ):fold(
         {},
         ---@param acc {[TSNode]: {scope: TSNode, types: {[string]: string}}}
         ---@param r refactor.Reference
         function(acc, r)
-            local start_row, start_col, end_row, end_col = r.identifier:range()
-            local start_node = { start_row, start_col }
-            local end_node = { end_row, end_col }
+            local start_node = { r.identifier:start() }
+            local end_node = { r.identifier:end_() }
 
             local scope = get_declaration_scope(scopes, start_node, end_node)
             if not scope then
@@ -916,9 +957,10 @@ local function extract_func(
         end
     )
     ---@type {scope: TSNode, types: {[string]: string}}[]
-    local types_with_scopes = vim.tbl_values(types_by_scope)
+    local types_with_scope_up_to_extracted_range =
+        vim.tbl_values(types_by_scope_up_to_extracted_range)
     table.sort(
-        types_with_scopes,
+        types_with_scope_up_to_extracted_range,
         ---@param a {scope: TSNode, types: {[string]: string}}
         ---@param b {scope: TSNode, types: {[string]: string}}
         function(a, b)
@@ -942,7 +984,9 @@ local function extract_func(
             return compare_end ~= -1
         end
     )
-    local scoped_types = iter(types_with_scopes):map(
+    local scoped_types_up_to_extracted_range = iter(
+        types_with_scope_up_to_extracted_range
+    ):map(
         ---@param a {scope: TSNode, types: {[string]: string}}
         function(a)
             return a.types
@@ -950,28 +994,27 @@ local function extract_func(
     ):totable()
 
     ---@type refactor.Reference[]
-    local references_inside_range = iter(references):filter(
+    local references_inside_extracted_range = iter(references):filter(
         ---@param r refactor.Reference
         function(r)
             local n = r.identifier
-            local start_row, start_col, end_row, end_col = n:range()
-            local start_node = { start_row, start_col }
-            local end_node = { end_row, end_col }
-            local contains_start = contains(extract_range, start_node)
-            local contains_end = contains(extract_range, end_node)
+            local start_node = { n:start() }
+            local end_node = { n:end_() }
+            local contains_start = contains(extracted_range, start_node)
+            local contains_end = contains(extracted_range, end_node)
             return contains_start and contains_end
         end
     ):totable()
 
     ---@type refactor.Variable[]
-    local variables_inside_range = iter(references_inside_range)
+    local variables_inside_extracted_range = iter(references_inside_extracted_range)
         :map(
             ---@param r refactor.Reference
             function(r)
                 local identifier = ts.get_node_text(r.identifier, in_buf)
 
                 ---@type {[string]: string}|nil
-                local types = iter(scoped_types):find(
+                local types = iter(scoped_types_up_to_extracted_range):find(
                     ---@param types {[string]: string}
                     function(types)
                         return types[identifier] ~= nil
@@ -998,7 +1041,7 @@ local function extract_func(
             return ts.get_node_text(reference.identifier, in_buf)
         end
     ---@type string[]
-    local write_identifiers_inside_range = iter(references_inside_range)
+    local write_identifiers_inside_extracted_range = iter(references_inside_extracted_range)
         :filter(
             ---@param r refactor.Reference
             function(r)
@@ -1016,48 +1059,35 @@ local function extract_func(
         end
     ):totable()
     ---@type string[]
-    local declarations_inside_range = iter(declarations)
+    local declarations_inside_extracted_range = iter(declarations)
         :filter(
             ---@param r refactor.Reference
             function(r)
                 local contains_start =
                     ---@diagnostic disable-next-line: missing-fields
-                    contains(extract_range, { r.identifier:start() })
+                    contains(extracted_range, { r.identifier:start() })
                 local contains_end =
                     ---@diagnostic disable-next-line: missing-fields
-                    contains(extract_range, { r.identifier:end_() })
+                    contains(extracted_range, { r.identifier:end_() })
                 return contains_start and contains_end
             end
         )
         :map(reference_to_text)
         :totable()
 
-    -- TODO: maybe check that all the treesitter captures are not empty(?
-    ---@type TSNode[]
-    local scopes_for_range = iter(scopes):filter(
-        ---@param s TSNode
-        function(s)
-            local scope_range = { s:range() }
-            return contains(scope_range, { extract_range[1], extract_range[2] })
-                and contains(
-                    scope_range,
-                    { extract_range[3], extract_range[4] }
-                )
-        end
-    ):totable()
     ---@type string[]
     local declarations_before_output_range = iter(declarations)
         :filter(
             ---@param r refactor.Reference
             function(r)
-                local start_symbol = { r.identifier:start() }
-                local end_symbol = { r.identifier:end_() }
+                local start_node = { r.identifier:start() }
+                local end_node = { r.identifier:end_() }
 
                 local declaration_scope =
-                    get_declaration_scope(scopes, start_symbol, end_symbol)
+                    get_declaration_scope(scopes, start_node, end_node)
 
                 local is_in_scope = declaration_scope
-                    and iter(scopes_for_range):find(
+                    and iter(scopes_for_extracted_range):find(
                         ---@param s TSNode
                         function(s)
                             return s:equal(declaration_scope)
@@ -1065,35 +1095,35 @@ local function extract_func(
                     )
 
                 local start_output = { output_range[1], output_range[2] }
-                local compare_start = compare(start_symbol, start_output)
-                local compare_end = compare(end_symbol, start_output)
+                local compare_start = compare(start_node, start_output)
+                local compare_end = compare(end_node, start_output)
                 return compare_start ~= 1 and compare_end ~= 1 and is_in_scope
             end
         )
         :map(reference_to_text)
         :totable()
     ---@type string[]
-    local declarations_before_range = iter(declarations)
+    local declarations_before_extracted_range = iter(declarations)
         :filter(
             ---@param r refactor.Reference
             function(r)
-                local start_symbol = { r.identifier:start() }
-                local end_symbol = { r.identifier:end_() }
+                local start_node = { r.identifier:start() }
+                local end_node = { r.identifier:end_() }
 
                 local declaration_scope =
-                    get_declaration_scope(scopes, start_symbol, end_symbol)
+                    get_declaration_scope(scopes, start_node, end_node)
 
                 local is_in_scope = declaration_scope
-                    and iter(scopes_for_range):find(
+                    and iter(scopes_for_extracted_range):find(
                         ---@param s TSNode
                         function(s)
                             return s:equal(declaration_scope)
                         end
                     )
 
-                local start_extract = { extract_range[1], extract_range[2] }
-                local compare_start = compare(start_symbol, start_extract)
-                local compare_end = compare(end_symbol, start_extract)
+                local start_extract = { extracted_range[1], extracted_range[2] }
+                local compare_start = compare(start_node, start_extract)
+                local compare_end = compare(end_node, start_extract)
                 return compare_start ~= 1 and compare_end ~= 1 and is_in_scope
             end
         )
@@ -1101,42 +1131,42 @@ local function extract_func(
         :totable()
 
     ---@type refactor.Variable[]
-    local args = iter(variables_inside_range):filter(
+    local args = iter(variables_inside_extracted_range):filter(
         ---@param r refactor.Variable
         function(r)
             return not vim.tbl_contains(
-                    declarations_inside_range,
-                    r.identifier
-                )
-                and not vim.tbl_contains(
-                    declarations_before_output_range,
-                    r.identifier
-                )
-                and vim.tbl_contains(declarations_before_range, r.identifier)
+                declarations_inside_extracted_range,
+                r.identifier
+            ) and not vim.tbl_contains(
+                declarations_before_output_range,
+                r.identifier
+            ) and vim.tbl_contains(
+                declarations_before_extracted_range,
+                r.identifier
+            )
         end
     ):totable()
 
     ---@type string[]
-    local identifiers_after_range = iter(references)
+    local identifiers_after_extracted_range = iter(references)
         :filter(
             ---@param r refactor.Reference
             function(r)
                 local n = r.identifier
-                local start_row, start_col, end_row, end_col = n:range()
-                local start_node = { start_row, start_col }
-                local end_node = { end_row, end_col }
+                local start_node = { n:start() }
+                local end_node = { n:end_() }
 
                 local declaration_scope =
                     get_declaration_scope(scopes, start_node, end_node)
                 local is_in_scope = declaration_scope
-                    and iter(scopes_for_range):find(
+                    and iter(scopes_for_extracted_range):find(
                         ---@param s TSNode
                         function(s)
                             return s:equal(declaration_scope)
                         end
                     )
 
-                local extract_end = { extract_range[3], extract_range[4] }
+                local extract_end = { extracted_range[3], extracted_range[4] }
                 local compare_start = compare(start_node, extract_end)
                 local compare_end = compare(end_node, extract_end)
                 return compare_start == 1 and compare_end == 1 and is_in_scope
@@ -1146,11 +1176,11 @@ local function extract_func(
         :filter(is_unique())
         :totable()
     -- TODO: add support for types for return_values
-    local return_values = iter(identifiers_after_range):filter(
+    local return_values = iter(identifiers_after_extracted_range):filter(
         ---@param r string
         function(r)
             -- TODO: maybe limit to write_identifiers that are not declarations
-            return vim.tbl_contains(write_identifiers_inside_range, r)
+            return vim.tbl_contains(write_identifiers_inside_extracted_range, r)
         end
     ):totable()
 
@@ -1192,10 +1222,10 @@ local function extract_func(
 
     api.nvim_buf_set_text(
         in_buf,
-        extract_range[1],
-        extract_range[2],
-        extract_range[3],
-        extract_range[4],
+        extracted_range[1],
+        extracted_range[2],
+        extracted_range[3],
+        extracted_range[4],
         vim.split(function_call, "\n")
     )
 
@@ -1231,7 +1261,7 @@ local function get_extracted_range(range_type)
     local range_last_line =
         api.nvim_buf_get_lines(buf, range_end[2] - 1, range_end[2], true)[1]
 
-    local extract_range = {
+    local extracted_range = {
         range_start[2] - 1,
         range_type ~= "V" and range_start[3] - 1 or 0,
         range_end[2] - 1,
@@ -1240,13 +1270,13 @@ local function get_extracted_range(range_type)
     local lines =
         vim.fn.getregion(range_start, range_end, { type = range_type })
 
-    return extract_range, lines
+    return extracted_range, lines
 end
 
 ---@param buf integer
----@param extract_range Range4
+---@param extracted_range Range4
 ---@return vim.treesitter.LanguageTree?, vim.treesitter.Query?
-local function ts_parse(buf, extract_range)
+local function ts_parse(buf, extracted_range)
     local lang_tree, err1 = ts.get_parser(buf, nil, { error = false })
     if not lang_tree then
         vim.notify(err1, vim.log.levels.ERROR)
@@ -1254,7 +1284,7 @@ local function ts_parse(buf, extract_range)
     end
     -- TODO: use async parsing
     lang_tree:parse(true)
-    local nested_lang_tree = lang_tree:language_for_range(extract_range)
+    local nested_lang_tree = lang_tree:language_for_range(extracted_range)
     local lang = nested_lang_tree:lang()
     local query = ts.query.get(lang, "refactor")
     if not query then
@@ -1273,7 +1303,7 @@ end
 ---@param range_type 'v' | 'V' | ''
 M.extract_func = function(_, range_type)
     local buf = api.nvim_get_current_buf()
-    local extract_range, lines = get_extracted_range(range_type)
+    local extracted_range, lines = get_extracted_range(range_type)
 
     local task = async.run(function()
         local fn_name = input({ prompt = "Function name: " })
@@ -1281,13 +1311,13 @@ M.extract_func = function(_, range_type)
             return
         end
 
-        local nested_lang_tree, query = ts_parse(buf, extract_range)
+        local nested_lang_tree, query = ts_parse(buf, extracted_range)
         if not nested_lang_tree or not query then
             return
         end
 
         local output_node, opts =
-            get_output_node(nested_lang_tree, query, buf, extract_range)
+            get_output_node(nested_lang_tree, query, buf, extracted_range)
         -- TODO: default to some range (current location?) if no `output_node` found
         -- TODO: define treesitter fallback captures (like root node or current
         -- statement) to use as default location. Or maybe nearest top level statement (?
@@ -1300,7 +1330,7 @@ M.extract_func = function(_, range_type)
         local output_range = { output_node:range() }
 
         extract_func(
-            extract_range,
+            extracted_range,
             buf,
             output_range,
             lines,
@@ -1324,7 +1354,7 @@ end
 ---@param range_type 'v' | 'V' | ''
 M.extract_func_to_file = function(_, range_type)
     local buf = api.nvim_get_current_buf()
-    local extract_range, lines = get_extracted_range(range_type)
+    local extracted_range, lines = get_extracted_range(range_type)
 
     local task = async.run(function()
         local file_name = input({
@@ -1340,7 +1370,7 @@ M.extract_func_to_file = function(_, range_type)
             return
         end
 
-        local nested_lang_tree, query = ts_parse(buf, extract_range)
+        local nested_lang_tree, query = ts_parse(buf, extracted_range)
         if not nested_lang_tree or not query then
             return
         end
@@ -1349,17 +1379,21 @@ M.extract_func_to_file = function(_, range_type)
         if not api.nvim_buf_is_loaded(out_buf) then
             vim.fn.bufload(out_buf)
         end
-        local out_nested_lang_tree = ts_parse(out_buf, extract_range)
+        local out_nested_lang_tree = ts_parse(out_buf, extracted_range)
         if not out_nested_lang_tree then
             return
         end
-        local output_node, opts =
-            get_output_node(out_nested_lang_tree, query, out_buf, extract_range)
+        local output_node, opts = get_output_node(
+            out_nested_lang_tree,
+            query,
+            out_buf,
+            extracted_range
+        )
         local output_range = output_node and { output_node:range() }
             or { 0, 0, 0, 0 }
 
         extract_func(
-            extract_range,
+            extracted_range,
             buf,
             output_range,
             lines,
