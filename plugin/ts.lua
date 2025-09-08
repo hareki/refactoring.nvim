@@ -40,8 +40,6 @@ local infer_type = {
             type = "null"
         elseif node_type == "undefined" then
             type = "undefined"
-        elseif node_type == "function_definition" then
-            type = "function"
         elseif node_type == "arrow_function" then
             -- TODO: maybe support more complex type inference for functions
             type = "() => void"
