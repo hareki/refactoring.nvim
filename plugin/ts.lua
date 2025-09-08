@@ -3,7 +3,7 @@ local iter = vim.iter
 local ts = vim.treesitter
 
 -- TODO: move this into another lua file in order to lazy load it with require
----@type {[string]: nil|fun(opts: {value: TSNode}): string|vim.NIL}
+---@type {[string]: nil|fun(opts: {value: TSNode, source: string|integer}): string|vim.NIL|{identifier: string}}
 local infer_type = {
     lua = function(opts)
         local type ---@type string|vim.NIL
@@ -20,6 +20,8 @@ local infer_type = {
             type = "function"
         elseif node_type == "table_constructor" then
             type = "table"
+        elseif node_type == "identifier" then
+            type = { identifier = ts.get_node_text(opts.value, opts.source) }
         else
             type = vim.NIL
         end
@@ -43,6 +45,8 @@ local infer_type = {
         elseif node_type == "arrow_function" then
             -- TODO: maybe support more complex type inference for functions
             type = "() => void"
+        elseif node_type == "identifier" then
+            type = { identifier = ts.get_node_text(opts.value, opts.source) }
         else
             type = vim.NIL
         end
@@ -63,7 +67,7 @@ ts.query.add_directive(
             return
         end
         local types = iter(values):map(function(value)
-            return infer_type_lang({ value = value })
+            return infer_type_lang({ value = value, source = source })
         end):totable()
         metadata.types = types
     end,
@@ -122,6 +126,9 @@ ts.query.add_directive(
             identifiers = match[identifier_id],
             source = source,
         })
+        if not types then
+            return
+        end
         metadata.types = types
     end,
     { force = true, all = true }

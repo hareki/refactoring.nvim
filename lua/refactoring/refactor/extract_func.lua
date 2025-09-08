@@ -811,7 +811,7 @@ end
 
 ---@class refactor.Reference
 ---@field identifier TSNode
----@field type string|nil
+---@field type string|{identifier: string}|vim.NIL|nil
 ---@field reference_type 'read'|'write'
 ---@field declaration boolean
 
@@ -882,7 +882,7 @@ local function extract_func(
     local typed_references = iter(references):filter(
         ---@param r refactor.Reference
         function(r)
-            return r.type ~= nil
+            return r.type ~= nil and r.type ~= vim.NIL
         end
     ):totable()
     table.sort(
@@ -910,7 +910,7 @@ local function extract_func(
             return compare_end == -1
         end
     )
-    ---@type {[TSNode]: {scope: TSNode, types: {[string]: string}}}
+    ---@type {[TSNode]: {scope: TSNode, types: {[string]: string|{identifier: string}}}}
     local types_by_scope_up_to_extracted_range = iter(typed_references):filter(
         ---@param r refactor.Reference
         function(r)
@@ -937,9 +937,13 @@ local function extract_func(
         end
     ):fold(
         {},
-        ---@param acc {[TSNode]: {scope: TSNode, types: {[string]: string}}}
+        ---@param acc {[TSNode]: {scope: TSNode, types: {[string]: string|{identifier: string}}}}
         ---@param r refactor.Reference
         function(acc, r)
+            if r.type == nil or r.type == vim.NIL then
+                return acc
+            end
+
             local start_node = { r.identifier:start() }
             local end_node = { r.identifier:end_() }
 
@@ -951,18 +955,19 @@ local function extract_func(
             acc[scope] = acc[scope] or {}
             acc[scope].types = acc[scope].types or {}
             local identifier = ts.get_node_text(r.identifier, in_buf)
-            acc[scope].types[identifier] = r.type --[[@as string]]
+            acc[scope].types[identifier] = r.type
             acc[scope].scope = scope
             return acc
         end
     )
-    ---@type {scope: TSNode, types: {[string]: string}}[]
+
+    ---@type {scope: TSNode, types: {[string]: string|{identifier: string}}}[]
     local types_with_scope_up_to_extracted_range =
         vim.tbl_values(types_by_scope_up_to_extracted_range)
     table.sort(
         types_with_scope_up_to_extracted_range,
-        ---@param a {scope: TSNode, types: {[string]: string}}
-        ---@param b {scope: TSNode, types: {[string]: string}}
+        ---@param a {scope: TSNode, types: {[string]: string|{identifier: string}}}
+        ---@param b {scope: TSNode, types: {[string]: string|{identifier: string}}}
         function(a, b)
             local compare_start = compare(
                 ---@diagnostic disable-next-line: missing-fields
@@ -984,6 +989,7 @@ local function extract_func(
             return compare_end ~= -1
         end
     )
+    ---@type {[string]: string|{identifier: string}}[]
     local scoped_types_up_to_extracted_range = iter(
         types_with_scope_up_to_extracted_range
     ):map(
@@ -992,6 +998,26 @@ local function extract_func(
             return a.types
         end
     ):totable()
+    iter(scoped_types_up_to_extracted_range):rev():each(
+        ---@param t {[string]: string|{identifier: string}}
+        function(t)
+            for identifier, identifier_type in pairs(t) do
+                if type(identifier_type) == "table" then
+                    local types = iter(scoped_types_up_to_extracted_range):find(
+                        ---@param types {[string]: string}
+                        function(types)
+                            return types[identifier_type.identifier] ~= nil
+                        end
+                    )
+                    local type = types and types[identifier_type.identifier]
+                    -- TODO: check for recursive variable references or
+                    -- something like that?
+                    t[identifier] = type
+                end
+            end
+        end
+    )
+    ---@cast scoped_types_up_to_extracted_range{[string]: string}[]
 
     ---@type refactor.Reference[]
     local references_inside_extracted_range = iter(references):filter(
