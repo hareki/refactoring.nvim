@@ -50,6 +50,34 @@ local infer_type = {
         end
         return type
     end,
+    go = function(opts)
+        local type ---@type string|vim.NIL
+        local node_type = opts.value:type()
+        if node_type == "int_literal" then
+            type = "int"
+        elseif node_type == "float_literal" then
+            type = "float64"
+        elseif node_type == "interpreted_string_literal" then
+            type = "string"
+        elseif node_type == "rune_literal" then
+            type = "rune"
+        elseif node_type == "true" or node_type == "false" then
+            type = "bool"
+        elseif node_type == "composite_literal" then
+            -- foo := bar{}
+            local type_node = opts.value:field("type")
+            type = type_node and ts.get_node_text(type_node, opts.source)
+                or vim.NIL
+        elseif node_type == "func_literal" then
+            -- TODO: maybe support more complex type inference for functions
+            type = "func()"
+        elseif node_type == "identifier" then
+            type = { identifier = ts.get_node_text(opts.value, opts.source) }
+        else
+            type = vim.NIL
+        end
+        return type
+    end,
 }
 infer_type.typescript = infer_type.javascript
 
@@ -108,6 +136,7 @@ local get_type = {
     end,
 }
 get_type.c_sharp = get_type.c
+get_type.go = get_type.c
 
 ts.query.add_directive(
     "set-type!",

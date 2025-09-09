@@ -27,6 +27,7 @@ end)
 ---@field name string
 ---@field return_values string[]
 ---@field method boolean?
+---@field struct_var_name string?
 
 ---@class refactor.code_generation.return_statement.opts
 ---@field return_values string[]
@@ -197,6 +198,7 @@ public %s %s(%s) {
                     return ("%s %s"):format(v.identifier, v.type or "P")
                 end
             ):join(", ")
+            -- TODO: add type generation for return types after adding type support to return_types
             if opts.struct_name and opts.struct_var_name then
                 return ([[
 func (%s *%s) %s(%s) {
@@ -400,13 +402,16 @@ def %s(%s):
                     return v.identifier
                 end
             ):join(", ")
+            local name = opts.struct_var_name
+                    and ("%s.%s"):format(opts.struct_var_name, opts.name)
+                or opts.name
             if #opts.return_values == 0 then
-                return ("%s(%s)"):format(opts.name, args)
+                return ("%s(%s)"):format(name, args)
             end
 
-            return ("var %s := %s(%s)"):format(
+            return ("%s := %s(%s)"):format(
                 table.concat(opts.return_values, ", "),
-                opts.name,
+                name,
                 args
             )
         end,
@@ -1243,6 +1248,7 @@ local function extract_func(
         name = fn_name,
         return_values = return_values,
         method = opts.method,
+        struct_var_name = opts.struct_var_name,
     })
     function_call = vim.text.indent(body_indent, function_call)
 
