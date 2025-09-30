@@ -50,6 +50,10 @@
   (identifier) @reference.identifier
   (#set! reference_type read))
 
+(member_expression
+  object: (identifier) @reference.identifier
+  (#set! reference_type read))
+
 ((comment)* @output.comment
   .
   (function_declaration) @output.function)
