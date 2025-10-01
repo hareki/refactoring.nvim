@@ -26,7 +26,6 @@
     - [Ex Commands](#config-refactoring-command)
     - [Lua API](#config-refactoring-direct)
     - [Using Built-In Neovim Selection](#config-refactoring-builtin)
-    - [Using Telescope](#config-refactoring-telescope)
   - [Configuration for Debug Operations](#config-debug)
     - [Customizing Printf and Print Var Statements](#config-debug-stringification)
       - [Customizing Printf Statements](#config-debug-stringification-printf)
@@ -259,23 +258,6 @@ you can use the `prefer_ex_cmd` option.
 
 ```lua
 require('refactoring').select_refactor({prefer_ex_cmd = true})
-```
-
-#### Using Telescope<a name="config-refactoring-telescope"></a>
-
-If you would prefer to use Telescope to choose a refactor, you can do so
-using the **Telescope extension.** Here is an example
-config for this setup:
-
-```lua
--- load refactoring Telescope extension
-require("telescope").load_extension("refactoring")
-
-vim.keymap.set(
-	{"n", "x"},
-	"<leader>rr",
-	function() require('telescope').extensions.refactoring.refactors() end
-)
 ```
 
 ### Configuration for Debug Operations<a name="config-debug"></a>
