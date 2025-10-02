@@ -221,7 +221,7 @@ private %s %s(%s) {
         :map(
           ---@param v refactor.Variable
           function(v)
-            return v.identifier
+            return v.type and ("%s %s"):format(v.type, v.identifier) or v.identifier
           end
         )
         :join ", "
@@ -391,12 +391,9 @@ def %s(%s):
         :join ", "
       local name = opts.method and "self->" .. opts.name or opts.name
       if #opts.return_values == 0 then return ("%s(%s);"):format(name, args) end
-      local return_values = iter(opts.return_values):map(function(r)
-        return r:match "^$" and r or "$" .. r
-      end)
-      if #opts.return_values == 1 then return ("%s = %s(%s);"):format(return_values:next(), name, args) end
+      if #opts.return_values == 1 then return ("%s = %s(%s);"):format(opts.return_values[1], name, args) end
 
-      return ("[%s] = %s(%s);"):format(return_values:join ", ", name, args)
+      return ("[%s] = %s(%s);"):format(table.concat(opts.return_values, ", "), name, args)
     end,
     powershell = function(opts)
       local args = iter(opts.args)
@@ -461,13 +458,9 @@ def %s(%s):
       return ("\n\nreturn %s;"):format(opts.return_values[1])
     end,
     php = function(opts)
-      -- TODO: capture variable names including `$` instead?
-      local return_values = iter(opts.return_values):map(function(r)
-        return r:match "^$" and r or "$" .. r
-      end)
-      if #opts.return_values == 1 then return ("\n\nreturn %s;"):format(return_values:next()) end
+      if #opts.return_values == 1 then return ("\n\nreturn %s;"):format(opts.return_values[1]) end
 
-      return ("\n\nreturn [%s];"):format(return_values:join ", ")
+      return ("\n\nreturn [%s];"):format(table.concat(opts.return_values, ", "))
     end,
     powershell = function(opts)
       if #opts.return_values == 1 then return ("\n\nreturn %s"):format(opts.return_values[1]) end

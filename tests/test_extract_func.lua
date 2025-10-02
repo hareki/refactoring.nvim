@@ -236,4 +236,110 @@ public class Foo {
   validate(lines, { 22, 0 }, expected_lines, " ae13j", "bar<cr>")
 end
 
+T["php"] = MiniTest.new_set()
+
+T["php"]["works"] = function()
+  local lines = [[
+<?php
+
+class F {
+    public function f(): string {
+        return 'f';
+    }
+}
+
+function foo(int $a) {
+    for ($i = 0; $i < 5; $i++) {
+        $b = 'b';
+        $c = 'c';
+        $d = ['d'];
+        $e = [e => 'e'];
+        $f = new F();
+        [$g, $h] = [function($_g) { return 'g'; }, 'h'];
+        $i;
+        $k = 'k';
+        $l = 'l';
+
+        $a = $a + 1;
+        $a += $a;
+        $a++;
+        ++$a;
+        echo $b;
+        echo $b, $b;
+        print $b;
+        print($b);
+        print($c + 1);
+        print($d[1]);
+        print($e->e);
+        print($f->f());
+        print($g());
+        $g($g);
+        if ($h) {}
+        while ($h) {}
+        do {} while($h);
+        $i = 'i';
+        print($i);
+
+        print($a);
+        return $i;
+    }
+}]]
+  local expected_lines = [[
+<?php
+
+class F {
+    public function f(): string {
+        return 'f';
+    }
+}
+
+function bar(string $b, string $c, array $d, array $e, object $f, callable $g, string $h)
+{
+    $a = $a + 1;
+    $a += $a;
+    $a++;
+    ++$a;
+    echo $b;
+    echo $b, $b;
+    print $b;
+    print($b);
+    print($c + 1);
+    print($d[1]);
+    print($e->e);
+    print($f->f());
+    print($g());
+    $g($g);
+    if ($h) {}
+    while ($h) {}
+    do {} while($h);
+    $i = 'i';
+    print($i);
+
+    return [$a, $i];
+}
+
+function foo(int $a) {
+    for ($i = 0; $i < 5; $i++) {
+        $b = 'b';
+        $c = 'c';
+        $d = ['d'];
+        $e = [e => 'e'];
+        $f = new F();
+        [$g, $h] = [function($_g) { return 'g'; }, 'h'];
+        $i;
+        $k = 'k';
+        $l = 'l';
+
+        [$a, $i] = bar($b, $c, $d, $e, $f, $g, $h);
+
+        print($a);
+        return $i;
+    }
+}]]
+  child.cmd "edit tmp.php"
+  child.bo.expandtab = true
+  child.bo.shiftwidth = 4
+  validate(lines, { 21, 0 }, expected_lines, " ae18j", "bar<cr>")
+end
+
 return T

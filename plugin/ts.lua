@@ -77,6 +77,32 @@ local infer_type = {
     end
     return type
   end,
+  php = function(opts)
+    local type ---@type string|vim.NIL
+    local node_type = opts.value:type()
+    if node_type == "integer" then
+      type = "int"
+    elseif node_type == "float" then
+      type = "float"
+    elseif node_type == "string" then
+      type = "string"
+    elseif node_type == "array_creation_expression" then
+      type = "array"
+    elseif node_type == "boolean" then
+      type = "bool"
+    elseif node_type == "null" then
+      type = "null"
+    elseif node_type == "anonymous_function" then
+      type = "callable"
+    elseif node_type == "object_creation_expression" then
+      type = "object"
+    elseif node_type == "identifier" then
+      type = { identifier = ts.get_node_text(opts.value, opts.source) }
+    else
+      type = vim.NIL
+    end
+    return type
+  end,
 }
 infer_type.typescript = infer_type.javascript
 
@@ -135,6 +161,7 @@ local get_type = {
 get_type.c_sharp = get_type.c
 get_type.go = get_type.c
 get_type.java = get_type.c
+get_type.php = get_type.c
 
 ts.query.add_directive("set-type!", function(match, pattern, source, predicate, metadata)
   local lang = predicate[2] --[[@as string]]

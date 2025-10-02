@@ -19,8 +19,6 @@
     value: (_) @variable.value)) @variable.declaration
 
 ; TODO: maybe join @reference and @variable queries in all languages(?
-; TODO: this will cause duplicate matches with the capture above (because
-; I can't negate ta parent). Will this cause issues?
 ; foo = bar
 (assignment_statement
   (variable_list
