@@ -4,20 +4,52 @@
     value: (_) @variable.value)) @variable.declaration
 
 (local_variable_declaration
+  type: (_) @_type
+  .
   declarator: (variable_declarator
-    name: (identifier) @reference.identifier))
+    name: (identifier) @reference.identifier)
+  .
+  (","
+    .
+    declarator: (variable_declarator
+      name: (identifier) @reference.identifier))*
+  (#set-type! java @_type @reference.identifier)
+  (#set! reference_type write)
+  (#set! declaration true))
 
 (argument_list
-  (identifier) @reference.identifier)
+  (identifier) @reference.identifier
+  (#set! reference_type read))
 
 (update_expression
-  (identifier) @reference.identifier)
+  (identifier) @reference.identifier
+  (#set! reference_type write))
 
 (assignment_expression
-  (identifier) @reference.identifier)
+  (identifier) @reference.identifier
+  (#set! reference_type write))
 
 (binary_expression
-  (identifier) @reference.identifier)
+  (identifier) @reference.identifier
+  (#set! reference_type read))
+
+(array_access
+  array: (identifier) @reference.identifier
+  (#set! reference_type read))
+
+(field_access
+  object: (identifier) @reference.identifier
+  (#set! reference_type read))
+
+(method_invocation
+  object: (identifier) @reference.identifier
+  (#set! reference_type read))
+
+; if/while/do while
+(_
+  condition: (parenthesized_expression
+    (identifier) @reference.identifier
+    (#set! reference_type read)))
 
 ([
   (line_comment)

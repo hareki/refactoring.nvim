@@ -134,6 +134,7 @@ local get_type = {
 }
 get_type.c_sharp = get_type.c
 get_type.go = get_type.c
+get_type.java = get_type.c
 
 ts.query.add_directive("set-type!", function(match, pattern, source, predicate, metadata)
   local lang = predicate[2] --[[@as string]]

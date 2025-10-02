@@ -135,4 +135,105 @@ end
   validate(lines, { 15, 0 }, expected_lines, " ae11j", "bar<cr>")
 end
 
+T["java"] = MiniTest.new_set()
+
+T["java"]["works"] = function()
+  local lines = [[
+public class F {
+    public String f() {
+        return "f"
+    }
+}
+
+public record E (String e) {}
+
+public class Foo {
+    public static void foo(int a) {
+        for (int j = 0; j < 5; j++) {
+            String b = 'b';
+            String c = 'c';
+            String[] d = ["d"];
+            E e = new E("e");
+            F f = new F();
+            boolean g = true, h = false;
+            String i;
+            String k = "k";
+            String l = "l";
+
+            a = a + 1;
+            a++;
+            ++a;
+            System.out.println(b);
+            System.out.println(c + 1);
+            System.out.println(d[0]);
+            System.out.println(e.e);
+            System.out.println(f.f());
+            System.out.println(g);
+            if (h) {}
+            while (h) {}
+            do {} while (h)
+            i = "i";
+            System.out.println(j);
+
+            System.out.println(a);
+            System.out.println(i);
+        }
+    }
+}
+]]
+  local expected_lines = [[
+public class F {
+    public String f() {
+        return "f"
+    }
+}
+
+public record E (String e) {}
+
+public class Foo {
+    private P bar(String b, String c, String[] d, E e, F f, boolean g, boolean h, String i, int j) {
+        a = a + 1;
+        a++;
+        ++a;
+        System.out.println(b);
+        System.out.println(c + 1);
+        System.out.println(d[0]);
+        System.out.println(e.e);
+        System.out.println(f.f());
+        System.out.println(g);
+        if (h) {}
+        while (h) {}
+        do {} while (h)
+        i = "i";
+        System.out.println(j);
+
+        return a;
+    }
+
+public static void foo(int a) {
+        for (int j = 0; j < 5; j++) {
+            String b = 'b';
+            String c = 'c';
+            String[] d = ["d"];
+            E e = new E("e");
+            F f = new F();
+            boolean g = true, h = false;
+            String i;
+            String k = "k";
+            String l = "l";
+
+            var a = bar(b, c, d, e, f, g, h, i, j);
+
+            System.out.println(a);
+            System.out.println(i);
+        }
+    }
+}
+]]
+  child.cmd "edit tmp.java"
+  child.bo.expandtab = true
+  child.bo.shiftwidth = 4
+  validate(lines, { 22, 0 }, expected_lines, " ae13j", "bar<cr>")
+end
+
 return T
