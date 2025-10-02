@@ -1,5 +1,3 @@
-local Pipeline = require("refactoring.pipeline")
-local tasks = require("refactoring.tasks")
 local Region = require("refactoring.region")
 local text_edits_utils = require("refactoring.text_edits_utils")
 local notify = require("refactoring.notify")
@@ -7,6 +5,9 @@ local notify = require("refactoring.notify")
 ---@param bufnr integer
 ---@param config refactor.Config
 local function cleanup(bufnr, config)
+    local Pipeline = require("refactoring.pipeline")
+    local tasks = require("refactoring.tasks")
+
     local seed = tasks.refactor_seed(bufnr, nil, config)
     Pipeline
         :from_task(

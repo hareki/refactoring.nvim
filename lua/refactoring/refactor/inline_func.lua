@@ -1,9 +1,6 @@
-local Pipeline = require("refactoring.pipeline")
-local tasks = require("refactoring.tasks")
 local ts_locals = require("refactoring.ts-locals")
 local Region = require("refactoring.region")
 local text_edits_utils = require("refactoring.text_edits_utils")
-local utils = require("refactoring.utils")
 local indent = require("refactoring.indent")
 local code = require("refactoring.code_generation")
 local notify = require("refactoring.notify")
@@ -179,6 +176,8 @@ end
 ---@return boolean
 ---@return refactor.Refactor|string
 local function inline_func_setup(refactor)
+    local utils = require("refactoring.utils")
+
     if not supports_115(refactor) then
         return false,
             ("inline function is not supported for filetype `%s`. Please open an issue asking for support for it or a PR adding support to it."):format(
@@ -539,6 +538,8 @@ local ensure_code_gen_list = {
 
 ---@param refactor refactor.Refactor
 local function ensure_code_gen_115(refactor)
+    local tasks = require("refactoring.tasks")
+
     return tasks.ensure_code_gen(refactor, ensure_code_gen_list)
 end
 
@@ -546,6 +547,9 @@ end
 ---@param region_type 'v' | 'V' | '' | nil
 ---@param opts refactor.Config
 function M.inline_func(bufnr, region_type, opts)
+    local tasks = require("refactoring.tasks")
+    local Pipeline = require("refactoring.pipeline")
+
     local seed = tasks.refactor_seed(bufnr, region_type, opts)
     Pipeline:from_task(ensure_code_gen_115)
         :add_task(inline_func_setup)

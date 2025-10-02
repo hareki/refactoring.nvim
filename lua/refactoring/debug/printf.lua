@@ -1,11 +1,8 @@
-local Pipeline = require("refactoring.pipeline")
 local Region = require("refactoring.region")
-local tasks = require("refactoring.tasks")
 
 local text_edits_utils = require("refactoring.text_edits_utils")
 local debug_utils = require("refactoring.debug.debug_utils")
 
-local ui = require("refactoring.ui")
 local indent = require("refactoring.indent")
 local notify = require("refactoring.notify")
 
@@ -17,6 +14,8 @@ local M = {}
 ---@param refactor refactor.Refactor
 ---@return string
 function M.get_printf_statement(opts, refactor)
+    local ui = require("refactoring.ui")
+
     local default_printf_statement = refactor.code.default_printf_statement()
 
     local custom_printf_statements = opts.printf_statements[refactor.filetype]
@@ -163,6 +162,9 @@ end
 ---@param bufnr integer
 ---@param config refactor.Config
 function M.printDebug(bufnr, config)
+    local Pipeline = require("refactoring.pipeline")
+    local tasks = require("refactoring.tasks")
+
     local seed = tasks.refactor_seed(bufnr, nil, config)
     Pipeline:from_task(
         ---@param refactor refactor.Refactor

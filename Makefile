@@ -1,28 +1,27 @@
-fmt:
-	echo "===> Formatting"
-	stylua lua/
-
 test:
-	echo "===> Testing:"
-	nvim --headless --clean \
-	-u scripts/minimal.vim \
-	-c "PlenaryBustedDirectory lua/refactoring/tests/ {minimal_init = 'scripts/minimal.vim'}"
+	printf "\n======\n\n" ; \
+	nvim --version | head -n 1 && echo '' ; \
+	nvim --headless --noplugin -u ./scripts/minimal_init.lua \
+		-c "lua require('mini.test').setup()" \
+		-c "lua MiniTest.run()" ; \
 
-ci-install-deps:
-	./scripts/find-supported-languages.sh
+# Use `make test_xxx` to run tests 'tests/test_xxx.lua'
+TEST_MODULES = $(basename $(notdir $(wildcard tests/test_*.lua)))
 
-lint:
-	echo "===> Linting"
-	luacheck lua --globals vim \
-		--exclude-files lua/refactoring/tests/refactor/ \
-		--exclude-files lua/refactoring/tests/debug/ \
-		--no-max-line-length
+$(TEST_MODULES):
+	printf "\n======\n\n" ; \
+	nvim --version | head -n 1 && echo '' ; \
+	nvim --headless --noplugin -u ./scripts/minimal_init.lua \
+		-c "lua require('mini.test').setup()" \
+		-c "lua MiniTest.run_file('tests/$@.lua')" ; \
 
-pr-ready: fmt test lint
 
-docker-build:
-	docker build --no-cache . -t refactoring
-
-pr-ready-docker:
-	docker run -v $(shell pwd):/code/refactoring.nvim -t refactoring
-
+.PHONY: deps
+deps:
+	@mkdir -p deps
+	git clone --filter=blob:none https://github.com/nvim-mini/mini.nvim deps/mini.nvim
+	git clone --filter=blob:none https://github.com/lewis6991/async.nvim deps/async.nvim
+	git clone --filter=blob:none https://github.com/mason-org/mason.nvim deps/mason.nvim
+	git clone --branch main --filter=blob:none https://github.com/nvim-treesitter/nvim-treesitter deps/nvim-treesitter
+	nvim --headless -u scripts/minimal_init.lua -c "MasonInstall lua-language-server" -c qall
+	nvim --headless -u scripts/minimal_init.lua -l deps/nvim-treesitter/scripts/install-parsers.lua lua

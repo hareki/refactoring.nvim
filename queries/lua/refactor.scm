@@ -102,6 +102,11 @@
   start: (identifier) @reference.identifier
   (#set! reference_type read))
 
+; repeat until/while/if
+(_
+  condition: (identifier) @reference.identifier
+  (#set! reference_type read))
+
 ((comment)* @output.comment
   .
   (assignment_statement

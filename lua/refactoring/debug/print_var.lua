@@ -1,9 +1,6 @@
-local Pipeline = require("refactoring.pipeline")
 local Region = require("refactoring.region")
-local tasks = require("refactoring.tasks")
 local text_edits_utils = require("refactoring.text_edits_utils")
 local debug_utils = require("refactoring.debug.debug_utils")
-local ui = require("refactoring.ui")
 local indent = require("refactoring.indent")
 local notify = require("refactoring.notify")
 
@@ -15,6 +12,8 @@ local M = {}
 ---@param refactor refactor.Refactor
 ---@return string|nil
 function M.get_print_var_statement(opts, refactor)
+    local ui = require("refactoring.ui")
+
     local default_print_var_statement =
         refactor.code.default_print_var_statement()
 
@@ -48,6 +47,9 @@ end
 ---@param region_type 'v' | 'V' | '' | nil
 ---@param config refactor.Config
 function M.print_debug(bufnr, region_type, config)
+    local Pipeline = require("refactoring.pipeline")
+    local tasks = require("refactoring.tasks")
+
     local seed = tasks.refactor_seed(bufnr, region_type, config)
     Pipeline:from_task(
         ---@param refactor refactor.Refactor

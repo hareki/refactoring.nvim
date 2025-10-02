@@ -1,31 +1,33 @@
-name: Test
+name: Run tests
 
-on: [push, pull_request]
+on:
+  push:
+    branches-ignore: [develop]
+    paths: ["lua/**", "tests/**", "plugin/**", "queries/**"]
+  pull_request:
+    paths: ["lua/**", "tests/**", "plugin/**", "queries/**"]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.actor }}
+  cancel-in-progress: true
 
 jobs:
-  lint:
-    if: github.ref == 'refs/heads/master'
-    name: PlenaryBustedDirectory
-    runs-on: ubuntu-latest
+  build:
+    name: Run tests
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        neovim_version: ["v0.11.4", "nightly"]
+    runs-on: ${{ matrix.os }}
+
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
+      - name: Setup neovim
+        uses: rhysd/action-setup-vim@v1
         with:
-          path: refactoring.nvim
-      - uses: actions/checkout@v2
-        with:
-          repository: nvim-treesitter/nvim-treesitter
-          path: nvim-treesitter
-      - uses: actions/checkout@v2
-        with:
-          repository: nvim-lua/plenary.nvim
-          path: plenary.nvim
-      - name: Setup
-        run: |
-          sudo apt-get update
-          sudo add-apt-repository ppa:neovim-ppa/unstable
-          sudo apt-get install neovim
-      - name: Test
-        run: |
-          cd refactoring.nvim
-          make ci-install-deps
-          make test
+          neovim: true
+          version: ${{ matrix.neovim_version }}
+      - name: Run tests
+        run: make test
