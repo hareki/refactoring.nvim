@@ -210,7 +210,7 @@ public class Foo {
         return a;
     }
 
-public static void foo(int a) {
+    public static void foo(int a) {
         for (int j = 0; j < 5; j++) {
             String b = 'b';
             String c = 'c';

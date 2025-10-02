@@ -1,3 +1,5 @@
+; TODO: change to support multiple variables after changing how anonymous nodes
+; are deleted/queried for in other languages
 (local_variable_declaration
   declarator: (variable_declarator
     name: (identifier) @variable.identifier

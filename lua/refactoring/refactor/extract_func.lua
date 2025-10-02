@@ -1130,8 +1130,13 @@ local function extract_func(
     -- NOTE: treesitter nodes don't include whitespace. So, output region's
     -- first line it's (probably) already indented
     function_definition_lines[1] = vim.text.indent(0, function_definition_lines[1])
-    -- TODO: manually indent (without `vim.text.indent`) the last (empty)
-    -- line
+
+    -- NOTE: `vim.text.indent` doesn't add indent for empty lines, but we are
+    -- inserting text before already indented lines, so we'll remove their
+    -- indentation if we don't do it manually
+    local last_line_indent = vim.bo[out_buf].expandtab and (" "):rep(indent_width) or "\t"
+    local length = #function_definition_lines
+    function_definition_lines[length] = function_definition_lines[length] .. last_line_indent
   end
   api.nvim_buf_set_text(
     out_buf,
