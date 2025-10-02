@@ -139,101 +139,103 @@ T["java"] = MiniTest.new_set()
 
 T["java"]["works"] = function()
   local lines = [[
-public class F {
+class F {
     public String f() {
-        return "f"
+        return "f";
     }
 }
 
-public record E (String e) {}
+record E (String e) {}
 
-public class Foo {
-    public static void foo(int a) {
+class Foo {
+    public String foo(int a) {
+        String i;
         for (int j = 0; j < 5; j++) {
-            String b = 'b';
-            String c = 'c';
-            String[] d = ["d"];
+            String b = "b";
+            String c = "c";
+            String[] d = {"d"};
             E e = new E("e");
             F f = new F();
             boolean g = true, h = false;
-            String i;
-            String k = "k";
-            String l = "l";
+            boolean k = true;
+            boolean l = true;
 
             a = a + 1;
+            a += a;
             a++;
             ++a;
             System.out.println(b);
             System.out.println(c + 1);
             System.out.println(d[0]);
-            System.out.println(e.e);
+            System.out.println(e.e());
             System.out.println(f.f());
             System.out.println(g);
             if (h) {}
-            while (h) {}
-            do {} while (h)
+            while (k) {}
+            do {} while (l);
             i = "i";
             System.out.println(j);
 
-            System.out.println(a);
-            System.out.println(i);
+            return i;
         }
+        return "";
     }
 }
 ]]
   local expected_lines = [[
-public class F {
+class F {
     public String f() {
-        return "f"
+        return "f";
     }
 }
 
-public record E (String e) {}
+record E (String e) {}
 
-public class Foo {
-    private P bar(String b, String c, String[] d, E e, F f, boolean g, boolean h, String i, int j) {
+class Foo {
+    private P bar(int a, String b, String c, String[] d, E e, F f, boolean g, boolean h, boolean k, boolean l, String i, int j) {
         a = a + 1;
+        a += a;
         a++;
         ++a;
         System.out.println(b);
         System.out.println(c + 1);
         System.out.println(d[0]);
-        System.out.println(e.e);
+        System.out.println(e.e());
         System.out.println(f.f());
         System.out.println(g);
         if (h) {}
-        while (h) {}
-        do {} while (h)
+        while (k) {}
+        do {} while (l);
         i = "i";
         System.out.println(j);
 
-        return a;
+        return i;
     }
 
-    public static void foo(int a) {
+    public String foo(int a) {
+        String i;
         for (int j = 0; j < 5; j++) {
-            String b = 'b';
-            String c = 'c';
-            String[] d = ["d"];
+            String b = "b";
+            String c = "c";
+            String[] d = {"d"};
             E e = new E("e");
             F f = new F();
             boolean g = true, h = false;
-            String i;
-            String k = "k";
-            String l = "l";
+            boolean k = true;
+            boolean l = true;
 
-            var a = bar(b, c, d, e, f, g, h, i, j);
+            var i = bar(a, b, c, d, e, f, g, h, k, l, i, j);
 
-            System.out.println(a);
-            System.out.println(i);
+            return i;
         }
+        return "";
     }
 }
 ]]
   child.cmd "edit tmp.java"
   child.bo.expandtab = true
   child.bo.shiftwidth = 4
-  validate(lines, { 22, 0 }, expected_lines, " ae13j", "bar<cr>")
+  validate(lines, { 22, 0 }, expected_lines, " ae14j", "bar<cr>")
 end
 
 T["php"] = MiniTest.new_set()

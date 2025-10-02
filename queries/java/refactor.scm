@@ -28,8 +28,12 @@
   (#set! reference_type write))
 
 (assignment_expression
-  (identifier) @reference.identifier
+  left: (identifier) @reference.identifier
   (#set! reference_type write))
+
+(assignment_expression
+  right: (identifier) @reference.identifier
+  (#set! reference_type read))
 
 (binary_expression
   (identifier) @reference.identifier
@@ -53,6 +57,16 @@
     (identifier) @reference.identifier
     (#set! reference_type read)))
 
+(return_statement
+  (identifier) @reference.identifier
+  (#set! reference_type read))
+
+(formal_parameter
+  type: (_) @_type
+  name: (identifier) @reference.identifier
+  (#set-type! java @_type @reference.identifier)
+  (#set! declaration true))
+
 ([
   (line_comment)
   (block_comment)
@@ -62,14 +76,11 @@
 
 (program) @scope
 
-(class_declaration
-  body: (_) @scope)
+(class_declaration) @scope
 
-(record_declaration
-  body: (_) @scope)
+(record_declaration) @scope
 
-(enum_declaration
-  body: (_) @scope)
+(enum_declaration) @scope
 
 (lambda_expression) @scope
 
@@ -91,14 +102,11 @@
 
 (for_statement) @scope
 
-(for_statement
-  body: (_) @scope)
+(for_statement) @scope
 
-(do_statement
-  body: (_) @scope)
+(do_statement) @scope
 
-(while_statement
-  body: (_) @scope)
+(while_statement) @scope
 
 (constructor_declaration) @scope
 
