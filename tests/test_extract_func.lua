@@ -251,14 +251,14 @@ class F {
 }
 
 function foo(int $a) {
-    for ($i = 0; $i < 5; $i++) {
+    for ($j = 0; $j < 5; $j++) {
         $b = 'b';
         $c = 'c';
         $d = ['d'];
         $e = [e => 'e'];
         $f = new F();
         [$g, $h] = [function($_g) { return 'g'; }, 'h'];
-        $i;
+        $i = null;
         $k = 'k';
         $l = 'l';
 
@@ -280,7 +280,7 @@ function foo(int $a) {
         while ($h) {}
         do {} while($h);
         $i = 'i';
-        print($i);
+        print($j);
 
         print($a);
         return $i;
@@ -295,7 +295,7 @@ class F {
     }
 }
 
-function bar(string $b, string $c, array $d, array $e, object $f, callable $g, string $h)
+function bar(string $b, string $c, array $d, array $e, object $f, callable $g, string $h, int $j)
 {
     $a = $a + 1;
     $a += $a;
@@ -315,24 +315,24 @@ function bar(string $b, string $c, array $d, array $e, object $f, callable $g, s
     while ($h) {}
     do {} while($h);
     $i = 'i';
-    print($i);
+    print($j);
 
     return [$a, $i];
 }
 
 function foo(int $a) {
-    for ($i = 0; $i < 5; $i++) {
+    for ($j = 0; $j < 5; $j++) {
         $b = 'b';
         $c = 'c';
         $d = ['d'];
         $e = [e => 'e'];
         $f = new F();
         [$g, $h] = [function($_g) { return 'g'; }, 'h'];
-        $i;
+        $i = null;
         $k = 'k';
         $l = 'l';
 
-        [$a, $i] = bar($b, $c, $d, $e, $f, $g, $h);
+        [$a, $i] = bar($b, $c, $d, $e, $f, $g, $h, $j);
 
         print($a);
         return $i;
@@ -359,7 +359,7 @@ func (f *F) f() string {
 type E struct{ e string }
 
 func foo(a int) string {
-	for i := 0; i < 5; i++ {
+	for j := 0; j < 5; j++ {
 		b := "b"
 		c := 'c'
 		d := [1]string{"d"}
@@ -381,7 +381,7 @@ func foo(a int) string {
 		if h != "" {}
 		for i !=""{}
 		i = "i"
-		print(i)
+		print(j)
 
 		print(a)
 		return i
@@ -399,7 +399,7 @@ func (f *F) f() string {
 
 type E struct{ e string }
 
-func bar(a int, b string, c rune, d [1]string, e E, f F, g func(), h string, i string) (int, string) {
+func bar(a int, b string, c rune, d [1]string, e E, f F, g func(), h string, i string, j int) (int, string) {
 	a = a + 1
 	a += a
 	a++
@@ -413,13 +413,13 @@ func bar(a int, b string, c rune, d [1]string, e E, f F, g func(), h string, i s
 	if h != "" {}
 	for i !=""{}
 	i = "i"
-	print(i)
+	print(j)
 
 	return a, i
 }
 
 func foo(a int) string {
-	for i := 0; i < 5; i++ {
+	for j := 0; j < 5; j++ {
 		b := "b"
 		c := 'c'
 		d := [1]string{"d"}
@@ -428,7 +428,7 @@ func foo(a int) string {
 		g, h := func(_g string) string { print(_g); return "g" }, "h"
 		var i string
 
-		a, i := bar(a, b, c, d, e, f, g, h, i)
+		a, i := bar(a, b, c, d, e, f, g, h, i, j)
 
 		print(a)
 		return i
@@ -439,5 +439,3 @@ func foo(a int) string {
   child.bo.expandtab = false
   validate(lines, { 21, 0 }, expected_lines, " aeip", "bar<cr>")
 end
-
-return T
