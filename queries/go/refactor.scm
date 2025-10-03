@@ -78,6 +78,24 @@
     (identifier) @reference.identifier)
   (#set! reference_type read))
 
+(assignment_statement
+  left: (expression_list
+    (identifier) @reference.identifier)
+  (#set! reference_type write))
+
+(assignment_statement
+  right: (expression_list
+    (identifier) @reference.identifier)
+  (#set! reference_type read))
+
+(index_expression
+  operand: (identifier) @reference.identifier
+  (#set! reference_type read))
+
+(call_expression
+  function: (identifier) @reference.identifier
+  (#set! reference_type read))
+
 ((comment)* @output.comment
   (function_declaration) @output.function)
 

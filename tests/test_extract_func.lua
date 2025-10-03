@@ -132,7 +132,7 @@ end
   child.cmd "edit tmp.lua"
   child.bo.expandtab = true
   child.bo.shiftwidth = 2
-  validate(lines, { 15, 0 }, expected_lines, " ae11j", "bar<cr>")
+  validate(lines, { 15, 0 }, expected_lines, " aeip", "bar<cr>")
 end
 
 T["java"] = MiniTest.new_set()
@@ -235,7 +235,7 @@ class Foo {
   child.cmd "edit tmp.java"
   child.bo.expandtab = true
   child.bo.shiftwidth = 4
-  validate(lines, { 22, 0 }, expected_lines, " ae14j", "bar<cr>")
+  validate(lines, { 22, 0 }, expected_lines, " aeip", "bar<cr>")
 end
 
 T["php"] = MiniTest.new_set()
@@ -341,7 +341,103 @@ function foo(int $a) {
   child.cmd "edit tmp.php"
   child.bo.expandtab = true
   child.bo.shiftwidth = 4
-  validate(lines, { 21, 0 }, expected_lines, " ae18j", "bar<cr>")
+  validate(lines, { 21, 0 }, expected_lines, " aeip", "bar<cr>")
+end
+
+T["go"] = MiniTest.new_set()
+
+T["go"]["works"] = function()
+  local lines = [[
+package a
+
+type F struct{}
+
+func (f *F) f() string {
+	return "f"
+}
+
+type E struct{ e string }
+
+func foo(a int) string {
+	for i := 0; i < 5; i++ {
+		b := "b"
+		c := 'c'
+		d := [1]string{"d"}
+		e := E{"e"}
+		f := F{}
+		g, h := func(_g string) string { print(_g); return "g" }, "h"
+		var i string
+
+		a = a + 1
+		a += a
+		a++
+		print(b)
+		print(c + 1)
+		print(d[0])
+		print(e.e)
+		print(f.f())
+		print(g("g"))
+		g(g("g"))
+		if h != "" {}
+		for i !=""{}
+		i = "i"
+		print(i)
+
+		print(a)
+		return i
+	}
+	return ""
+}]]
+  local expected_lines = [[
+package a
+
+type F struct{}
+
+func (f *F) f() string {
+	return "f"
+}
+
+type E struct{ e string }
+
+func bar(a int, b string, c rune, d [1]string, e E, f F, g func(), h string, i string) (int, string) {
+	a = a + 1
+	a += a
+	a++
+	print(b)
+	print(c + 1)
+	print(d[0])
+	print(e.e)
+	print(f.f())
+	print(g("g"))
+	g(g("g"))
+	if h != "" {}
+	for i !=""{}
+	i = "i"
+	print(i)
+
+	return a, i
+}
+
+func foo(a int) string {
+	for i := 0; i < 5; i++ {
+		b := "b"
+		c := 'c'
+		d := [1]string{"d"}
+		e := E{"e"}
+		f := F{}
+		g, h := func(_g string) string { print(_g); return "g" }, "h"
+		var i string
+
+		a, i := bar(a, b, c, d, e, f, g, h, i)
+
+		print(a)
+		return i
+	}
+	return ""
+}]]
+  child.cmd "edit tmp.go"
+  child.bo.expandtab = false
+  validate(lines, { 21, 0 }, expected_lines, " aeip", "bar<cr>")
 end
 
 return T

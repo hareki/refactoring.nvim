@@ -65,7 +65,7 @@ local infer_type = {
       type = "bool"
     elseif node_type == "composite_literal" then
       -- foo := bar{}
-      local type_node = opts.value:field "type"
+      local type_node = opts.value:field("type")[1]
       type = type_node and ts.get_node_text(type_node, opts.source) or vim.NIL
     elseif node_type == "func_literal" then
       -- TODO: maybe support more complex type inference for functions

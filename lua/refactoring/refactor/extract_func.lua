@@ -195,17 +195,23 @@ public %s %s(%s) {
           end
         )
         :join ", "
-      -- TODO: add type generation for return types after adding type support to return_types
-      if opts.struct_name and opts.struct_var_name then
-        return ([[
-func (%s *%s) %s(%s) {
-%s
-}]]):format(opts.struct_var_name, opts.struct_name, opts.name, args, opts.body)
-      end
+      local struct = (opts.struct_name and opts.struct_var_name)
+          and (" (%s *%s)"):format(opts.struct_var_name, opts.struct_name)
+        or ""
+      local return_type = opts.return_values == 0 and ""
+        or opts.return_values == 1 and (" %s"):format(opts.return_values[1].type or "P")
+        or (" (%s)"):format(iter(opts.return_values)
+          :map(
+            ---@param v refactor.Variable
+            function(v)
+              return v.type or "P"
+            end
+          )
+          :join ", ")
       return ([[
-func %s(%s) {
+func%s %s(%s)%s {
 %s
-}]]):format(opts.name, args, opts.body)
+}]]):format(struct, opts.name, args, return_type, opts.body)
     end,
     java = function(opts)
       local return_type = #opts.return_values == 0 and "void" or (opts.return_values[1].type or "P")
@@ -835,6 +841,24 @@ local function get_declaration_scope(scopes, start, end_)
   return declaration_scope
 end
 
+---@param expandtab boolean
+---@param size integer
+---@param text string
+---@param opts {expandtab: number}?
+local function indent(expandtab, size, text, opts)
+  local indented, previous_size = vim.text.indent(size, text, opts)
+
+  if not expandtab then
+    indented = indented:gsub("^( +)", function(spaces)
+      return ("\t"):rep(#spaces)
+    end)
+    indented = indented:gsub("\n( +)", function(spaces)
+      return "\n" .. ("\t"):rep(#spaces)
+    end)
+  end
+  return indented, previous_size
+end
+
 ---@class refactor.Reference
 ---@field identifier TSNode
 ---@field type string|{identifier: string}|vim.NIL|nil
@@ -1235,9 +1259,11 @@ local function extract_func(
     )
     :totable()
 
+  local expandtab = vim.bo[out_buf].expandtab
+
   local body = table.concat(lines, "\n")
   local body_indent ---@type integer
-  body, body_indent = vim.text.indent(0, body)
+  body, body_indent = indent(expandtab, 0, body)
   local lang = nested_lang_tree:lang()
   if #return_values > 0 then
     local return_statement = code_generation.return_statement[lang] {
@@ -1246,7 +1272,7 @@ local function extract_func(
     body = body .. return_statement
   end
   local indent_width = vim.bo[in_buf].shiftwidth > 0 and vim.bo[in_buf].shiftwidth or vim.bo[in_buf].tabstop
-  body = vim.text.indent(1 * indent_width, body)
+  body = indent(expandtab, expandtab and 1 * indent_width or 1, body)
   local function_definition = code_generation.function_declaration[lang] {
     args = args,
     body = body,
@@ -1258,6 +1284,9 @@ local function extract_func(
     struct_var_name = opts.struct_var_name,
   } .. "\n\n"
   function_definition = vim.text.indent((opts.method and 1 or 0) * indent_width, function_definition)
+  if not expandtab then function_definition:gsub("^(%s+)", function(spaces)
+    return ("\t"):rep(#spaces)
+  end) end
   local function_call = code_generation.function_call[lang] {
     args = args,
     name = fn_name,
@@ -1265,7 +1294,7 @@ local function extract_func(
     method = opts.method,
     struct_var_name = opts.struct_var_name,
   }
-  function_call = vim.text.indent(body_indent, function_call)
+  function_call = indent(expandtab, body_indent, function_call)
 
   api.nvim_buf_set_text(
     in_buf,
@@ -1280,12 +1309,12 @@ local function extract_func(
   if opts.method then
     -- NOTE: treesitter nodes don't include whitespace. So, output region's
     -- first line it's (probably) already indented
-    function_definition_lines[1] = vim.text.indent(0, function_definition_lines[1])
+    function_definition_lines[1] = indent(expandtab, 0, function_definition_lines[1])
 
     -- NOTE: `vim.text.indent` doesn't add indent for empty lines, but we are
     -- inserting text before already indented lines, so we'll remove their
     -- indentation if we don't do it manually
-    local last_line_indent = vim.bo[out_buf].expandtab and (" "):rep(indent_width) or "\t"
+    local last_line_indent = expandtab and (" "):rep(indent_width) or "\t"
     local length = #function_definition_lines
     function_definition_lines[length] = function_definition_lines[length] .. last_line_indent
   end
