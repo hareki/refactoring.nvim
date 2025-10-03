@@ -439,3 +439,125 @@ func foo(a int) string {
   child.bo.expandtab = false
   validate(lines, { 21, 0 }, expected_lines, " aeip", "bar<cr>")
 end
+
+T["powerhsell"] = MiniTest.new_set()
+
+T["powerhsell"]["works"] = function()
+  local lines = [[
+class _F {
+    [string]f() {
+        return 'f'
+    }
+}
+
+function Get-Foo {
+    param([int]$a)
+
+    for ($j = 0; $j -lt 5; $j++) {
+        $b = 'b'
+        $c = 'c'
+        $d = @('d')
+        $e = @{e = 'e'}
+        $f = [_F]::new()
+        $g, $h = {return 'g'}, 'h'
+        $i
+        $k = 'k'
+        $l = 'l'
+
+        $a = $a + 1
+        $a += $a
+        $a++
+        $a--
+        ++$a
+        --$a
+        Write-Host $b
+        $c + 1
+        Write-Host $d[0]
+        Write-Host $e.e
+        Write-Host $f.f()
+        Write-Host $g.Invoke()
+        $g.Invoke($g)
+        if ($h) { 
+        }
+        while ($k) {
+        }
+        do {
+        } while ($l)
+        $i = 'i'
+        Write-Host $j
+
+        Write-Host $a
+        return $i
+    }   
+}]]
+  local expected_lines = [[
+class _F {
+    [string]f() {
+        return 'f'
+    }
+}
+
+function bar
+{
+param ($b,
+$c,
+$d,
+$e,
+$f,
+$g,
+$h,
+$k,
+$l,
+$j)
+    $a = $a + 1
+    $a += $a
+    $a++
+    $a--
+    ++$a
+    --$a
+    Write-Host $b
+    $c + 1
+    Write-Host $d[0]
+    Write-Host $e.e
+    Write-Host $f.f()
+    Write-Host $g.Invoke()
+    $g.Invoke($g)
+    if ($h) { 
+    }
+    while ($k) {
+    }
+    do {
+    } while ($l)
+    $i = 'i'
+    Write-Host $j
+
+    return @($a, $i)
+}
+
+function Get-Foo {
+    param([int]$a)
+
+    for ($j = 0; $j -lt 5; $j++) {
+        $b = 'b'
+        $c = 'c'
+        $d = @('d')
+        $e = @{e = 'e'}
+        $f = [_F]::new()
+        $g, $h = {return 'g'}, 'h'
+        $i
+        $k = 'k'
+        $l = 'l'
+
+        $out = bar $b $c $d $e $f $g $h $k $l $j
+
+        Write-Host $a
+        return $i
+    }   
+}]]
+  child.cmd "edit tmp.ps1"
+  child.bo.expandtab = true
+  child.bo.shiftwidth = 4
+  validate(lines, { 21, 0 }, expected_lines, " aeip", "bar<cr>")
+end
+
+return T
