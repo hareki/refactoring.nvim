@@ -105,7 +105,7 @@ local function bar(a, b, c, d, e, f, g, h, k, l, i, j)
   i = 'i'
   print(j)
 
-  return a,i
+  return a, i
 end
 
 ---@param a integer
@@ -192,7 +192,7 @@ class F {
 record E (String e) {}
 
 class Foo {
-    private P bar(int a, String b, String c, String[] d, E e, F f, boolean g, boolean h, boolean k, boolean l, String i, int j) {
+    private String bar(int a, String b, String c, String[] d, E e, F f, boolean g, boolean h, boolean k, boolean l, String i, int j) {
         a = a + 1;
         a += a;
         a++;

@@ -16,7 +16,7 @@ end)
 ---@field args refactor.Variable[]
 ---@field name string
 ---@field body string
----@field return_values string[]
+---@field return_values refactor.Variable[]
 ---@field method boolean?
 ---@field singleton boolean?
 ---@field struct_var_name string?
@@ -25,12 +25,12 @@ end)
 ---@class refactor.code_generation.function_call.opts
 ---@field args string[]
 ---@field name string
----@field return_values string[]
+---@field return_values refactor.Variable[]
 ---@field method boolean?
 ---@field struct_var_name string?
 
 ---@class refactor.code_generation.return_statement.opts
----@field return_values string[]
+---@field return_values refactor.Variable[]
 
 ---@class refactor.code_generation
 ---@field function_declaration {[string]: fun(opts: refactor.code_generation.function_declaration.opts): string}
@@ -79,7 +79,7 @@ local code_generation = {
 end]]):format(annotations, opts.name, args, opts.body)
     end,
     c = function(opts)
-      local return_type = #opts.return_values == 1 and "P" or "void"
+      local return_type = #opts.return_values == 1 and (opts.return_values[1].type or "P") or "void"
       local args = iter(opts.args)
         :map(
           ---@param v refactor.Variable
@@ -89,9 +89,12 @@ end]]):format(annotations, opts.name, args, opts.body)
         )
         :join ", "
       local return_values = iter(opts.return_values)
-        :map(function(r)
-          return "P *" .. r
-        end)
+        :map(
+          ---@param v refactor.Variable
+          function(v)
+            return v.type and ("%s *%s"):format(v.type, v.identifier) or ("P *%s"):format(v.identifier)
+          end
+        )
         :join ", "
       local in_n_out = args ~= "" and table.concat({ args, return_values }, ", ") or return_values
 
@@ -101,12 +104,15 @@ end]]):format(annotations, opts.name, args, opts.body)
 }]]):format(return_type, opts.name, #opts.return_values < 2 and args or in_n_out, opts.body)
     end,
     c_sharp = function(opts)
-      local return_type = #opts.return_values == 1 and "P"
+      local return_type = #opts.return_values == 1 and (opts.return_values[1].type or "P")
         or #opts.return_values == 0 and "void"
         or ("(%s)"):format(iter(opts.return_values)
-          :map(function()
-            return "P"
-          end)
+          :map(
+            ---@param v refactor.Variable
+            function(v)
+              return v.type or "P"
+            end
+          )
           :join ", ")
 
       local args = iter(opts.args)
@@ -202,7 +208,7 @@ func %s(%s) {
 }]]):format(opts.name, args, opts.body)
     end,
     java = function(opts)
-      local return_type = #opts.return_values == 0 and "void" or "P"
+      local return_type = #opts.return_values == 0 and "void" or (opts.return_values[1].type or "P")
       local args = iter(opts.args)
         :map(
           ---@param v refactor.Variable
@@ -245,7 +251,12 @@ private %s %s(%s) {
 [%s] %s(%s)
 {
 %s
-}]]):format(opts.return_values == 0 and "Void" or "P", opts.name, args, opts.body)
+}]]):format(
+          opts.return_values == 0 and "Void" or (opts.return_values[1].type or "P"),
+          opts.name,
+          args,
+          opts.body
+        )
       end
       local args = iter(opts.args)
         :map(
@@ -304,7 +315,15 @@ def %s(%s):
 
       if #opts.return_values == 0 then return ("%s(%s)"):format(opts.name, args) end
 
-      return ("local %s = %s(%s)"):format(table.concat(opts.return_values, ", "), opts.name, args)
+      local return_values = iter(opts.return_values)
+        :map(
+          ---@param v refactor.Variable
+          function(v)
+            return v.identifier
+          end
+        )
+        :join ", "
+      return ("local %s = %s(%s)"):format(return_values, opts.name, args)
     end,
     c = function(opts)
       local args = iter(opts.args)
@@ -316,11 +335,21 @@ def %s(%s):
         )
         :join ", "
       if #opts.return_values == 0 then return ("%s(%s);"):format(opts.name, args) end
-      if #opts.return_values == 1 then return ("P %s = %s(%s);"):format(opts.return_values[1], opts.name, args) end
+      if #opts.return_values == 1 then
+        return ("%s %s = %s(%s);"):format(
+          opts.return_values[1].type or "P",
+          opts.return_values[1].identifier,
+          opts.name,
+          args
+        )
+      end
       local return_values = iter(opts.return_values)
-        :map(function(r)
-          return "&" .. r
-        end)
+        :map(
+          ---@param v refactor.Variable
+          function(v)
+            return "&" .. v.identifier
+          end
+        )
         :join ", "
       local in_n_out = args ~= "" and table.concat({ args, return_values }, ", ") or return_values
       return ("%s(%s);"):format(opts.name, in_n_out)
@@ -335,7 +364,14 @@ def %s(%s):
         )
         :join ", "
       if #opts.return_values == 0 then return ("%s(%s);"):format(opts.name, args) end
-      if #opts.return_values == 1 then return ("var %s = %s(%s);"):format(opts.return_values[1], opts.name, args) end
+      if #opts.return_values == 1 then
+        return ("%s %s = %s(%s);"):format(
+          opts.return_values[1].type or "var",
+          opts.return_values[1].identifier,
+          opts.name,
+          args
+        )
+      end
       return ("var out = %s(%s);"):format(opts.name, args)
     end,
     javascript = function(opts)
@@ -350,8 +386,18 @@ def %s(%s):
       local name = opts.method and ("this.%s"):format(opts.name) or opts.name
 
       if #opts.return_values == 0 then return ("%s(%s);"):format(name, args) end
-      if #opts.return_values == 1 then return ("let %s = %s(%s);"):format(opts.return_values[1], name, args) end
-      return ("let [%s] = %s(%s);"):format(table.concat(opts.return_values, ", "), name, args)
+      if #opts.return_values == 1 then
+        return ("let %s = %s(%s);"):format(opts.return_values[1].identifier, name, args)
+      end
+      local return_values = iter(opts.return_values)
+        :map(
+          ---@param v refactor.Variable
+          function(v)
+            return v.identifier
+          end
+        )
+        :join ", "
+      return ("let [%s] = %s(%s);"):format(return_values, name, args)
     end,
     go = function(opts)
       local args = iter(opts.args)
@@ -365,7 +411,15 @@ def %s(%s):
       local name = opts.struct_var_name and ("%s.%s"):format(opts.struct_var_name, opts.name) or opts.name
       if #opts.return_values == 0 then return ("%s(%s)"):format(name, args) end
 
-      return ("%s := %s(%s)"):format(table.concat(opts.return_values, ", "), name, args)
+      local return_values = iter(opts.return_values)
+        :map(
+          ---@param v refactor.Variable
+          function(v)
+            return v.identifier
+          end
+        )
+        :join ", "
+      return ("%s := %s(%s)"):format(return_values, name, args)
     end,
     java = function(opts)
       local args = iter(opts.args)
@@ -378,7 +432,14 @@ def %s(%s):
         :join ", "
       if #opts.return_values == 0 then return ("%s(%s);"):format(opts.name, args) end
 
-      return ("var %s = %s(%s);"):format(opts.return_values[1], opts.name, args)
+      if #opts.return_values > 1 then
+        vim.notify(
+          "The extracted function requires multiple return values, but Java lacks support doing it",
+          vim.log.levels.WARN
+        )
+      end
+
+      return ("var %s = %s(%s);"):format(opts.return_values[1].identifier, opts.name, args)
     end,
     php = function(opts)
       local args = iter(opts.args)
@@ -391,9 +452,17 @@ def %s(%s):
         :join ", "
       local name = opts.method and "self->" .. opts.name or opts.name
       if #opts.return_values == 0 then return ("%s(%s);"):format(name, args) end
-      if #opts.return_values == 1 then return ("%s = %s(%s);"):format(opts.return_values[1], name, args) end
+      if #opts.return_values == 1 then return ("%s = %s(%s);"):format(opts.return_values[1].identifier, name, args) end
 
-      return ("[%s] = %s(%s);"):format(table.concat(opts.return_values, ", "), name, args)
+      local return_values = iter(opts.return_values)
+        :map(
+          ---@param v refactor.Variable
+          function(v)
+            return v.identifier
+          end
+        )
+        :join ", "
+      return ("[%s] = %s(%s);"):format(return_values, name, args)
     end,
     powershell = function(opts)
       local args = iter(opts.args)
@@ -405,7 +474,9 @@ def %s(%s):
         )
         :join " "
       if #opts.return_values == 0 then return ("%s %s"):format(opts.name, args) end
-      if #opts.return_values == 1 then return ("%s = %s %s"):format(opts.return_values[1], opts.name, args) end
+      if #opts.return_values == 1 then
+        return ("%s = %s %s"):format(opts.return_values[1].identifier, opts.name, args)
+      end
 
       return ("$out = %s %s"):format(opts.name, args)
     end,
@@ -420,7 +491,15 @@ def %s(%s):
         :join ", "
       local name = opts.method and "self." .. opts.name or opts.name
       if #opts.return_values == 0 then return ("%s(%s)"):format(name, args) end
-      return ("%s = %s(%s)"):format(table.concat(opts.return_values, ", "), name, args)
+      local return_values = iter(opts.return_values)
+        :map(
+          ---@param v refactor.Variable
+          function(v)
+            return v.identifier
+          end
+        )
+        :join ", "
+      return ("%s = %s(%s)"):format(return_values, name, args)
     end,
     ruby = function(opts)
       local args = iter(opts.args)
@@ -432,46 +511,119 @@ def %s(%s):
         )
         :join ", "
       if #opts.return_values == 0 then return ("%s(%s)"):format(opts.name, args) end
-      return ("%s = %s(%s)"):format(table.concat(opts.return_values, ", "), opts.name, args)
+      local return_values = iter(opts.return_values)
+        :map(
+          ---@param v refactor.Variable
+          function(v)
+            return v.identifier
+          end
+        )
+        :join ", "
+      return ("%s = %s(%s)"):format(return_values, opts.name, args)
     end,
   },
   return_statement = {
     lua = function(opts)
-      return ("\n\nreturn %s"):format(table.concat(opts.return_values, ","))
+      local return_values = iter(opts.return_values)
+        :map(
+          ---@param v refactor.Variable
+          function(v)
+            return v.identifier
+          end
+        )
+        :join ", "
+      return ("\n\nreturn %s"):format(return_values)
     end,
     c = function(opts)
       if #opts.return_values > 1 then return "" end
-      return ("\n\nreturn %s;"):format(opts.return_values[1])
+
+      return ("\n\nreturn %s;"):format(opts.return_values[1].identifier)
     end,
     c_sharp = function(opts)
-      if #opts.return_values == 1 then return ("\n\nreturn %s;"):format(opts.return_values[1]) end
-      return ("\n\nreturn (%s);"):format(table.concat(opts.return_values, ", "))
+      if #opts.return_values == 1 then return ("\n\nreturn %s;"):format(opts.return_values[1].identifier) end
+      local return_values = iter(opts.return_values)
+        :map(
+          ---@param v refactor.Variable
+          function(v)
+            return v.identifier
+          end
+        )
+        :join ", "
+      return ("\n\nreturn (%s);"):format(return_values)
     end,
     javascript = function(opts)
       if #opts.return_values == 1 then return ("\n\nreturn %s;"):format(opts.return_values[1]) end
-      return ("\n\nreturn [%s];"):format(table.concat(opts.return_values, ", "))
+      local return_values = iter(opts.return_values)
+        :map(
+          ---@param v refactor.Variable
+          function(v)
+            return v.identifier
+          end
+        )
+        :join ", "
+      return ("\n\nreturn [%s];"):format(return_values)
     end,
     go = function(opts)
-      return ("\n\nreturn %s"):format(table.concat(opts.return_values, ", "))
+      local return_values = iter(opts.return_values)
+        :map(
+          ---@param v refactor.Variable
+          function(v)
+            return v.identifier
+          end
+        )
+        :join ", "
+      return ("\n\nreturn %s"):format(return_values)
     end,
     java = function(opts)
-      return ("\n\nreturn %s;"):format(opts.return_values[1])
+      return ("\n\nreturn %s;"):format(opts.return_values[1].identifier)
     end,
     php = function(opts)
-      if #opts.return_values == 1 then return ("\n\nreturn %s;"):format(opts.return_values[1]) end
+      if #opts.return_values == 1 then return ("\n\nreturn %s;"):format(opts.return_values[1].identifier) end
 
-      return ("\n\nreturn [%s];"):format(table.concat(opts.return_values, ", "))
+      local return_values = iter(opts.return_values)
+        :map(
+          ---@param v refactor.Variable
+          function(v)
+            return v.identifier
+          end
+        )
+        :join ", "
+      return ("\n\nreturn [%s];"):format(return_values)
     end,
     powershell = function(opts)
       if #opts.return_values == 1 then return ("\n\nreturn %s"):format(opts.return_values[1]) end
 
-      return ("\n\nreturn @(%s)"):format(table.concat(opts.return_values, ", "))
+      local return_values = iter(opts.return_values)
+        :map(
+          ---@param v refactor.Variable
+          function(v)
+            return v.identifier
+          end
+        )
+        :join ", "
+      return ("\n\nreturn @(%s)"):format(return_values)
     end,
     python = function(opts)
-      return ("\n\nreturn %s"):format(table.concat(opts.return_values, ", "))
+      local return_values = iter(opts.return_values)
+        :map(
+          ---@param v refactor.Variable
+          function(v)
+            return v.identifier
+          end
+        )
+        :join ", "
+      return ("\n\nreturn %s"):format(return_values)
     end,
     ruby = function(opts)
-      return ("\n\nreturn %s"):format(table.concat(opts.return_values, ", "))
+      local return_values = iter(opts.return_values)
+        :map(
+          ---@param v refactor.Variable
+          function(v)
+            return v.identifier
+          end
+        )
+        :join ", "
+      return ("\n\nreturn %s"):format(return_values)
     end,
   },
 }
@@ -903,31 +1055,32 @@ local function extract_func(
     )
     :totable()
 
+  local reference_to_variable =
+    ---@param r refactor.Reference
+    function(r)
+      local identifier = ts.get_node_text(r.identifier, in_buf)
+
+      ---@type {[string]: string}|nil
+      local types = iter(scoped_types_up_to_extracted_range):find(
+        ---@param types {[string]: string}
+        function(types)
+          return types[identifier] ~= nil
+        end
+      )
+      local type = types and types[identifier]
+      return {
+        identifier = identifier,
+        type = type,
+      }
+    end
+
   ---@type refactor.Variable[]
   local variables_inside_extracted_range = iter(references_inside_extracted_range)
-    :map(
-      ---@param r refactor.Reference
-      function(r)
-        local identifier = ts.get_node_text(r.identifier, in_buf)
-
-        ---@type {[string]: string}|nil
-        local types = iter(scoped_types_up_to_extracted_range):find(
-          ---@param types {[string]: string}
-          function(types)
-            return types[identifier] ~= nil
-          end
-        )
-        local type = types and types[identifier]
-        return {
-          identifier = identifier,
-          type = type,
-        }
-      end
-    )
+    :map(reference_to_variable)
     :filter(is_unique(
-      ---@param r refactor.Reference
-      function(r)
-        return r.identifier
+      ---@param v refactor.Variable
+      function(v)
+        return v.identifier
       end
     ))
     :totable()
@@ -1040,7 +1193,7 @@ local function extract_func(
     :totable()
 
   ---@type string[]
-  local identifiers_after_extracted_range = iter(references)
+  local variables_after_extracted_range = iter(references)
     :filter(
       ---@param r refactor.Reference
       function(r)
@@ -1063,16 +1216,21 @@ local function extract_func(
         return compare_start == 1 and compare_end == 1 and is_in_scope
       end
     )
-    :map(reference_to_text)
-    :filter(is_unique())
+    :map(reference_to_variable)
+    :filter(is_unique(
+      ---@param v refactor.Variable
+      function(v)
+        return v.identifier
+      end
+    ))
     :totable()
-  -- TODO: add support for types for return_values
-  local return_values = iter(identifiers_after_extracted_range)
+  ---@type refactor.Variable[]
+  local return_values = iter(variables_after_extracted_range)
     :filter(
-      ---@param r string
-      function(r)
+      ---@param v refactor.Variable
+      function(v)
         -- TODO: maybe limit to write_identifiers that are not declarations
-        return vim.tbl_contains(write_identifiers_inside_extracted_range, r)
+        return vim.tbl_contains(write_identifiers_inside_extracted_range, v.identifier)
       end
     )
     :totable()
