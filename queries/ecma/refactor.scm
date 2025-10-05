@@ -7,13 +7,13 @@
       .
       (identifier) @variable.identifier
       .
-      (","
+      ("," @variable.identifier_separator
         (identifier) @variable.identifier)*)
     value: (array
       .
       (_) @variable.value
       .
-      (","
+      ("," @variable.value_separator
         (_) @variable.value)*))) @variable.declaration
 
 ; let foo = 'foo'

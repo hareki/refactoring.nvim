@@ -110,4 +110,34 @@ print({ "foo" })]]
   validate(lines, { 2, 6 }, expected_lines)
 end
 
+T["c"] = MiniTest.new_set()
+
+T["c"]["multiple assignment"] = function()
+  local lines = [[
+#include <stdio.h>
+
+int main(){
+    int a = 1, b = 2;
+    printf("%i", a);
+    printf("%i", a);
+
+    printf("%i", b);
+    printf("%i", b);
+}]]
+  local expected_lines = [[
+#include <stdio.h>
+
+int main(){
+    int    b = 2;
+    printf("%i", 1);
+    printf("%i", 1);
+
+    printf("%i", b);
+    printf("%i", b);
+}]]
+
+  child.cmd "edit tmp.c"
+  validate(lines, { 4, 8 }, expected_lines)
+end
+
 return T

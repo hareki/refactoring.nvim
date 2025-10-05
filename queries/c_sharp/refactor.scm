@@ -5,12 +5,13 @@
     .
     (variable_declarator
       name: (_) @variable.identifier
+      "=" @variable.value_separator
       (_) @variable.value .)
     .
-    (","
+    ("," @variable.identifier_separator
       (variable_declarator
-        (_) @variable.identifier
-        .
+        name: (_) @variable.identifier
+        "=" @variable.value_separator
         (_) @variable.value .))*)) @variable.declaration
 
 ((variable_declaration

@@ -1,4 +1,5 @@
 local contains = require("refactoring.range").contains
+local compare = require("refactoring.range").compare
 local iter = vim.iter
 local ts = vim.treesitter
 local api = vim.api
@@ -76,6 +77,10 @@ local function get_definition_info(definition, lang)
 
         if name == "variable.identifier" then
           match_info.identifier = nodes
+        elseif name == "variable.identifier_separator" then
+          match_info.identifier_separator = nodes
+        elseif name == "variable.value_separator" then
+          match_info.value_separator = nodes
         elseif name == "variable.value" then
           match_info.value = nodes
         elseif name == "variable.declaration" then
@@ -91,7 +96,6 @@ local function get_definition_info(definition, lang)
     :map(
       ---@param match_info refactor.VariableMatchInfo
       function(match_info)
-        local has_multiple_values = #match_info.identifier > 1
         local variable_info = iter(ipairs(match_info.identifier))
           :filter(
             ---@param _ integer
@@ -108,9 +112,13 @@ local function get_definition_info(definition, lang)
             function(i, identifier)
               return {
                 identifier = identifier,
+                identifier_separator = match_info.identifier_separator
+                  and (match_info.identifier_separator[i] or match_info.identifier_separator[i - 1]),
                 value = match_info.value[i],
-                declaration = match_info.declaration[i],
-                has_multiple_values = has_multiple_values,
+                value_separator = match_info.value_separator
+                  and (match_info.value_separator[i] or match_info.value_separator[i - 1]),
+                -- NOTE: captures must only have one declaration
+                declaration = match_info.declaration[1],
               }
             end
           )
@@ -131,14 +139,17 @@ end
 
 ---@class refactor.VariableMatchInfo
 ---@field identifier TSNode[]
+---@field identifier_separator TSNode[]|nil
 ---@field value TSNode[]
+---@field value_separator TSNode[]|nil
 ---@field declaration TSNode[]
 
 ---@class refactor.VariableInfo
 ---@field identifier TSNode
+---@field identifier_separator TSNode|nil
 ---@field value TSNode
+---@field value_separator TSNode|nil
 ---@field declaration TSNode
----@field has_multiple_values boolean
 
 -- TODO: preview highlight
 -- TODO: preview is not working at all
@@ -216,7 +227,6 @@ function M.inline_var()
       )
       :totable()
 
-    local has_multiple_values = definition_info.has_multiple_values
     local declaration_node = definition_info.declaration
     local identifier_node = definition_info.identifier
     local value_node = definition_info.value
@@ -244,26 +254,34 @@ function M.inline_var()
       end
     )
 
-    if has_multiple_values then
-      for _, node in ipairs {
-        value_node,
-        identifier_node,
-      } do
-        -- TODO: this logic is spefic to Lua, it doens't work for c and c_sharp
-        local previous = node:prev_sibling()
-        local next = node:next_sibling()
-        local previous_anonymous = previous and not previous:named()
-        local next_anonymous = next and not next:named()
-        if next_anonymous then
-          local start_row, start_col, end_row, end_col = next:range()
-          api.nvim_buf_set_text(definition_buf, start_row, start_col, end_row, end_col, {})
-        end
-        local start_row, start_col, end_row, end_col = node:range()
-        api.nvim_buf_set_text(definition_buf, start_row, start_col, end_row, end_col, {})
-        if not next_anonymous and previous_anonymous then
-          start_row, start_col, end_row, end_col = previous:range()
-          api.nvim_buf_set_text(definition_buf, start_row, start_col, end_row, end_col, {})
-        end
+    if definition_info.value_separator or definition_info.identifier_separator then
+      ---@type Range4[]
+      local ranges = iter({
+          definition_info.value_separator,
+          value_node,
+          definition_info.identifier_separator,
+          identifier_node,
+        })
+        :filter(function(n)
+          return n ~= nil
+        end)
+        :map(
+          ---@param n TSNode
+          function(n)
+            return { n:range() }
+          end
+        )
+        :totable()
+      table.sort(ranges, function(a, b)
+        local compare_start = compare({ a[1], a[2] }, { b[1], b[2] })
+        if compare_start == 1 then return true end
+        if compare_start == -1 then return false end
+
+        local compare_end = compare({ a[3], a[4] }, { b[3], b[4] })
+        return compare_end == 1
+      end)
+      for _, range in ipairs(ranges) do
+        api.nvim_buf_set_text(definition_buf, range[1], range[2], range[3], range[4], {})
       end
     else
       local start_row, start_col, end_row, end_col = declaration_node:range()

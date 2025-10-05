@@ -27,7 +27,30 @@ vim.lsp.config("lua_ls", {
     ".git",
   },
 })
-vim.lsp.enable "lua_ls"
+vim.lsp.config("clangd", {
+  cmd = { "clangd" },
+  filetypes = { "c", "cpp", "objc", "objcpp", "cuda" },
+  root_markers = {
+    ".clangd",
+    ".clang-tidy",
+    ".clang-format",
+    "compile_commands.json",
+    "compile_flags.txt",
+    ".git",
+  },
+  capabilities = {
+    textDocument = {
+      completion = {
+        editsNearCursor = true,
+      },
+    },
+    offsetEncoding = { "utf-8", "utf-16" },
+  },
+  on_init = function(client, init_result)
+    if init_result.offsetEncoding then client.offset_encoding = init_result.offsetEncoding end
+  end,
+})
+vim.lsp.enable { "lua_ls", "clangd" }
 
 vim.g.mapleader = " "
 vim.keymap.set("n", "<leader>ai", function()
