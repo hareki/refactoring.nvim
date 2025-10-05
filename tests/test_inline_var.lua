@@ -88,4 +88,26 @@ print('foo')]]
   validate(lines, { 1, 6 }, expected_lines)
 end
 
+T["lua"]["filters LSP definitions without a Treesitter match"] = function()
+  local lines = [[
+---@type table<integer, string>
+local foo = { "foo" }
+print(foo)
+print(foo)
+print(foo)
+print(foo)
+print(foo)]]
+  local expected_lines = [[
+---@type table<integer, string>
+
+print({ "foo" })
+print({ "foo" })
+print({ "foo" })
+print({ "foo" })
+print({ "foo" })]]
+
+  child.cmd "edit tmp.lua"
+  validate(lines, { 2, 6 }, expected_lines)
+end
+
 return T
