@@ -560,4 +560,98 @@ function Get-Foo {
   validate(lines, { 21, 0 }, expected_lines, " aeip", "bar<cr>")
 end
 
+T["python"] = MiniTest.new_set()
+
+T["python"]["works"] = function()
+  local lines = [[
+class F:
+    e = "e"
+
+    def f(self):
+        return "f"
+
+
+def foo(a: int, l):
+    for j in range(0, 5):
+        b = "b"
+        c = "c"
+        d = ["d"]
+        e = {"e": "e"}
+        f = F()
+        (g, h) = (lambda _g: "g", "h")
+        k = "k"
+
+        a = a + 1
+        a = a
+        a += a
+        print(b)
+        print(c + "1", sep=c)
+        print(d[0])
+        print(e["e"])
+        print(f.e)
+        print(f.f())
+        print(g(None))
+        g(g)
+        if h:
+            pass
+        while k:
+            pass
+        for item in l:
+          pass
+        print(j)
+        print(l)
+
+        print(a)
+        return j]]
+  local expected_lines = [[
+class F:
+    e = "e"
+
+    def f(self):
+        return "f"
+
+
+def bar(b, c, d, e, f, g, h, k, l, j):
+    a = a + 1
+    a = a
+    a += a
+    print(b)
+    print(c + "1", sep=c)
+    print(d[0])
+    print(e["e"])
+    print(f.e)
+    print(f.f())
+    print(g(None))
+    g(g)
+    if h:
+        pass
+    while k:
+        pass
+    for item in l:
+      pass
+    print(j)
+    print(l)
+
+    return a
+
+def foo(a: int, l):
+    for j in range(0, 5):
+        b = "b"
+        c = "c"
+        d = ["d"]
+        e = {"e": "e"}
+        f = F()
+        (g, h) = (lambda _g: "g", "h")
+        k = "k"
+
+        a = bar(b, c, d, e, f, g, h, k, l, j)
+
+        print(a)
+        return j]]
+  child.cmd "edit tmp.py"
+  child.bo.expandtab = true
+  child.bo.shiftwidth = 4
+  validate(lines, { 18, 8 }, expected_lines, " aeip", "bar<cr>")
+end
+
 return T

@@ -1209,6 +1209,9 @@ local function extract_func(
     :filter(
       ---@param r refactor.Variable
       function(r)
+        -- TODO: not only check if there are declarations inside the extracted
+        -- range. Check if the first usage of the identifier is after the end
+        -- of the first declaration inside the extracted range
         return not vim.tbl_contains(declarations_inside_extracted_range, r.identifier)
           and not vim.tbl_contains(declarations_before_output_range, r.identifier)
           and vim.tbl_contains(declarations_before_extracted_range, r.identifier)
