@@ -137,6 +137,17 @@ local function get_definition_info(definition, lang)
   return variable_info
 end
 
+---@param a Range4
+---@param b Range4
+local function comp_non_overlaping_ranges_desc(a, b)
+  local compare_start = compare({ a[1], a[2] }, { b[1], b[2] })
+  if compare_start == 1 then return true end
+  if compare_start == -1 then return false end
+
+  local compare_end = compare({ a[3], a[4] }, { b[3], b[4] })
+  return compare_end == 1
+end
+
 ---@class refactor.VariableMatchInfo
 ---@field identifier TSNode[]
 ---@field identifier_separator TSNode[]|nil
@@ -154,7 +165,6 @@ end
 -- TODO: preview highlight
 -- TODO: preview is not working at all
 -- TODO: success message (can be disabled in config)
--- TODO: add lua_ls to GitHub actions
 function M.inline_var()
   local lang_tree, err1 = ts.get_parser(nil, nil, { error = false })
   if not lang_tree then
@@ -214,7 +224,7 @@ function M.inline_var()
     local definition, definition_info = definition_with_match.definition, definition_with_match.match
     local definition_buf = vim.fn.bufadd(definition.filename)
 
-    ---@type refactor.QfItem
+    ---@type refactor.QfItem[]
     references = iter(references)
       :filter(
         ---@param r refactor.QfItem
@@ -233,12 +243,17 @@ function M.inline_var()
 
     local value_text = ts.get_node_text(value_node, definition_buf)
     local identifier_text = ts.get_node_text(identifier_node, definition_buf)
+    table.sort(references, function(a, b)
+      return comp_non_overlaping_ranges_desc(
+        { a.lnum, a.col, a.end_lnum, a.end_col },
+        { b.lnum, b.col, b.end_lnum, b.end_col }
+      )
+    end)
     iter(references):each(
       ---@param reference refactor.QfItem
       function(reference)
         local buf = vim.fn.bufadd(reference.filename)
         if not api.nvim_buf_is_loaded(buf) then vim.fn.bufload(buf) end
-        -- TODO: sort all text edits from the bottom-up
         api.nvim_buf_set_text(
           buf,
           reference.lnum - 1,
@@ -272,14 +287,7 @@ function M.inline_var()
           end
         )
         :totable()
-      table.sort(ranges, function(a, b)
-        local compare_start = compare({ a[1], a[2] }, { b[1], b[2] })
-        if compare_start == 1 then return true end
-        if compare_start == -1 then return false end
-
-        local compare_end = compare({ a[3], a[4] }, { b[3], b[4] })
-        return compare_end == 1
-      end)
+      table.sort(ranges, comp_non_overlaping_ranges_desc)
       for _, range in ipairs(ranges) do
         api.nvim_buf_set_text(definition_buf, range[1], range[2], range[3], range[4], {})
       end

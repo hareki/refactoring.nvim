@@ -110,6 +110,22 @@ print({ "foo" })]]
   validate(lines, { 2, 6 }, expected_lines)
 end
 
+T["lua"]["orders reference's text edits backwards"] = function()
+  local lines = [[
+local foo = "foo"
+print(foo, foo)
+print(foo, foo)
+print(foo, foo)]]
+  local expected_lines = [[
+
+print("foo", "foo")
+print("foo", "foo")
+print("foo", "foo")]]
+
+  child.cmd "edit tmp.lua"
+  validate(lines, { 1, 6 }, expected_lines)
+end
+
 T["c"] = MiniTest.new_set()
 
 T["c"]["multiple assignment"] = function()
