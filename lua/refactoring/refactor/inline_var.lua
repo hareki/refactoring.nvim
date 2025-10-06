@@ -148,6 +148,22 @@ local function comp_non_overlaping_ranges_desc(a, b)
   return compare_end == 1
 end
 
+-- TODO: extract into another file (it's also present in `extract_func.lua`)
+---@param get_key nil|fun(value: any): any
+---@return fun(value: any): boolean
+local function is_unique(get_key)
+  ---@type {[string]: boolean}
+  local already_seen = {}
+
+  ---@param value any
+  return function(value)
+    local key = get_key and get_key(value) or value
+    if already_seen[key] then return false end
+    already_seen[key] = true
+    return true
+  end
+end
+
 ---@class refactor.VariableMatchInfo
 ---@field identifier TSNode[]
 ---@field identifier_separator TSNode[]|nil
@@ -226,6 +242,12 @@ function M.inline_var()
 
     ---@type refactor.QfItem[]
     references = iter(references)
+      :filter(is_unique(
+        ---@param r refactor.QfItem
+        function(r)
+          return ("%d-%d-%d-%d"):format(r.lnum, r.col, r.end_lnum, r.end_col)
+        end
+      ))
       :filter(
         ---@param r refactor.QfItem
         function(r)
