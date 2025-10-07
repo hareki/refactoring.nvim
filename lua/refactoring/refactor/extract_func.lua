@@ -37,7 +37,6 @@ end)
 ---@field function_call {[string]: fun(opts: refactor.code_generation.function_call.opts): string}
 ---@field return_statement {[string]: fun(opts: refactor.code_generation.return_statement.opts): string}
 
--- TODO: add code_generation for `vimscript`
 ---@type refactor.code_generation
 local code_generation = {
   function_declaration = {
@@ -308,6 +307,20 @@ def %s(%s):
 %s
 end]]):format(name, args, opts.body)
     end,
+    vim = function(opts)
+      local args = iter(opts.args)
+        :map(
+          ---@param a refactor.Variable
+          function(a)
+            return a.identifier
+          end
+        )
+        :join ", "
+      return ([[
+function! s:%s(%s) abort
+%s
+endfunction]]):format(opts.name, args, opts.body)
+    end,
   },
   function_call = {
     lua = function(opts)
@@ -528,6 +541,27 @@ end]]):format(name, args, opts.body)
         :join ", "
       return ("%s = %s(%s)"):format(return_values, opts.name, args)
     end,
+    vim = function(opts)
+      local return_values = #opts.return_values == 0 and "call"
+        or #opts.return_values == 1 and ("let %s ="):format(opts.return_values[1].identifier)
+        or ("let [%s] ="):format(iter(opts.return_values)
+          :map(
+            ---@param r refactor.Variable
+            function(r)
+              return r.identifier
+            end
+          )
+          :join ", ")
+      local args = iter(opts.args)
+        :map(
+          ---@param a refactor.Variable
+          function(a)
+            return a.identifier
+          end
+        )
+        :join ", "
+      return ([[%s %s(%s)]]):format(return_values, opts.name, args)
+    end,
   },
   return_statement = {
     lua = function(opts)
@@ -632,6 +666,18 @@ end]]):format(name, args, opts.body)
         :join ", "
       return ("\n\nreturn %s"):format(return_values)
     end,
+    vim = function(opts)
+      local return_values = #opts.return_values == 1 and opts.return_values[1].identifier
+        or ("[%s]"):format(iter(opts.return_values)
+          :map(
+            ---@param r refactor.Variable
+            function(r)
+              return r.identifier
+            end
+          )
+          :join ", ")
+      return ([[return %s]]):format(return_values)
+    end,
   },
 }
 code_generation.function_declaration.cpp = code_generation.function_declaration.c
@@ -677,6 +723,9 @@ local parents_till_nil = {
   ruby = {
     fn = 2,
     method = 4,
+  },
+  vim = {
+    fn = 2,
   },
 }
 parents_till_nil.cpp = parents_till_nil.c
