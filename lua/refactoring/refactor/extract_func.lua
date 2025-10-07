@@ -824,7 +824,7 @@ local function get_output_node(nested_lang_tree, query, buf, extracted_range)
         if not acc then return o end
         local n = choose_output(o)
         local n_start_row, n_start_col = n:start()
-        local acc_n = choose_output(o)
+        local acc_n = choose_output(acc)
         local acc_start_row, acc_start_col = acc_n:start()
 
         local o_row_distance = math.abs(n_start_row - extracted_range[1])
