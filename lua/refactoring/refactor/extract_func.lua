@@ -1414,17 +1414,15 @@ end
 ---@param range_type 'v'|'V'|''
 ---@return Range4, string[]
 local function get_extracted_range(range_type)
-  local buf = api.nvim_get_current_buf()
   local range_start = vim.fn.getpos "'["
   local range_end = vim.fn.getpos "']"
-
-  local range_last_line = api.nvim_buf_get_lines(buf, range_end[2] - 1, range_end[2], true)[1]
+  local range_last_line_length = #vim.fn.getline "']"
 
   local extracted_range = {
     range_start[2] - 1,
     range_type ~= "V" and range_start[3] - 1 or 0,
     range_end[2] - 1,
-    range_type ~= "V" and range_end[3] - 1 or #range_last_line,
+    range_type ~= "V" and range_end[3] - 1 or range_last_line_length,
   }
   local lines = vim.fn.getregion(range_start, range_end, { type = range_type })
 
