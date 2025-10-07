@@ -1,168 +1,199 @@
-local Region = require "refactoring.region"
-local Query = require "refactoring.query"
-local indent = require "refactoring.indent"
-local text_edits_utils = require "refactoring.text_edits_utils"
-local notify = require "refactoring.notify"
-
-local api = vim.api
-
 local M = {}
 
----@param extract_node_text string
----@param refactor refactor.Refactor
----@param var_name string
----@param starting_pos refactor.Point
----@return string
-local function get_new_var_text(extract_node_text, refactor, var_name, starting_pos)
-  local statement = refactor.config:get_extract_var_statement(refactor.filetype)
-  local base_text = refactor.code.constant {
-    name = var_name,
-    value = extract_node_text,
-    statement = statement,
-  }
+local async = require "async"
+local ts = vim.treesitter
+local iter = vim.iter
+local api = vim.api
 
-  local current_statement_line = api.nvim_buf_get_lines(refactor.bufnr, starting_pos.row - 1, starting_pos.row, true)[1]
-  local indent_amount = indent.line_indent_amount(current_statement_line, refactor.bufnr)
-  local indentation = indent.indent(indent_amount, refactor.bufnr)
+-- TODO: move all of this common functions into some other file
+---@type fun(opts: table): string
+local input = async.wrap(2, function(opts, cb)
+  vim.ui.input(opts, cb)
+end)
 
-  return table.concat { indentation, base_text }
-end
-
----@param var_name string
----@param refactor refactor.Refactor
----@return string
-local function get_var_name(var_name, refactor)
-  if refactor.ts.require_special_var_format then
-    return refactor.code.special_var(var_name, { region_node_type = refactor.region_node:type() })
-  else
-    return var_name
-  end
-end
-
----@param refactor refactor.Refactor
----@return boolean, refactor.Refactor|string
-local function extract_var_setup(refactor)
-  local ui = require "refactoring.ui"
-  local utils = require "refactoring.utils"
-
-  local extract_node = refactor.region_node
-
-  if extract_node == nil then return false, "Region node is nil. Something went wrong" end
-
-  local extract_node_text = vim.treesitter.get_node_text(extract_node, refactor.bufnr)
-  local extract_node_text_without_whitespace = table.concat(utils.get_node_text(extract_node), "")
-
-  ---@type string
-  local sexpr = extract_node:sexpr()
-  local occurrences = Query.find_occurrences(refactor.scope, sexpr, refactor.bufnr)
-
-  ---@type TSNode[]
-  local actual_occurrences = {}
-  ---@type string[]
-  local texts = {}
-
-  for _, occurrence in pairs(occurrences) do
-    local text = vim.treesitter.get_node_text(occurrence, refactor.bufnr)
-    local text_without_whitespace = table.concat(utils.get_node_text(occurrence), "")
-    if text_without_whitespace == extract_node_text_without_whitespace then
-      table.insert(actual_occurrences, occurrence)
-      table.insert(texts, text)
+---@param node TSNode
+---@param buf integer
+---@param acc string[]|nil
+---@return string[]
+local function significant_text_list(node, buf, acc)
+  acc = acc or {}
+  if node:child_count() == 0 then table.insert(acc, ts.get_node_text(node, buf)) end
+  if node:child_count() > 0 then
+    for child in node:iter_children() do
+      significant_text_list(child, buf, acc)
     end
   end
-  utils.sort_in_appearance_order(actual_occurrences)
 
-  local var_name = ui.input "119: What is the var name > "
-  if not var_name or var_name == "" then return false, "Error: Must provide new var name" end
+  return acc
+end
 
-  refactor.text_edits = {}
-  for _, occurrence in pairs(actual_occurrences) do
-    table.insert(
-      refactor.text_edits,
-      text_edits_utils.replace_text(Region:from_node(occurrence, refactor.bufnr), get_var_name(var_name, refactor))
-    )
-  end
-  refactor.success_message = ("Extracted %s variable occurrences"):format(#actual_occurrences)
+---@param node TSNode
+---@param buf integer
+---@return string
+local function significant_text(node, buf)
+  return table.concat(significant_text_list(node, buf), "")
+end
 
-  ---@type TSNode[]
-  local block_scopes = {}
-  ---@type table<string, true>
-  local already_seen = {}
-  for _, occurrence in pairs(actual_occurrences) do
-    local block_scope = refactor.ts.get_container(occurrence, refactor.ts.block_scope)
-    if block_scope == nil then return false, "block_scope is nil! Something went wrong" end
-    if already_seen[block_scope:id()] == nil then
-      already_seen[block_scope:id()] = true
-      table.insert(block_scopes, block_scope)
+---@param a TSNode
+---@param b TSNode
+---@return boolean
+local function node_comp_asc(a, b)
+  local a_row, a_col, a_bytes = a:start()
+  local b_row, b_col, b_bytes = b:start()
+  if a_row ~= b_row then return a_row < b_row end
+
+  return (a_col < b_col or b_col + b_bytes > a_col + a_bytes)
+end
+
+---@param a TSNode
+---@param b TSNode
+---@return boolean
+local function node_comp_desc(a, b)
+  return not node_comp_asc(a, b)
+end
+
+---@class refactor.extract_var.code_generation.variable_declaration.Opts
+---@field name string
+---@field value string
+
+---@class refactor.extract_var.code_generation
+---@field variable_declaration {[string]: fun(opts: refactor.extract_var.code_generation.variable_declaration.Opts): string}
+
+---@type refactor.extract_var.code_generation
+local code_generation = {
+  variable_declaration = {
+    lua = function(opts)
+      return ("local %s = %s"):format(opts.name, opts.value)
+    end,
+  },
+}
+
+---@class refactor.Scope
+---@field scope TSNode
+---@field start TSNode
+
+-- TODO: remove first parameter (buf) after rewrite
+---@param range_type 'v' | 'V' | ''
+function M.extract_var(_, range_type)
+  -- TODO: lazy load imports in other refactors
+  local get_extracted_range = require("refactoring.range").get_extracted_range
+  local contains = require("refactoring.range").contains
+
+  local buf = api.nvim_get_current_buf()
+  local extracted_range, lines = get_extracted_range(range_type)
+
+  local task = async.run(function()
+    local var_name = input { prompt = "Variable name: " }
+    if not var_name then return end
+
+    local lang_tree, err1 = ts.get_parser(buf, nil, { error = false })
+    if not lang_tree then
+      vim.notify(err1, vim.log.levels.ERROR)
+      return
     end
-  end
-  utils.sort_in_appearance_order(block_scopes)
+    -- TODO: use async parsing
+    lang_tree:parse(true)
+    local nested_lang_tree = lang_tree:language_for_range(extracted_range)
+    local lang = nested_lang_tree:lang()
+    local encompassing_node = nested_lang_tree:node_for_range(extracted_range)
+    if not encompassing_node then
+      vim.notify("Couldn't find a Treesitter node that contains the selected range", vim.log.levels.WARN)
+      return
+    end
 
-  if #block_scopes < 1 then return false, "block_scope is nil! Something went wrong" end
+    local extracted_text = ts.get_node_text(encompassing_node, buf)
 
-  local ok, unfiltered_statements = pcall(refactor.ts.get_statements, refactor.ts, block_scopes[1])
-  if not ok then return ok, unfiltered_statements end
+    -- TODO: not all languages can freely parse a sexpr. Check if this gives me issues for any language
+    local encompasing_query = ts.query.parse(lang, ("%s @tmp_query"):format(encompassing_node:sexpr()))
+    local query = ts.query.get(lang, "refactor")
+    if not query then
+      vim.notify(("There is no `refactor` query file for language %s"):format(lang), vim.log.levels.ERROR)
+      return
+    end
 
-  if #unfiltered_statements < 1 then return false, "unfiltered_statements is nil! Something went wrong" end
-
-  ---@type TSNode[]
-  local statements = vim
-    .iter(unfiltered_statements)
-    :filter(
-      ---@param node TSNode
-      ---@return TSNode[]
-      function(node)
-        for _, scope in pairs(block_scopes) do
-          if node:parent():id() == scope:id() then return true end
+    local extracted_significant_text = significant_text(encompassing_node, buf)
+    local matching_nodes = {} ---@type TSNode[]
+    local scopes = {} ---@type refactor.Scope[]
+    for _, tree in ipairs(nested_lang_tree:trees()) do
+      for _, node in encompasing_query:iter_captures(tree:root(), buf) do
+        local node_significant_text = significant_text(node, buf)
+        if node_significant_text == extracted_significant_text then table.insert(matching_nodes, node) end
+      end
+      for _, match in query:iter_matches(tree:root(), buf) do
+        local match_info ---@type refactor.Scope|nil
+        for capture_id, nodes in pairs(match) do
+          local name = query.captures[capture_id]
+          if name == "scope" then
+            match_info = match_info or {}
+            match_info.scope = nodes[1]
+          elseif name == "scope.start" then
+            match_info = match_info or {}
+            match_info.start = nodes[1]
+          end
         end
-        return false
+        if match_info then table.insert(scopes, match_info) end
+      end
+    end
+
+    table.sort(matching_nodes, node_comp_desc)
+    iter(matching_nodes):each(
+      ---@param n TSNode
+      function(n)
+        -- TODO: I may need to handle end_row-exclusive, 0-col Treesitter ranges everywhere
+        local start_row, start_col, end_row, end_col = n:range()
+        api.nvim_buf_set_text(buf, start_row, start_col, end_row, end_col, { var_name })
       end
     )
-    :totable()
-  utils.sort_in_appearance_order(statements)
 
-  if #statements < 1 then return false, "statements is nil! Something went wrong" end
+    ---@type refactor.Scope|nil
+    local smallest_common_scope = iter(scopes)
+      :filter(
+        ---@param s refactor.Scope
+        function(s)
+          local scope_range = { s.scope:range() }
+          return iter(matching_nodes):all(
+            ---@param n TSNode
+            function(n)
+              local node_start = { n:start() }
+              local node_end = { n:end_() }
+              return contains(scope_range, node_start) and contains(scope_range, node_end)
+            end
+          )
+        end
+      )
+      :fold(
+        nil,
+        ---@param acc refactor.Scope|nil
+        ---@param s refactor.Scope
+        function(acc, s)
+          if not acc then return s end
+          if s.scope:byte_length() < acc.scope:byte_length() then return s end
+          return acc
+        end
+      )
+    if not smallest_common_scope then
+      vim.notify "Couldn't find the smallest common scope using Treesitter"
+      return
+    end
 
-  ---@type TSNode|nil
-  local contained = nil
-  local top_occurrence = actual_occurrences[1]
-  for _, statement in ipairs(statements) do
-    if utils.node_contains(statement, top_occurrence) then contained = statement end
-  end
+    local start_row, start_col = smallest_common_scope.start:start()
+    local variable_declaration = code_generation.variable_declaration[lang] {
+      name = var_name,
+      value = extracted_text,
+    }
+    local scope_start_line = api.nvim_buf_get_lines(buf, start_row, start_row + 1, true)[1]
+    local _, indent_amount = vim.text.indent(0, scope_start_line)
+    api.nvim_buf_set_text(
+      buf,
+      start_row,
+      start_col,
+      start_row,
+      start_col,
+      { variable_declaration, (vim.bo[buf].expandtab and " " or "\t"):rep(indent_amount) }
+    )
+  end)
 
-  if not contained then
-    return false,
-      "Extract var unable to determine its containing statement within the block scope, please post issue with exact highlight + code!  Thanks"
-  end
-
-  local region = utils.region_one_line_up_from_node(contained)
-  local ok2, new_var_text = pcall(get_new_var_text, extract_node_text, refactor, var_name, region:get_start_point())
-  if not ok2 then return ok2, new_var_text end
-  table.insert(refactor.text_edits, text_edits_utils.insert_text(region, new_var_text))
-  return true, refactor
-end
-
----@param refactor refactor.Refactor
-local function ensure_code_gen_119(refactor)
-  local tasks = require "refactoring.tasks"
-
-  local list = { "constant" }
-
-  return tasks.ensure_code_gen(refactor, list)
-end
-
----@param bufnr integer
----@param region_type 'v' | 'V' | ''
----@param config refactor.Config
-function M.extract_var(bufnr, region_type, config)
-  local tasks = require "refactoring.tasks"
-  local Pipeline = require "refactoring.pipeline"
-
-  local seed = tasks.refactor_seed(bufnr, region_type, config)
-  Pipeline:from_task(ensure_code_gen_119)
-    :add_task(tasks.operator_setup)
-    :add_task(extract_var_setup)
-    :after(tasks.post_refactor)
-    :run(nil, notify.error, seed)
+  task:raise_on_error()
 end
 
 return M

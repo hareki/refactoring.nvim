@@ -12,7 +12,7 @@ local input = async.wrap(2, function(opts, cb)
   vim.ui.input(opts, cb)
 end)
 
----@class refactor.code_generation.function_declaration.opts
+---@class refactor.extract_func.code_generation.function_declaration.Opts
 ---@field args refactor.Variable[]
 ---@field name string
 ---@field body string
@@ -22,22 +22,22 @@ end)
 ---@field struct_var_name string?
 ---@field struct_name string?
 
----@class refactor.code_generation.function_call.opts
+---@class refactor.extract_func.code_generation.function_call.Opts
 ---@field args string[]
 ---@field name string
 ---@field return_values refactor.Variable[]
 ---@field method boolean?
 ---@field struct_var_name string?
 
----@class refactor.code_generation.return_statement.opts
+---@class refactor.extract_func.code_generation.return_statement.Opts
 ---@field return_values refactor.Variable[]
 
----@class refactor.code_generation
----@field function_declaration {[string]: fun(opts: refactor.code_generation.function_declaration.opts): string}
----@field function_call {[string]: fun(opts: refactor.code_generation.function_call.opts): string}
----@field return_statement {[string]: fun(opts: refactor.code_generation.return_statement.opts): string}
+---@class refactor.extract_func.code_generation
+---@field function_declaration {[string]: fun(opts: refactor.extract_func.code_generation.function_declaration.Opts): string}
+---@field function_call {[string]: fun(opts: refactor.extract_func.code_generation.function_call.Opts): string}
+---@field return_statement {[string]: fun(opts: refactor.extract_func.code_generation.return_statement.Opts): string}
 
----@type refactor.code_generation
+---@type refactor.extract_func.code_generation
 local code_generation = {
   function_declaration = {
     lua = function(opts)
@@ -1411,28 +1411,12 @@ local function extract_func(opts)
   -- navigate through type placeholders?
 end
 
----@param range_type 'v'|'V'|''
----@return Range4, string[]
-local function get_extracted_range(range_type)
-  local range_start = vim.fn.getpos "'["
-  local range_end = vim.fn.getpos "']"
-  local range_last_line_length = #vim.fn.getline "']"
-
-  local extracted_range = {
-    range_start[2] - 1,
-    range_type ~= "V" and range_start[3] - 1 or 0,
-    range_end[2] - 1,
-    range_type ~= "V" and range_end[3] - 1 or range_last_line_length,
-  }
-  local lines = vim.fn.getregion(range_start, range_end, { type = range_type })
-
-  return extracted_range, lines
-end
-
 -- TODO: remove `buf` (first var) from all calls after the rewrite is finished
 ---@param _ integer
 ---@param range_type 'v' | 'V' | ''
 M.extract_func = function(_, range_type)
+  local get_extracted_range = require("refactoring.range").get_extracted_range
+
   local buf = api.nvim_get_current_buf()
   local extracted_range, lines = get_extracted_range(range_type)
 
@@ -1455,6 +1439,8 @@ end
 ---@param _ integer
 ---@param range_type 'v' | 'V' | ''
 M.extract_func_to_file = function(_, range_type)
+  local get_extracted_range = require("refactoring.range").get_extracted_range
+
   local buf = api.nvim_get_current_buf()
   local extracted_range, lines = get_extracted_range(range_type)
 
