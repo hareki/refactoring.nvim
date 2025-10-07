@@ -305,7 +305,8 @@ def %s(%s):
         :join ", "
       return ([[
 def %s(%s):
-%s]]):format(name, args, opts.body)
+%s
+end]]):format(name, args, opts.body)
     end,
   },
   function_call = {
