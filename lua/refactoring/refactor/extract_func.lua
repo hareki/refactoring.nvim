@@ -962,11 +962,9 @@ local function extract_func(opts)
   local out_nested_lang_tree, out_query = ts_parse(out_buf, extracted_range)
   if not out_nested_lang_tree or not out_query then return end
   local output_node, output_opts = get_output_node(out_nested_lang_tree, out_query, out_buf, extracted_range)
-  -- TODO: default to some range (current location?) if no `output_node` found
-  -- TODO: define treesitter fallback captures (like root node or current
-  -- statement) to use as default location. Or maybe nearest top level statement (?
-  -- TODO: also fallback again to { 0, 0, 0, 0 } if there is no fallback statement (the file is likely empty)
-  local output_range = output_node and { output_node:range() } or { 0, 0, 0, 0 }
+  local output_range = output_node and { output_node:range() }
+    or in_buf == out_buf and extracted_range
+    or { 0, 0, 0, 0 }
 
   local references = {} ---@type refactor.Reference[]
   local scopes = {} ---@type TSNode[]

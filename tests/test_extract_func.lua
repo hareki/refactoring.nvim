@@ -135,6 +135,25 @@ end
   validate(lines, { 15, 0 }, expected_lines, " aeip", "bar<cr>")
 end
 
+T["lua"]["defaults to extracted location"] = function()
+  local lines = [[
+local foo = "foo"
+print(foo)
+]]
+  local expected_lines = [[
+local function bar()
+  local foo = "foo"
+  print(foo)
+end
+
+bar()
+]]
+  child.cmd "edit tmp.lua"
+  child.bo.expandtab = true
+  child.bo.shiftwidth = 2
+  validate(lines, { 1, 0 }, expected_lines, " aeip", "bar<cr>")
+end
+
 T["java"] = MiniTest.new_set()
 
 T["java"]["works"] = function()
