@@ -750,7 +750,7 @@ end
 ---@param buf integer
 ---@param extracted_range Range4
 ---@return TSNode?
----@return {method: boolean?, singleton: boolean?, struct_name: string?, struct_var_name: string?}?
+---@return {method: boolean?, singleton: boolean?, struct_name: string?, struct_var_name: string?}
 local function get_output_node(nested_lang_tree, query, buf, extracted_range)
   local outputs = {} ---@type refactor.Output[]
   for _, tree in ipairs(nested_lang_tree:trees()) do
@@ -838,7 +838,7 @@ local function get_output_node(nested_lang_tree, query, buf, extracted_range)
       end
     )
 
-  if not selected_output then return end
+  if not selected_output then return nil, {} end
 
   return choose_output(selected_output),
     {
@@ -909,6 +909,28 @@ local function indent(expandtab, size, text, opts)
   return indented, previous_size
 end
 
+---@param buf integer
+---@param extracted_range Range4
+---@return vim.treesitter.LanguageTree?, vim.treesitter.Query?
+local function ts_parse(buf, extracted_range)
+  local lang_tree, err1 = ts.get_parser(buf, nil, { error = false })
+  if not lang_tree then
+    vim.notify(err1, vim.log.levels.ERROR)
+    return
+  end
+  -- TODO: use async parsing
+  lang_tree:parse(true)
+  local nested_lang_tree = lang_tree:language_for_range(extracted_range)
+  local lang = nested_lang_tree:lang()
+  local query = ts.query.get(lang, "refactor")
+  if not query then
+    vim.notify(("There is no `refactor` query file for language %s"):format(lang), vim.log.levels.ERROR)
+    return
+  end
+
+  return nested_lang_tree, query
+end
+
 ---@class refactor.Reference
 ---@field identifier TSNode
 ---@field type string|{identifier: string}|vim.NIL|nil
@@ -919,32 +941,39 @@ end
 ---@field identifier string
 ---@field type string|nil
 
----@param extracted_range Range4
----@param in_buf integer
----@param output_range Range4
----@param lines string[]
----@param out_buf integer
----@param fn_name string
----@param nested_lang_tree vim.treesitter.LanguageTree
----@param query vim.treesitter.Query
----@param opts {method: boolean?, singleton: boolean?, struct_name: string?, struct_var_name: string?}
-local function extract_func(
-  extracted_range,
-  in_buf,
-  output_range,
-  lines,
-  out_buf,
-  fn_name,
-  nested_lang_tree,
-  query,
-  opts
-)
+---@class refactor.extract_func.Opts
+---@field extracted_range Range4
+---@field in_buf integer
+---@field lines string[]
+---@field out_buf integer
+---@field fn_name string
+
+---@param opts refactor.extract_func.Opts
+local function extract_func(opts)
+  local extracted_range = opts.extracted_range
+  local in_buf = opts.in_buf
+  local lines = opts.lines
+  local out_buf = opts.out_buf
+  local fn_name = opts.fn_name
+
+  local nested_lang_tree, in_query = ts_parse(in_buf, extracted_range)
+  if not nested_lang_tree or not in_query then return end
+
+  local out_nested_lang_tree, out_query = ts_parse(out_buf, extracted_range)
+  if not out_nested_lang_tree or not out_query then return end
+  local output_node, output_opts = get_output_node(out_nested_lang_tree, out_query, out_buf, extracted_range)
+  -- TODO: default to some range (current location?) if no `output_node` found
+  -- TODO: define treesitter fallback captures (like root node or current
+  -- statement) to use as default location. Or maybe nearest top level statement (?
+  -- TODO: also fallback again to { 0, 0, 0, 0 } if there is no fallback statement (the file is likely empty)
+  local output_range = output_node and { output_node:range() } or { 0, 0, 0, 0 }
+
   local references = {} ---@type refactor.Reference[]
   local scopes = {} ---@type TSNode[]
   for _, tree in ipairs(nested_lang_tree:trees()) do
-    for _, match, metadata in query:iter_matches(tree:root(), in_buf) do
+    for _, match, metadata in in_query:iter_matches(tree:root(), in_buf) do
       for capture_id, nodes in pairs(match) do
-        local name = query.captures[capture_id]
+        local name = in_query.captures[capture_id]
         if name == "reference.identifier" then
           for i, node in ipairs(nodes) do
             table.insert(references, {
@@ -1331,12 +1360,12 @@ local function extract_func(
     body = body,
     name = fn_name,
     return_values = return_values,
-    method = opts.method,
-    singleton = opts.singleton,
-    struct_name = opts.struct_name,
-    struct_var_name = opts.struct_var_name,
+    method = output_opts.method,
+    singleton = output_opts.singleton,
+    struct_name = output_opts.struct_name,
+    struct_var_name = output_opts.struct_var_name,
   } .. "\n\n"
-  function_definition = vim.text.indent((opts.method and 1 or 0) * indent_width, function_definition)
+  function_definition = vim.text.indent((output_opts.method and 1 or 0) * indent_width, function_definition)
   if not expandtab then function_definition:gsub("^(%s+)", function(spaces)
     return ("\t"):rep(#spaces)
   end) end
@@ -1344,8 +1373,8 @@ local function extract_func(
     args = args,
     name = fn_name,
     return_values = return_values,
-    method = opts.method,
-    struct_var_name = opts.struct_var_name,
+    method = output_opts.method,
+    struct_var_name = output_opts.struct_var_name,
   }
   function_call = indent(expandtab, body_indent, function_call)
 
@@ -1359,7 +1388,7 @@ local function extract_func(
   )
 
   local function_definition_lines = vim.split(function_definition, "\n")
-  if opts.method then
+  if output_opts.method then
     -- NOTE: treesitter nodes don't include whitespace. So, output region's
     -- first line it's (probably) already indented
     function_definition_lines[1] = indent(expandtab, 0, function_definition_lines[1])
@@ -1404,28 +1433,6 @@ local function get_extracted_range(range_type)
   return extracted_range, lines
 end
 
----@param buf integer
----@param extracted_range Range4
----@return vim.treesitter.LanguageTree?, vim.treesitter.Query?
-local function ts_parse(buf, extracted_range)
-  local lang_tree, err1 = ts.get_parser(buf, nil, { error = false })
-  if not lang_tree then
-    vim.notify(err1, vim.log.levels.ERROR)
-    return
-  end
-  -- TODO: use async parsing
-  lang_tree:parse(true)
-  local nested_lang_tree = lang_tree:language_for_range(extracted_range)
-  local lang = nested_lang_tree:lang()
-  local query = ts.query.get(lang, "refactor")
-  if not query then
-    vim.notify(("There is no `refactor` query file for language %s"):format(lang), vim.log.levels.ERROR)
-    return
-  end
-
-  return nested_lang_tree, query
-end
-
 -- TODO: remove `buf` (first var) from all calls after the rewrite is finished
 ---@param _ integer
 ---@param range_type 'v' | 'V' | ''
@@ -1437,25 +1444,13 @@ M.extract_func = function(_, range_type)
     local fn_name = input { prompt = "Function name: " }
     if not fn_name then return end
 
-    local nested_lang_tree, query = ts_parse(buf, extracted_range)
-    if not nested_lang_tree or not query then return end
-
-    local output_node, opts = get_output_node(nested_lang_tree, query, buf, extracted_range)
-    -- TODO: default to some range (current location?) if no `output_node` found
-    -- TODO: define treesitter fallback captures (like root node or current
-    -- statement) to use as default location. Or maybe nearest top level statement (?
-    if not output_node then
-      vim.notify "Couldn't find an output range in which to extract the function"
-      return
-    end
-    local output_range = { output_node:range() }
-
-    extract_func(extracted_range, buf, output_range, lines, buf, fn_name, nested_lang_tree, query, {
-      method = opts and opts.method,
-      singleton = opts and opts.singleton,
-      struct_name = opts and opts.struct_name,
-      struct_var_name = opts and opts.struct_var_name,
-    })
+    extract_func {
+      in_buf = buf,
+      out_buf = buf,
+      extracted_range = extracted_range,
+      lines = lines,
+      fn_name = fn_name,
+    }
   end)
   task:raise_on_error()
 end
@@ -1477,22 +1472,16 @@ M.extract_func_to_file = function(_, range_type)
     local fn_name = input { prompt = "Function name: " }
     if not fn_name then return end
 
-    local nested_lang_tree, query = ts_parse(buf, extracted_range)
-    if not nested_lang_tree or not query then return end
-
     local out_buf = vim.fn.bufadd(file_name)
     if not api.nvim_buf_is_loaded(out_buf) then vim.fn.bufload(out_buf) end
-    local out_nested_lang_tree = ts_parse(out_buf, extracted_range)
-    if not out_nested_lang_tree then return end
-    local output_node, opts = get_output_node(out_nested_lang_tree, query, out_buf, extracted_range)
-    local output_range = output_node and { output_node:range() } or { 0, 0, 0, 0 }
 
-    extract_func(extracted_range, buf, output_range, lines, out_buf, fn_name, nested_lang_tree, query, {
-      method = opts and opts.method,
-      singleton = opts and opts.singleton,
-      struct_name = opts and opts.struct_name,
-      struct_var_name = opts and opts.struct_var_name,
-    })
+    extract_func {
+      in_buf = buf,
+      out_buf = out_buf,
+      extracted_range = extracted_range,
+      lines = lines,
+      fn_name = fn_name,
+    }
   end)
   task:raise_on_error()
 end
