@@ -34,22 +34,16 @@ local function significant_text(node, buf)
   return table.concat(significant_text_list(node, buf), "")
 end
 
----@param a TSNode
----@param b TSNode
----@return boolean
-local function node_comp_asc(a, b)
-  local a_row, a_col, a_bytes = a:start()
-  local b_row, b_col, b_bytes = b:start()
-  if a_row ~= b_row then return a_row < b_row end
-
-  return (a_col < b_col or b_col + b_bytes > a_col + a_bytes)
-end
-
+-- TODO: move all of this common functions into some other file
 ---@param a TSNode
 ---@param b TSNode
 ---@return boolean
 local function node_comp_desc(a, b)
-  return not node_comp_asc(a, b)
+  local a_row, a_col, a_bytes = a:start()
+  local b_row, b_col, b_bytes = b:start()
+  if a_row ~= b_row then return a_row > b_row end
+
+  return (a_col > b_col or a_col + a_bytes > b_col + b_bytes)
 end
 
 ---@class refactor.extract_var.code_generation.variable_declaration.Opts
@@ -59,6 +53,19 @@ end
 ---@class refactor.extract_var.code_generation
 ---@field variable_declaration {[string]: fun(opts: refactor.extract_var.code_generation.variable_declaration.Opts): string}
 
+-- TODO: maybe support an in-memory LSP server to provide refactoring's as code actions(?
+
+-- TODO: when rewriting `print_var` and `printf`, distinguish between
+-- `print_expression` operator to print everything inside the selected region
+-- and `print_var` operator to print ever variable inside the selected region
+-- in the [some scope, I haven't think it through. Try to avoid loops and
+-- things like that unless necesary. Maybe as close as possible to the last
+-- declaration of the variables]
+
+-- TODO: add per-feature configuration in `require'refactoring'.setup` that
+-- includes overrides for code_generation (and all of the language-dependant
+-- fields?) that could also allow users to define their own features
+-- per-language (they would also need to define their own queries)
 ---@type refactor.extract_var.code_generation
 local code_generation = {
   variable_declaration = {

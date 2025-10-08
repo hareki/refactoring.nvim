@@ -745,6 +745,21 @@ local function choose_output(o)
   return o.comment and o.comment[1] or o.fn
 end
 
+---@param first Range2
+---@param second Range2
+---@param range Range2
+---@return boolean
+local function is_first_closer(first, second, range)
+  local first_row_distance = math.abs(first[1] - range[1])
+  local second_row_distance = math.abs(second[1] - range[1])
+  if second_row_distance < first_row_distance then return false end
+
+  local first_col_distance = math.abs(first[2] - range[2])
+  local second_col_distance = math.abs(second[2] - range[2])
+  if second_row_distance == first_row_distance and second_col_distance < first_col_distance then return false end
+  return true
+end
+
 ---@param nested_lang_tree vim.treesitter.LanguageTree
 ---@param query vim.treesitter.Query
 ---@param buf integer
@@ -822,19 +837,19 @@ local function get_output_node(nested_lang_tree, query, buf, extracted_range)
       ---@param o refactor.Output
       function(acc, o)
         if not acc then return o end
+
         local n = choose_output(o)
-        local n_start_row, n_start_col = n:start()
+        local o_start_row, o_start_col = n:start()
         local acc_n = choose_output(acc)
         local acc_start_row, acc_start_col = acc_n:start()
 
-        local o_row_distance = math.abs(n_start_row - extracted_range[1])
-        local acc_row_distance = math.abs(acc_start_row - extracted_range[1])
-        if acc_row_distance < o_row_distance then return acc end
-
-        local o_col_distance = math.abs(n_start_col - extracted_range[2])
-        local acc_col_distance = math.abs(acc_start_col - extracted_range[2])
-        if acc_row_distance == o_row_distance and acc_col_distance < o_col_distance then return acc end
-        return o
+        local is_o_closer = is_first_closer(
+          { o_start_row, o_start_col },
+          { acc_start_row, acc_start_col },
+          { extracted_range[1], extracted_range[2] }
+        )
+        if is_o_closer then return o end
+        return acc
       end
     )
 
@@ -868,7 +883,7 @@ end
 ---@param start Range2
 ---@param end_ Range2
 ---@return TSNode|nil
-local function get_declaration_scope(scopes, start, end_)
+local function smaller_containing_scope(scopes, start, end_)
   local declaration_scope = iter(scopes)
     :filter(
       ---@param s TSNode
@@ -889,6 +904,76 @@ local function get_declaration_scope(scopes, start, end_)
     )
 
   return declaration_scope
+end
+
+---@param all_scopes TSNode[]
+---@param range Range4
+---@return TSNode[]
+local function scopes_for_range(all_scopes, range)
+  return iter(all_scopes)
+    :filter(
+      ---@param s TSNode
+      function(s)
+        local scope_range = { s:range() }
+        return contains(scope_range, { range[1], range[2] }) and contains(scope_range, { range[3], range[4] })
+      end
+    )
+    :totable()
+end
+
+---@param a TSNode
+---@param b TSNode
+---@return boolean
+local function node_comp_desc(a, b)
+  local a_row, a_col, a_bytes = a:start()
+  local b_row, b_col, b_bytes = b:start()
+  if a_row ~= b_row then return a_row > b_row end
+
+  return (a_col > b_col or a_col + a_bytes > b_col + b_bytes)
+end
+
+---@param declarations_by_scope refactor.declaration_by_scope
+---@param all_scopes refactor.Scope[]
+---@param reference refactor.Reference
+---@param buf integer
+---@return TSNode|nil
+local function get_declaration_scope(declarations_by_scope, all_scopes, reference, buf)
+  local reference_range = { reference.identifier:range() }
+  local scopes_for_reference = scopes_for_range(all_scopes, reference_range)
+  table.sort(scopes_for_reference, node_comp_desc)
+
+  local identifier = ts.get_node_text(reference.identifier, buf)
+  local reference_start_row, reference_start_col = reference.identifier:start()
+  local reference_start = { reference_start_row, reference_start_col }
+  return iter(scopes_for_reference):find(
+    ---@param s TSNode
+    function(s)
+      local scope_declarations = declarations_by_scope[s]
+      if not scope_declarations then return end
+      local identifier_declarations = scope_declarations[identifier]
+      if not identifier_declarations then return end
+
+      return iter(identifier_declarations):fold(
+        nil,
+        ---@param acc refactor.Reference|nil
+        ---@param d refactor.Reference
+        function(acc, d)
+          if not acc then return d end
+
+          local d_start_row, d_start_col = d.identifier:start()
+          local acc_start_row, acc_start_col = acc.identifier:start()
+
+          local is_d_closer = is_first_closer(
+            { d_start_row, d_start_col },
+            { acc_start_row, acc_start_col },
+            reference_start
+          )
+          if is_d_closer then return d end
+          return acc
+        end
+      )
+    end
+  )
 end
 
 ---@param expandtab boolean
@@ -991,18 +1076,37 @@ local function extract_func(opts)
   end
   -- TODO: maybe check that all the treesitter captures are not empty(?
 
-  ---@type TSNode[]
-  local scopes_for_extracted_range = iter(scopes)
+  local scopes_for_extracted_range = scopes_for_range(scopes, extracted_range)
+
+  local declarations = iter(references)
     :filter(
-      ---@param s TSNode
-      function(s)
-        local scope_range = { s:range() }
-        return contains(scope_range, { extracted_range[1], extracted_range[2] })
-          and contains(scope_range, { extracted_range[3], extracted_range[4] })
+      ---@param r refactor.Reference
+      function(r)
+        return r.declaration
       end
     )
     :totable()
 
+  ---@alias refactor.declaration_by_scope {[TSNode]: {[string]: refactor.Reference[]}}
+  ---@type refactor.declaration_by_scope
+  local declarations_by_scope = iter(declarations):fold(
+    {},
+    ---@param acc refactor.declaration_by_scope
+    ---@param d refactor.Reference
+    function(acc, d)
+      local start_row, start_col, end_row, end_col = d.identifier:range()
+      local scope = smaller_containing_scope(scopes, { start_row, start_col }, { end_row, end_col })
+      local identifier = ts.get_node_text(d.identifier, in_buf)
+      assert(scope)
+      acc[scope] = acc[scope] or {}
+      acc[scope][identifier] = acc[scope][identifier] or {}
+      table.insert(acc[scope][identifier], d)
+
+      return acc
+    end
+  )
+
+  ---@type refactor.Reference[]
   local typed_references = iter(references)
     :filter(
       ---@param r refactor.Reference
@@ -1046,15 +1150,16 @@ local function extract_func(opts)
         local start_node = { r.identifier:start() }
         local end_node = { r.identifier:end_() }
 
-        local declaration_scope = get_declaration_scope(scopes, start_node, end_node)
+        local declaration_scope = get_declaration_scope(declarations_by_scope, scopes, r, in_buf)
 
         local is_in_scope = declaration_scope
-          and iter(scopes_for_extracted_range):find(
-            ---@param s TSNode
-            function(s)
-              return s:equal(declaration_scope)
-            end
-          )
+            and iter(scopes_for_extracted_range):any(
+              ---@param s TSNode
+              function(s)
+                return s:equal(declaration_scope)
+              end
+            )
+          or false
 
         local end_extract = { extracted_range[3], extracted_range[4] }
         local compare_start = compare(start_node, end_extract)
@@ -1069,10 +1174,7 @@ local function extract_func(opts)
       function(acc, r)
         if r.type == nil or r.type == vim.NIL then return acc end
 
-        local start_node = { r.identifier:start() }
-        local end_node = { r.identifier:end_() }
-
-        local scope = get_declaration_scope(scopes, start_node, end_node)
+        local scope = get_declaration_scope(declarations_by_scope, scopes, r, in_buf)
         if not scope then return acc end
 
         acc[scope] = acc[scope] or {}
@@ -1203,14 +1305,6 @@ local function extract_func(opts)
     :filter(is_unique())
     :totable()
 
-  local declarations = iter(references)
-    :filter(
-      ---@param r refactor.Reference
-      function(r)
-        return r.declaration
-      end
-    )
-    :totable()
   ---@type string[]
   local declarations_inside_extracted_range = iter(declarations)
     :filter(
@@ -1236,15 +1330,16 @@ local function extract_func(opts)
         local start_node = { r.identifier:start() }
         local end_node = { r.identifier:end_() }
 
-        local declaration_scope = get_declaration_scope(scopes, start_node, end_node)
+        local declaration_scope = get_declaration_scope(declarations_by_scope, scopes, r, in_buf)
 
         local is_in_scope = declaration_scope
-          and iter(scopes_for_extracted_range):find(
-            ---@param s TSNode
-            function(s)
-              return s:equal(declaration_scope)
-            end
-          )
+            and iter(scopes_for_extracted_range):any(
+              ---@param s TSNode
+              function(s)
+                return s:equal(declaration_scope)
+              end
+            )
+          or false
 
         local start_output = { output_range[1], output_range[2] }
         local compare_start = compare(start_node, start_output)
@@ -1262,15 +1357,16 @@ local function extract_func(opts)
         local start_node = { r.identifier:start() }
         local end_node = { r.identifier:end_() }
 
-        local declaration_scope = get_declaration_scope(scopes, start_node, end_node)
+        local declaration_scope = get_declaration_scope(declarations_by_scope, scopes, r, in_buf)
 
         local is_in_scope = declaration_scope
-          and iter(scopes_for_extracted_range):find(
-            ---@param s TSNode
-            function(s)
-              return s:equal(declaration_scope)
-            end
-          )
+            and iter(scopes_for_extracted_range):any(
+              ---@param s TSNode
+              function(s)
+                return s:equal(declaration_scope)
+              end
+            )
+          or false
 
         local start_extract = { extracted_range[1], extracted_range[2] }
         local compare_start = compare(start_node, start_extract)
@@ -1305,14 +1401,15 @@ local function extract_func(opts)
         local start_node = { n:start() }
         local end_node = { n:end_() }
 
-        local declaration_scope = get_declaration_scope(scopes, start_node, end_node)
+        local declaration_scope = get_declaration_scope(declarations_by_scope, scopes, r, in_buf)
         local is_in_scope = declaration_scope
-          and iter(scopes_for_extracted_range):find(
-            ---@param s TSNode
-            function(s)
-              return s:equal(declaration_scope)
-            end
-          )
+            and iter(scopes_for_extracted_range):any(
+              ---@param s TSNode
+              function(s)
+                return s:equal(declaration_scope)
+              end
+            )
+          or false
 
         local extract_end = { extracted_range[3], extracted_range[4] }
         local compare_start = compare(start_node, extract_end)

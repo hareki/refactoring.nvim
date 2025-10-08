@@ -154,6 +154,60 @@ bar()
   validate(lines, { 1, 0 }, expected_lines, " aeip", "bar<cr>")
 end
 
+T["lua"]["identifies references outside extracted range scope"] = function()
+  local lines = [[
+local foo = "foo"
+
+local function bar()
+  print(foo)
+end
+]]
+  local expected_lines = [[
+local function foo2()
+  local foo = "foo"
+
+  return foo
+end
+
+local foo = foo2()
+
+local function bar()
+  print(foo)
+end
+]]
+  child.cmd "edit tmp.lua"
+  child.bo.expandtab = true
+  child.bo.shiftwidth = 2
+  validate(lines, { 1, 0 }, expected_lines, " ae_", "foo2<cr>")
+end
+
+T["lua"]["chooses correct declaration"] = function()
+  local lines = [[
+local foo = "foo"
+
+local function bar()
+  local foo = "foo"
+  print(foo)
+end
+]]
+  local expected_lines = [[
+local function foo2()
+  local foo = "foo"
+end
+
+foo2()
+
+local function bar()
+  local foo = "foo"
+  print(foo)
+end
+]]
+  child.cmd "edit tmp.lua"
+  child.bo.expandtab = true
+  child.bo.shiftwidth = 2
+  validate(lines, { 1, 0 }, expected_lines, " ae_", "foo2<cr>")
+end
+
 T["java"] = MiniTest.new_set()
 
 T["java"]["works"] = function()
