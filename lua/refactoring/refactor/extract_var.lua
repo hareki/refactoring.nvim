@@ -277,15 +277,17 @@ function M.extract_var(_, range_type)
       name = var_name,
       value = extracted_text,
     }
+    local variable_declaration_lines = vim.split(variable_declaration, "\n")
     local output_start_line = api.nvim_buf_get_lines(buf, output_range[1], output_range[1] + 1, true)[1]
     local _, indent_amount = vim.text.indent(0, output_start_line)
+    table.insert(variable_declaration_lines, (vim.bo[buf].expandtab and " " or "\t"):rep(indent_amount))
     api.nvim_buf_set_text(
       buf,
       output_range[1],
       output_range[2],
       output_range[1],
       output_range[2],
-      { variable_declaration, (vim.bo[buf].expandtab and " " or "\t"):rep(indent_amount) }
+      variable_declaration_lines
     )
   end)
 
