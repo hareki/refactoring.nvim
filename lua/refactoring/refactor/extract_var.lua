@@ -61,12 +61,21 @@ local function is_unique(get_key)
   end
 end
 
+---@param missing_code_gen string
+---@param lang string
+local function code_gen_error(missing_code_gen, lang)
+  vim.notify(
+    ("There's no `%s` code generation defined for language %s"):format(missing_code_gen, lang),
+    vim.log.levels.ERROR
+  )
+end
+
 ---@class refactor.extract_var.code_generation.variable_declaration.Opts
 ---@field name string
 ---@field value string
 
 ---@class refactor.extract_var.code_generation
----@field variable_declaration {[string]: fun(opts: refactor.extract_var.code_generation.variable_declaration.Opts): string}
+---@field variable_declaration {[string]: nil|fun(opts: refactor.extract_var.code_generation.variable_declaration.Opts): string}
 
 -- TODO: maybe support an in-memory LSP server to provide refactoring's as code actions(?
 
@@ -81,9 +90,6 @@ end
 -- includes overrides for code_generation (and all of the language-dependant
 -- fields?) that could also allow users to define their own features
 -- per-language (they would also need to define their own queries)
--- TODO: whenever I'm using a dictionary like this based on the language, check
--- if there is a value assigned and, if not, give a friendly warning to the
--- user
 ---@type refactor.extract_var.code_generation
 local code_generation = {
   variable_declaration = {
@@ -281,7 +287,9 @@ function M.extract_var(_, range_type)
 
       output_range = higher_smaller_scope_outside_start
     end
-    local variable_declaration = code_generation.variable_declaration[lang] {
+    local get_variable_declaration = code_generation.variable_declaration[lang]
+    if not get_variable_declaration then return code_gen_error("variable_declaration", lang) end
+    local variable_declaration = get_variable_declaration {
       name = var_name,
       value = extracted_text,
     }

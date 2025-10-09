@@ -33,9 +33,19 @@ end)
 ---@field return_values refactor.Variable[]
 
 ---@class refactor.extract_func.code_generation
----@field function_declaration {[string]: fun(opts: refactor.extract_func.code_generation.function_declaration.Opts): string}
----@field function_call {[string]: fun(opts: refactor.extract_func.code_generation.function_call.Opts): string}
----@field return_statement {[string]: fun(opts: refactor.extract_func.code_generation.return_statement.Opts): string}
+---@field function_declaration {[string]: nil|fun(opts: refactor.extract_func.code_generation.function_declaration.Opts): string}
+---@field function_call {[string]: nil|fun(opts: refactor.extract_func.code_generation.function_call.Opts): string}
+---@field return_statement {[string]: nil|fun(opts: refactor.extract_func.code_generation.return_statement.Opts): string}
+
+-- TODO: move these common functions
+---@param missing_code_gen string
+---@param lang string
+local function code_gen_error(missing_code_gen, lang)
+  vim.notify(
+    ("There's no `%s` code generation defined for language %s"):format(missing_code_gen, lang),
+    vim.log.levels.ERROR
+  )
+end
 
 ---@type refactor.extract_func.code_generation
 local code_generation = {
@@ -1443,14 +1453,18 @@ local function extract_func(opts)
   body, body_indent = indent(expandtab, 0, body)
   local lang = nested_lang_tree:lang()
   if #return_values > 0 then
-    local return_statement = code_generation.return_statement[lang] {
+    local get_return_statement = code_generation.return_statement[lang]
+    if not get_return_statement then return code_gen_error("return_statement", lang) end
+    local return_statement = get_return_statement {
       return_values = return_values,
     }
     body = body .. return_statement
   end
   local indent_width = vim.bo[in_buf].shiftwidth > 0 and vim.bo[in_buf].shiftwidth or vim.bo[in_buf].tabstop
   body = indent(expandtab, expandtab and 1 * indent_width or 1, body)
-  local function_definition = code_generation.function_declaration[lang] {
+  local get_function_declaration = code_generation.function_declaration[lang]
+  if not get_function_declaration then return code_gen_error("function_declaration", lang) end
+  local function_definition = get_function_declaration {
     args = args,
     body = body,
     name = fn_name,
@@ -1464,7 +1478,9 @@ local function extract_func(opts)
   if not expandtab then function_definition:gsub("^(%s+)", function(spaces)
     return ("\t"):rep(#spaces)
   end) end
-  local function_call = code_generation.function_call[lang] {
+  local get_function_call = code_generation.function_call[lang]
+  if not get_function_call then return code_gen_error("function_call", lang) end
+  local function_call = get_function_call {
     args = args,
     name = fn_name,
     return_values = return_values,
