@@ -963,25 +963,33 @@ local function get_declaration_scope(declarations_by_scope, all_scopes, referenc
       local identifier_declarations = scope_declarations[identifier]
       if not identifier_declarations then return end
 
-      return iter(identifier_declarations):fold(
-        nil,
-        ---@param acc refactor.Reference|nil
-        ---@param d refactor.Reference
-        function(acc, d)
-          if not acc then return d end
+      return iter(identifier_declarations)
+        :filter(
+          ---@param d refactor.Reference
+          function(d)
+            local d_start_row, d_start_col = d.identifier:start()
+            return compare(reference_start, { d_start_row, d_start_col }) ~= -1
+          end
+        )
+        :fold(
+          nil,
+          ---@param acc refactor.Reference|nil
+          ---@param d refactor.Reference
+          function(acc, d)
+            if not acc then return d end
 
-          local d_start_row, d_start_col = d.identifier:start()
-          local acc_start_row, acc_start_col = acc.identifier:start()
+            local d_start_row, d_start_col = d.identifier:start()
+            local acc_start_row, acc_start_col = acc.identifier:start()
 
-          local is_d_closer = is_first_closer(
-            { d_start_row, d_start_col },
-            { acc_start_row, acc_start_col },
-            reference_start
-          )
-          if is_d_closer then return d end
-          return acc
-        end
-      )
+            local is_d_closer = is_first_closer(
+              { d_start_row, d_start_col },
+              { acc_start_row, acc_start_col },
+              reference_start
+            )
+            if is_d_closer then return d end
+            return acc
+          end
+        )
     end
   )
 end
