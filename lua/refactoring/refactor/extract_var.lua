@@ -46,6 +46,21 @@ local function node_comp_desc(a, b)
   return (a_col > b_col or a_col + a_bytes > b_col + b_bytes)
 end
 
+---@param get_key nil|fun(value: any): any
+---@return fun(value: any): boolean
+local function is_unique(get_key)
+  ---@type {[string]: boolean}
+  local already_seen = {}
+
+  ---@param value any
+  return function(value)
+    local key = get_key and get_key(value) or value
+    if already_seen[key] then return false end
+    already_seen[key] = true
+    return true
+  end
+end
+
 ---@class refactor.extract_var.code_generation.variable_declaration.Opts
 ---@field name string
 ---@field value string
@@ -66,6 +81,9 @@ end
 -- includes overrides for code_generation (and all of the language-dependant
 -- fields?) that could also allow users to define their own features
 -- per-language (they would also need to define their own queries)
+-- TODO: whenever I'm using a dictionary like this based on the language, check
+-- if there is a value assigned and, if not, give a friendly warning to the
+-- user
 ---@type refactor.extract_var.code_generation
 local code_generation = {
   variable_declaration = {
@@ -77,7 +95,7 @@ local code_generation = {
 
 ---@class refactor.Scope
 ---@field scope TSNode
----@field start TSNode
+---@field outside TSNode|nil
 
 -- TODO: remove first parameter (buf) after rewrite
 ---@param range_type 'v' | 'V' | ''
@@ -133,9 +151,9 @@ function M.extract_var(_, range_type)
           if name == "scope" then
             match_info = match_info or {}
             match_info.scope = nodes[1]
-          elseif name == "scope.start" then
+          elseif name == "scope.outside" then
             match_info = match_info or {}
-            match_info.start = nodes[1]
+            match_info.outside = nodes[1]
           end
         end
         if match_info then table.insert(scopes, match_info) end
@@ -183,19 +201,90 @@ function M.extract_var(_, range_type)
       return
     end
 
-    local start_row, start_col = smallest_common_scope.start:start()
+    ---@type refactor.Scope[]
+    local smallest_scope_for_each_matching_node = iter(matching_nodes)
+      :map(
+        ---@param m TSNode
+        function(m)
+          return iter(scopes)
+            :filter(
+              ---@param s refactor.Scope
+              function(s)
+                local scope_range = { s.scope:range() }
+                local node_start = { m:start() }
+                local node_end = { m:end_() }
+                return contains(scope_range, node_start) and contains(scope_range, node_end)
+              end
+            )
+            :fold(
+              nil,
+              ---@param acc nil|refactor.Scope
+              ---@param s refactor.Scope
+              function(acc, s)
+                if not acc then return s end
+                local acc_size = acc.scope:byte_length()
+                local s_size = s.scope:byte_length()
+                if s_size < acc_size then return s end
+                return acc
+              end
+            )
+        end
+      )
+      :filter(is_unique())
+      :totable()
+
+    ---@type Range2
+    local output_range
+    if #smallest_scope_for_each_matching_node == 1 then
+      local start_row = matching_nodes[#matching_nodes]:start()
+      local higher_matching_node_line = api.nvim_buf_get_lines(buf, start_row, start_row + 1, true)[1]
+      local _, _, start_col = higher_matching_node_line:find "^%s*()"
+      -- NOTE: the 0 assummes that each line is a separated statement
+      local higher_matching_node_start = { start_row, start_col - 1 }
+      output_range = higher_matching_node_start
+    else
+      ---@type refactor.Scope[]
+      local contained_scopes_for_matching_nodes = iter(scopes)
+        :filter(
+          ---@param s refactor.Scope
+          function(s)
+            local scope_range = { s.scope:range() }
+            return not s.scope:equal(smallest_common_scope.scope)
+              and iter(matching_nodes):any(
+                ---@param n TSNode
+                function(n)
+                  local node_start = { n:start() }
+                  local node_end = { n:end_() }
+                  return contains(scope_range, node_start) and contains(scope_range, node_end)
+                end
+              )
+          end
+        )
+        :totable()
+      table.sort(contained_scopes_for_matching_nodes, function(a, b)
+        local a_outside_scope = a.outside or a.scope
+        local b_outside_scope = b.outside or b.scope
+
+        return node_comp_desc(a_outside_scope, b_outside_scope)
+      end)
+      local higher_smaller_scope = contained_scopes_for_matching_nodes[#contained_scopes_for_matching_nodes]
+      local higher_smaller_scope_outside = higher_smaller_scope.outside or higher_smaller_scope.scope
+      local higher_smaller_scope_outside_start = { higher_smaller_scope_outside:start() }
+
+      output_range = higher_smaller_scope_outside_start
+    end
     local variable_declaration = code_generation.variable_declaration[lang] {
       name = var_name,
       value = extracted_text,
     }
-    local scope_start_line = api.nvim_buf_get_lines(buf, start_row, start_row + 1, true)[1]
-    local _, indent_amount = vim.text.indent(0, scope_start_line)
+    local output_start_line = api.nvim_buf_get_lines(buf, output_range[1], output_range[1] + 1, true)[1]
+    local _, indent_amount = vim.text.indent(0, output_start_line)
     api.nvim_buf_set_text(
       buf,
-      start_row,
-      start_col,
-      start_row,
-      start_col,
+      output_range[1],
+      output_range[2],
+      output_range[1],
+      output_range[2],
       { variable_declaration, (vim.bo[buf].expandtab and " " or "\t"):rep(indent_amount) }
     )
   end)

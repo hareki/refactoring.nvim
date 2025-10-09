@@ -116,4 +116,42 @@ end
   validate(lines, { 2, 0 }, expected_lines, " avi)", "foo<cr>")
 end
 
+T["lua"]["works for 1 scope"] = function()
+  local lines = [[
+print("foo")
+print("foo")
+print("foo")
+print("foo")
+]]
+  local expected_lines = [[
+local foo = "foo"
+print(foo)
+print(foo)
+print(foo)
+print(foo)
+]]
+  child.cmd "edit tmp.lua"
+  child.bo.expandtab = true
+  child.bo.shiftwidth = 2
+  validate(lines, { 1, 0 }, expected_lines, " avi)", "foo<cr>")
+end
+
+T["lua"]["works for 1 nested scope"] = function()
+  local lines = [[
+local function bar()
+  print("foo")
+end
+]]
+  local expected_lines = [[
+local function bar()
+  local foo = "foo"
+  print(foo)
+end
+]]
+  child.cmd "edit tmp.lua"
+  child.bo.expandtab = true
+  child.bo.shiftwidth = 2
+  validate(lines, { 2, 0 }, expected_lines, " avi)", "foo<cr>")
+end
+
 return T

@@ -148,7 +148,7 @@ local function comp_non_overlaping_ranges_desc(a, b)
   return compare_end == 1
 end
 
--- TODO: extract into another file (it's also present in `extract_func.lua`)
+-- TODO: extract all of these into another file
 ---@param get_key nil|fun(value: any): any
 ---@return fun(value: any): boolean
 local function is_unique(get_key)
