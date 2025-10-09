@@ -129,7 +129,15 @@ function M.extract_var(_, range_type)
     local extracted_text = ts.get_node_text(encompassing_node, buf)
 
     -- TODO: not all languages can freely parse a sexpr. Check if this gives me issues for any language
-    local encompasing_query = ts.query.parse(lang, ("%s @tmp_query"):format(encompassing_node:sexpr()))
+    local ok, maybe_encompasing_query = pcall(ts.query.parse, lang, ("%s @tmp_query"):format(encompassing_node:sexpr()))
+    if not ok then
+      vim.notify(
+        "The selected text couldn't be parser using Treesitter to look for similar occurrences.",
+        vim.log.levels.ERROR
+      )
+      return
+    end
+    local encompasing_query = maybe_encompasing_query
     local query = ts.query.get(lang, "refactor")
     if not query then
       vim.notify(("There is no `refactor` query file for language %s"):format(lang), vim.log.levels.ERROR)
