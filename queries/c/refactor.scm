@@ -78,10 +78,15 @@
 
 [
   (for_statement)
-  (if_statement)
   (while_statement)
   (translation_unit)
   (function_definition)
-  (compound_statement)
   (struct_specifier)
 ] @scope
+
+(if_statement
+  consequence: (_) @scope) @scope.outside
+
+(if_statement
+  alternative: (else_clause
+    (_) @scope)) @scope.outside

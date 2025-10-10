@@ -242,4 +242,70 @@ const baz = () => {
   validate(lines, { 2, 0 }, expected_lines, " avi)", "foo<cr>")
 end
 
+T["c"] = MiniTest.new_set()
+
+T["c"]["works"] = function()
+  local lines = [[
+#include <stdio.h>
+#include <stdbool.h>
+
+void bar() { printf("foo"); }
+
+int main() {
+  printf("foo");
+
+  while (false) {
+    printf("foo");
+  }
+
+  do {
+    printf("foo");
+  } while (false);
+
+  if (true) {
+    printf("foo");
+  } else {
+    printf("foo");
+  }
+
+  for (int i = 0; i < 5; i++) {
+    printf("foo");
+  }
+}
+]]
+  local expected_lines = [[
+#include <stdio.h>
+#include <stdbool.h>
+
+P foo = "foo";
+void bar() { printf(foo); }
+
+int main() {
+  printf(foo);
+
+  while (false) {
+    printf(foo);
+  }
+
+  do {
+    printf(foo);
+  } while (false);
+
+  if (true) {
+    printf(foo);
+  } else {
+    printf(foo);
+  }
+
+  for (int i = 0; i < 5; i++) {
+    printf(foo);
+  }
+}
+]]
+  child.cmd "edit tmp.c"
+  child.bo.expandtab = true
+  child.bo.shiftwidth = 2
+  validate(lines, { 4, 11 }, expected_lines, " avi)", "foo<cr>")
+end
+
 return T

@@ -99,9 +99,13 @@ local code_generation = {
     javascript = function(opts)
       return ("const %s = %s;"):format(opts.name, opts.value)
     end,
+    c = function(opts)
+      return ("P %s = %s;"):format(opts.name, opts.value)
+    end,
   },
 }
 code_generation.variable_declaration.typescript = code_generation.variable_declaration.javascript
+code_generation.variable_declaration.cpp = code_generation.variable_declaration.c
 
 ---@class refactor.Scope
 ---@field scope TSNode
