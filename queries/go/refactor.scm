@@ -107,18 +107,38 @@
         type: (pointer_type
           (type_identifier) @output.struct_name)))) @output.function)
 
-(func_literal) @scope
+(func_literal
+  body: (block
+    (_) @scope.inside)) @scope
 
 (source_file) @scope
 
-(function_declaration) @scope
+(function_declaration
+  body: (block
+    (statement_list) @scope.inside)) @scope
 
 (if_statement) @scope
 
-(block) @scope
+(if_statement
+  consequence: (block
+    (statement_list) @scope))
+
+(if_statement
+  alternative: (block
+    (statement_list) @scope))
 
 (expression_switch_statement) @scope
 
-(for_statement) @scope
+(expression_case
+  (statement_list) @scope.inside) @scope
 
-(method_declaration) @scope
+(default_case
+  (statement_list) @scope.inside) @scope
+
+(for_statement
+  body: (block
+    (_) @scope.inside)) @scope
+
+(method_declaration
+  body: (block
+    (_) @scope.inside)) @scope

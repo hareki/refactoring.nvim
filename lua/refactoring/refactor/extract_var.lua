@@ -105,6 +105,9 @@ local code_generation = {
     c_sharp = function(opts)
       return ("var %s = %s;"):format(opts.name, opts.value)
     end,
+    go = function(opts)
+      return ("%s := %s"):format(opts.name, opts.value)
+    end,
   },
 }
 code_generation.variable_declaration.typescript = code_generation.variable_declaration.javascript

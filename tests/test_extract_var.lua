@@ -382,4 +382,79 @@ class Program
   validate(lines, { 5, 0 }, expected_lines, " avi)", "foo<cr>")
 end
 
+T["go"] = MiniTest.new_set()
+
+T["go"]["works"] = function()
+  local lines = [[
+package a
+
+import "fmt"
+
+func main() {
+	fmt.Println("foo")
+
+	func() { fmt.Println("foo") }()
+
+	for false {
+		fmt.Println("foo")
+	}
+
+	if true {
+		fmt.Println("foo")
+	} else {
+		fmt.Println("foo")
+	}
+
+	for i := 0; i < 5; i++ {
+		fmt.Println("foo")
+	}
+
+        a := 1
+	switch a {
+	case 1:
+		fmt.Println("foo")
+	default:
+		fmt.Println("foo")
+	}
+}
+]]
+  local expected_lines = [[
+package a
+
+import "fmt"
+
+func main() {
+	foo := "foo"
+	fmt.Println(foo)
+
+	func() { fmt.Println(foo) }()
+
+	for false {
+		fmt.Println(foo)
+	}
+
+	if true {
+		fmt.Println(foo)
+	} else {
+		fmt.Println(foo)
+	}
+
+	for i := 0; i < 5; i++ {
+		fmt.Println(foo)
+	}
+
+        a := 1
+	switch a {
+	case 1:
+		fmt.Println(foo)
+	default:
+		fmt.Println(foo)
+	}
+}
+]]
+  child.cmd "edit tmp.go"
+  child.bo.expandtab = false
+  validate(lines, { 6, 0 }, expected_lines, " avi)", "foo<cr>")
+end
+
 return T
