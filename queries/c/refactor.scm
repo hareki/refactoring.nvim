@@ -76,17 +76,28 @@
   .
   (function_definition) @output.function)
 
-[
-  (for_statement)
-  (while_statement)
-  (translation_unit)
-  (function_definition)
-  (struct_specifier)
-] @scope
+(struct_specifier) @scope
+
+(function_definition
+  body: (compound_statement
+    .
+    (_) @scope.inside)) @scope
+
+(translation_unit) @scope
+
+(while_statement
+  body: (compound_statement
+    .
+    (_) @scope.inside)) @scope
+
+(for_statement
+  body: (compound_statement
+    .
+    (_) @scope.inside)) @scope
 
 (if_statement
-  consequence: (_) @scope) @scope.outside
+  consequence: (_) @scope)
 
 (if_statement
   alternative: (else_clause
-    (_) @scope)) @scope.outside
+    (_) @scope))

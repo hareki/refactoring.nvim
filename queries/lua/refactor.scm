@@ -121,19 +121,29 @@
   .
   (function_declaration) @output.function)
 
-[
-  (chunk)
-  (do_statement)
-  (while_statement)
-  (repeat_statement)
-  (for_statement)
-  (function_declaration)
-  (function_definition)
-] @scope
+(function_definition
+  body: (block) @scope.inside) @scope
+
+(function_declaration
+  body: (block) @scope.inside) @scope
+
+(for_statement
+  body: (block) @scope.inside) @scope
+
+(repeat_statement
+  body: (block) @scope.inside) @scope
+
+(while_statement
+  body: (block) @scope.inside) @scope
+
+(do_statement
+  body: (block) @scope.inside) @scope
+
+(chunk) @scope
 
 (if_statement
-  consequence: (block) @scope) @scope.outside
+  consequence: (block) @scope)
 
 (if_statement
   alternative: (else_statement
-    body: (block) @scope)) @scope.outside
+    body: (block) @scope))

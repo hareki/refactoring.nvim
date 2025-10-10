@@ -65,4 +65,6 @@
   ] @output.method)
 
 (_
-  (block)) @scope
+  (block
+    .
+    (_) @scope.inside)) @scope

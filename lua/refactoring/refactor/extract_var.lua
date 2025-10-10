@@ -102,6 +102,9 @@ local code_generation = {
     c = function(opts)
       return ("P %s = %s;"):format(opts.name, opts.value)
     end,
+    c_sharp = function(opts)
+      return ("var %s = %s;"):format(opts.name, opts.value)
+    end,
   },
 }
 code_generation.variable_declaration.typescript = code_generation.variable_declaration.javascript
@@ -109,7 +112,7 @@ code_generation.variable_declaration.cpp = code_generation.variable_declaration.
 
 ---@class refactor.Scope
 ---@field scope TSNode
----@field outside TSNode|nil
+---@field inside TSNode|nil
 
 -- TODO: remove first parameter (buf) after rewrite
 ---@param range_type 'v' | 'V' | ''
@@ -173,9 +176,9 @@ function M.extract_var(_, range_type)
           if name == "scope" then
             match_info = match_info or {}
             match_info.scope = nodes[1]
-          elseif name == "scope.outside" then
+          elseif name == "scope.inside" then
             match_info = match_info or {}
-            match_info.outside = nodes[1]
+            match_info.inside = nodes[1]
           end
         end
         if match_info then table.insert(scopes, match_info) end
@@ -223,60 +226,10 @@ function M.extract_var(_, range_type)
       return
     end
 
-    ---@type refactor.Scope[]
-    local smallest_scope_for_each_matching_node = iter(matching_nodes)
-      :map(
-        ---@param m TSNode
-        function(m)
-          return iter(scopes)
-            :filter(
-              ---@param s refactor.Scope
-              function(s)
-                local scope_range = { s.scope:range() }
-                local node_start = { m:start() }
-                local node_end = { m:end_() }
-                return contains(scope_range, node_start) and contains(scope_range, node_end)
-              end
-            )
-            :fold(
-              nil,
-              ---@param acc nil|refactor.Scope
-              ---@param s refactor.Scope
-              function(acc, s)
-                if not acc then return s end
-                local acc_size = acc.scope:byte_length()
-                local s_size = s.scope:byte_length()
-                if s_size < acc_size then return s end
-                return acc
-              end
-            )
-        end
-      )
-      :filter(is_unique())
-      :totable()
+    local output_node = smallest_common_scope.inside or smallest_common_scope.scope
+    local output_node_start_row, output_node_start_col = output_node:start()
+    local output_range = { output_node_start_row, output_node_start_col }
 
-    ---@type Range2
-    local output_range
-    if #smallest_scope_for_each_matching_node == 1 then
-      local start_row = matching_nodes[#matching_nodes]:start()
-      local higher_matching_node_line = api.nvim_buf_get_lines(buf, start_row, start_row + 1, true)[1]
-      local _, _, start_col = higher_matching_node_line:find "^%s*()"
-      -- NOTE: the 0 assummes that each line is a separated statement
-      local higher_matching_node_start = { start_row, start_col - 1 }
-      output_range = higher_matching_node_start
-    else
-      table.sort(smallest_scope_for_each_matching_node, function(a, b)
-        local a_outside_scope = a.outside or a.scope
-        local b_outside_scope = b.outside or b.scope
-
-        return node_comp_desc(a_outside_scope, b_outside_scope)
-      end)
-      local highest_smallest_scope = smallest_scope_for_each_matching_node[#smallest_scope_for_each_matching_node]
-      local highest_smallest_scope_outside = highest_smallest_scope.outside or highest_smallest_scope.scope
-      local highest_smallest_scope_outside_start = { highest_smallest_scope_outside:start() }
-
-      output_range = highest_smallest_scope_outside_start
-    end
     local get_variable_declaration = code_generation.variable_declaration[lang]
     if not get_variable_declaration then return code_gen_error("variable_declaration", lang) end
     local variable_declaration = get_variable_declaration {

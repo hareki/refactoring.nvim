@@ -249,8 +249,6 @@ T["c"]["works"] = function()
 #include <stdio.h>
 #include <stdbool.h>
 
-void bar() { printf("foo"); }
-
 int main() {
   printf("foo");
 
@@ -263,6 +261,7 @@ int main() {
   } while (false);
 
   if (true) {
+    int a;
     printf("foo");
   } else {
     printf("foo");
@@ -277,10 +276,8 @@ int main() {
 #include <stdio.h>
 #include <stdbool.h>
 
-P foo = "foo";
-void bar() { printf(foo); }
-
 int main() {
+  P foo = "foo";
   printf(foo);
 
   while (false) {
@@ -292,6 +289,7 @@ int main() {
   } while (false);
 
   if (true) {
+    int a;
     printf(foo);
   } else {
     printf(foo);
@@ -306,6 +304,82 @@ int main() {
   child.bo.expandtab = true
   child.bo.shiftwidth = 2
   validate(lines, { 4, 11 }, expected_lines, " avi)", "foo<cr>")
+end
+
+T["c#"] = MiniTest.new_set()
+
+T["c#"]["works"] = function()
+  local lines = [[
+class Program
+{
+    static void Main(string[] args)
+    {
+        Console.WriteLine("foo");
+
+        while (false)
+        {
+            Console.WriteLine("foo");
+        }
+
+        do
+        {
+            Console.WriteLine("foo");
+        } while (false);
+
+        if (true)
+        {
+            Console.WriteLine("foo");
+        }
+        else
+        {
+            Console.WriteLine("foo");
+        }
+
+        for (int i = 0; i < 5; i++)
+        {
+            Console.WriteLine("foo");
+        }
+    }
+}
+]]
+  local expected_lines = [[
+class Program
+{
+    static void Main(string[] args)
+    {
+        var foo = "foo";
+        Console.WriteLine(foo);
+
+        while (false)
+        {
+            Console.WriteLine(foo);
+        }
+
+        do
+        {
+            Console.WriteLine(foo);
+        } while (false);
+
+        if (true)
+        {
+            Console.WriteLine(foo);
+        }
+        else
+        {
+            Console.WriteLine(foo);
+        }
+
+        for (int i = 0; i < 5; i++)
+        {
+            Console.WriteLine(foo);
+        }
+    }
+}
+]]
+  child.cmd "edit tmp.cs"
+  child.bo.expandtab = true
+  child.bo.shiftwidth = 4
+  validate(lines, { 5, 0 }, expected_lines, " avi)", "foo<cr>")
 end
 
 return T
