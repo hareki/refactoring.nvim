@@ -96,8 +96,12 @@ local code_generation = {
     lua = function(opts)
       return ("local %s = %s"):format(opts.name, opts.value)
     end,
+    javascript = function(opts)
+      return ("const %s = %s;"):format(opts.name, opts.value)
+    end,
   },
 }
+code_generation.variable_declaration.typescript = code_generation.variable_declaration.javascript
 
 ---@class refactor.Scope
 ---@field scope TSNode

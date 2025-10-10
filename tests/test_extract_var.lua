@@ -176,4 +176,70 @@ end
   validate(lines, { 1, 0 }, expected_lines, " avi)", "foo<cr>")
 end
 
+T["javascript"] = MiniTest.new_set()
+
+T["javascript"]["works"] = function()
+  local lines = [[
+function bar() {
+  console.log("foo");
+}
+
+console.log("foo");
+
+while (false) {
+  console.log("foo");
+}
+
+do {
+  console.log("foo");
+} while (false);
+
+if (true) {
+  console.log("foo");
+} else {
+  console.log("foo");
+}
+
+for (let i = 0; i < 5; i++) {
+  console.log("foo");
+}
+const baz = () => {
+  console.log("foo");
+};
+]]
+  local expected_lines = [[
+const foo = "foo";
+function bar() {
+  console.log(foo);
+}
+
+console.log(foo);
+
+while (false) {
+  console.log(foo);
+}
+
+do {
+  console.log(foo);
+} while (false);
+
+if (true) {
+  console.log(foo);
+} else {
+  console.log(foo);
+}
+
+for (let i = 0; i < 5; i++) {
+  console.log(foo);
+}
+const baz = () => {
+  console.log(foo);
+};
+]]
+  child.cmd "edit tmp.js"
+  child.bo.expandtab = true
+  child.bo.shiftwidth = 2
+  validate(lines, { 2, 0 }, expected_lines, " avi)", "foo<cr>")
+end
+
 return T

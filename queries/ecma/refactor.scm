@@ -68,18 +68,26 @@
   .
   (method_definition) @output.method)
 
-(statement_block) @scope
+[
+  (program)
+  (function_expression)
+  (function_declaration)
+  (method_definition)
+  (for_statement)
+  (for_in_statement)
+  (catch_clause)
+  (while_statement)
+  (do_statement)
+] @scope
 
-(function_expression) @scope
+; NOTE: this won't always work
+(_
+  (_
+    (arrow_function) @scope)) @scope.outside
 
-(arrow_function) @scope
+(if_statement
+  consequence: (statement_block) @scope) @scope.outside
 
-(function_declaration) @scope
-
-(method_definition) @scope
-
-(for_statement) @scope
-
-(for_in_statement) @scope
-
-(catch_clause) @scope
+(if_statement
+  alternative: (else_clause
+    (statement_block) @scope)) @scope.outside
