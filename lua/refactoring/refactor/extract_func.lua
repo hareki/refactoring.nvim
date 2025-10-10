@@ -1064,6 +1064,10 @@ local function extract_func(opts)
 
   local out_nested_lang_tree, out_query = ts_parse(out_buf, extracted_range)
   if not out_nested_lang_tree or not out_query then return end
+  -- TODO: this doesn't work for `extract_func_to_file` (unless that, because
+  -- of a coincidence, the information is available in that file). Instead,
+  -- split `get_output_node` and `get_output/input_opts` to get it from
+  -- `in_buf` (that will always have the information available instead)
   local output_node, output_opts = get_output_node(out_nested_lang_tree, out_query, out_buf, extracted_range)
   local output_range = output_node and { output_node:range() }
     or in_buf == out_buf and extracted_range

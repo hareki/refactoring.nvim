@@ -154,4 +154,26 @@ end
   validate(lines, { 2, 0 }, expected_lines, " avi)", "foo<cr>")
 end
 
+T["lua"]["works for multiple scopes including global"] = function()
+  local lines = [[
+print("foo")
+
+local function bar()
+  print("foo")
+end
+]]
+  local expected_lines = [[
+local foo = "foo"
+print(foo)
+
+local function bar()
+  print(foo)
+end
+]]
+  child.cmd "edit tmp.lua"
+  child.bo.expandtab = true
+  child.bo.shiftwidth = 2
+  validate(lines, { 1, 0 }, expected_lines, " avi)", "foo<cr>")
+end
+
 return T

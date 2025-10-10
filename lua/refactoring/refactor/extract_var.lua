@@ -257,35 +257,17 @@ function M.extract_var(_, range_type)
       local higher_matching_node_start = { start_row, start_col - 1 }
       output_range = higher_matching_node_start
     else
-      ---@type refactor.Scope[]
-      local contained_scopes_for_matching_nodes = iter(scopes)
-        :filter(
-          ---@param s refactor.Scope
-          function(s)
-            local scope_range = { s.scope:range() }
-            return not s.scope:equal(smallest_common_scope.scope)
-              and iter(matching_nodes):any(
-                ---@param n TSNode
-                function(n)
-                  local node_start = { n:start() }
-                  local node_end = { n:end_() }
-                  return contains(scope_range, node_start) and contains(scope_range, node_end)
-                end
-              )
-          end
-        )
-        :totable()
-      table.sort(contained_scopes_for_matching_nodes, function(a, b)
+      table.sort(smallest_scope_for_each_matching_node, function(a, b)
         local a_outside_scope = a.outside or a.scope
         local b_outside_scope = b.outside or b.scope
 
         return node_comp_desc(a_outside_scope, b_outside_scope)
       end)
-      local higher_smaller_scope = contained_scopes_for_matching_nodes[#contained_scopes_for_matching_nodes]
-      local higher_smaller_scope_outside = higher_smaller_scope.outside or higher_smaller_scope.scope
-      local higher_smaller_scope_outside_start = { higher_smaller_scope_outside:start() }
+      local highest_smallest_scope = smallest_scope_for_each_matching_node[#smallest_scope_for_each_matching_node]
+      local highest_smallest_scope_outside = highest_smallest_scope.outside or highest_smallest_scope.scope
+      local highest_smallest_scope_outside_start = { highest_smallest_scope_outside:start() }
 
-      output_range = higher_smaller_scope_outside_start
+      output_range = highest_smallest_scope_outside_start
     end
     local get_variable_declaration = code_generation.variable_declaration[lang]
     if not get_variable_declaration then return code_gen_error("variable_declaration", lang) end
