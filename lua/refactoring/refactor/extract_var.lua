@@ -74,8 +74,12 @@ end
 ---@field name string
 ---@field value string
 
+---@class refactor.extract_var.code_generation.variable.Opts
+---@field name string
+
 ---@class refactor.extract_var.code_generation
 ---@field variable_declaration {[string]: nil|fun(opts: refactor.extract_var.code_generation.variable_declaration.Opts): string}
+---@field variable {[string]: nil|fun(opts: refactor.extract_var.code_generation.variable.Opts): string}
 
 -- TODO: maybe support an in-memory LSP server to provide refactoring's as code actions(?
 
@@ -111,6 +115,14 @@ local code_generation = {
     java = function(opts)
       return ("var %s = %s;"):format(opts.name, opts.value)
     end,
+    php = function(opts)
+      return ("$%s = %s;"):format(opts.name, opts.value)
+    end,
+  },
+  variable = {
+    php = function(opts)
+      return ("$%s"):format(opts.name)
+    end,
   },
 }
 code_generation.variable_declaration.typescript = code_generation.variable_declaration.javascript
@@ -128,9 +140,10 @@ function M.extract_var(_, range_type)
   local contains = require("refactoring.range").contains
 
   local buf = api.nvim_get_current_buf()
-  local extracted_range, lines = get_extracted_range(range_type)
+  local extracted_range = get_extracted_range(range_type)
 
   local task = async.run(function()
+    -- TODO: check that all code_generations are not nil at begining of all tasks
     local var_name = input { prompt = "Variable name: " }
     if not var_name then return end
 
@@ -148,6 +161,9 @@ function M.extract_var(_, range_type)
       vim.notify("Couldn't find a Treesitter node that contains the selected range", vim.log.levels.WARN)
       return
     end
+
+    local get_var = code_generation.variable[lang]
+    local variable = get_var and get_var { name = var_name } or var_name
 
     local extracted_text = ts.get_node_text(encompassing_node, buf)
 
@@ -197,7 +213,7 @@ function M.extract_var(_, range_type)
       function(n)
         -- TODO: I may need to handle end_row-exclusive, 0-col Treesitter ranges everywhere
         local start_row, start_col, end_row, end_col = n:range()
-        api.nvim_buf_set_text(buf, start_row, start_col, end_row, end_col, { var_name })
+        api.nvim_buf_set_text(buf, start_row, start_col, end_row, end_col, { variable })
       end
     )
 

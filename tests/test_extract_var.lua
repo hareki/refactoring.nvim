@@ -527,4 +527,66 @@ public class App {
   validate(lines, { 7, 0 }, expected_lines, " avi)", "foo<cr>")
 end
 
+T["php"] = MiniTest.new_set()
+
+T["php"]["works"] = function()
+  local lines = [[
+<?php
+
+function foo()
+{
+    print ('foo');
+
+    while (true) {
+        print ('foo');
+        break;
+    }
+
+    do {
+        print ('foo');
+    } while (false);
+
+    if (true) {
+        print ('foo');
+    } else {
+        print ('foo');
+    }
+
+    for ($i = 0; $i < 5; $i++) {
+        print ('foo');
+    }
+}]]
+  local expected_lines = [[
+<?php
+
+function foo()
+{
+    $foo = 'foo';
+    print ($foo);
+
+    while (true) {
+        print ($foo);
+        break;
+    }
+
+    do {
+        print ($foo);
+    } while (false);
+
+    if (true) {
+        print ($foo);
+    } else {
+        print ($foo);
+    }
+
+    for ($i = 0; $i < 5; $i++) {
+        print ($foo);
+    }
+}]]
+  child.cmd "edit tmp.php"
+  child.bo.expandtab = true
+  child.bo.shiftwidth = 4
+  validate(lines, { 5, 0 }, expected_lines, " avi)", "foo<cr>")
+end
+
 return T
