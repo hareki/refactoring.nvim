@@ -137,36 +137,8 @@
 
 (module) @scope
 
-(class_definition
-  body: (block
-    (expression_statement
-      (assignment
-        left: (identifier) @local.definition.field)))) @scope
-
-(class_definition
-  body: (block
-    (expression_statement
-      (assignment
-        left: (_
-          (identifier) @local.definition.field))))) @scope
-
-; Imports
-(aliased_import
-  alias: (identifier) @local.definition.import) @scope
-
-(import_statement
-  name: (dotted_name
-    (identifier) @local.definition.import)) @scope
-
-(import_from_statement
-  name: (dotted_name
-    (identifier) @local.definition.import)) @scope
-
 (function_definition
-  name: (identifier)) @scope
-
-(class_definition
-  name: (identifier)) @scope
+  body: (block) @scope.inside) @scope
 
 (dictionary_comprehension) @scope
 

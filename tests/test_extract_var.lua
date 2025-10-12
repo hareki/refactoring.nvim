@@ -589,4 +589,44 @@ function foo()
   validate(lines, { 5, 0 }, expected_lines, " avi)", "foo<cr>")
 end
 
+T["python"] = MiniTest.new_set()
+
+T["python"]["works"] = function()
+  local lines = [[
+def foo():
+    print("foo")
+
+    while True:
+        print("foo")
+        break
+
+    if True:
+        print("foo")
+    else:
+        print("foo")
+
+    for i in range(0, 5):
+        print("foo")]]
+  local expected_lines = [[
+def foo():
+    foo = "foo"
+    print(foo)
+
+    while True:
+        print(foo)
+        break
+
+    if True:
+        print(foo)
+    else:
+        print(foo)
+
+    for i in range(0, 5):
+        print(foo)]]
+  child.cmd "edit tmp.py"
+  child.bo.expandtab = true
+  child.bo.shiftwidth = 4
+  validate(lines, { 2, 0 }, expected_lines, " avi)", "foo<cr>")
+end
+
 return T

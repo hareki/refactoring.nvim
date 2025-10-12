@@ -118,6 +118,9 @@ local code_generation = {
     php = function(opts)
       return ("$%s = %s;"):format(opts.name, opts.value)
     end,
+    python = function(opts)
+      return ("%s = %s"):format(opts.name, opts.value)
+    end,
   },
   variable = {
     php = function(opts)
