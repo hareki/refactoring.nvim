@@ -108,6 +108,9 @@ local code_generation = {
     go = function(opts)
       return ("%s := %s"):format(opts.name, opts.value)
     end,
+    java = function(opts)
+      return ("var %s = %s;"):format(opts.name, opts.value)
+    end,
   },
 }
 code_generation.variable_declaration.typescript = code_generation.variable_declaration.javascript

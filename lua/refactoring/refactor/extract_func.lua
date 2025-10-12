@@ -696,6 +696,7 @@ code_generation.return_statement.cpp = code_generation.return_statement.c
 code_generation.function_call.typescript = code_generation.function_call.javascript
 code_generation.return_statement.typescript = code_generation.return_statement.javascript
 
+-- TODO: check if I can replace this with the has-parent treesitter predicate
 ---@type {[string]: {fn: integer, method?: integer}}
 local parents_till_nil = {
   lua = {

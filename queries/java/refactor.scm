@@ -82,40 +82,12 @@
   .
   (method_declaration) @output.method)
 
-(program) @scope
+(_
+  (block
+    .
+    (_) @scope.inside)) @scope
 
-(class_declaration) @scope
-
+; NOTE: records have parameters, and we are assuming that each variable
+; declaration has a scope, so this most be their scope (even though they don't
+; have a tradicional `block`)
 (record_declaration) @scope
-
-(enum_declaration) @scope
-
-(lambda_expression) @scope
-
-(enhanced_for_statement) @scope
-
-(block) @scope
-
-(if_statement) @scope
-
-(if_statement
-  consequence: (_) @scope)
-
-(if_statement
-  alternative: (_) @scope)
-
-(try_statement) @scope
-
-(catch_clause) @scope
-
-(for_statement) @scope
-
-(for_statement) @scope
-
-(do_statement) @scope
-
-(while_statement) @scope
-
-(constructor_declaration) @scope
-
-(method_declaration) @scope
