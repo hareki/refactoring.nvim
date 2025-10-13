@@ -629,4 +629,68 @@ def foo():
   validate(lines, { 2, 0 }, expected_lines, " avi)", "foo<cr>")
 end
 
+T["ruby"] = MiniTest.new_set()
+
+T["ruby"]["works"] = function()
+  local lines = [[
+def foo()
+    print "foo"
+
+    while true do
+        print "foo"
+        break
+    end
+
+    if true then
+        print "foo"
+    else
+        print "foo"
+    end
+
+    for i in range(0, 5) do
+        print "foo"
+    end
+
+    [:a, :b].each do |item|
+        print "foo"
+    end
+
+    [:a, :b].each {|item|
+        print "foo"
+    }
+end]]
+  local expected_lines = [[
+def foo()
+    foo = "foo"
+    print foo
+
+    while true do
+        print foo
+        break
+    end
+
+    if true then
+        print foo
+    else
+        print foo
+    end
+
+    for i in range(0, 5) do
+        print foo
+    end
+
+    [:a, :b].each do |item|
+        print foo
+    end
+
+    [:a, :b].each {|item|
+        print foo
+    }
+end]]
+  child.cmd "edit tmp.rb"
+  child.bo.expandtab = true
+  child.bo.shiftwidth = 4
+  validate(lines, { 2, 0 }, expected_lines, 'f"', ' avf"', "foo<cr>")
+end
+
 return T

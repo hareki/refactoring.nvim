@@ -119,11 +119,7 @@
   .
   (singleton_method) @output.function.singleton)
 
-(method) @scope
+(program) @scope
 
-(class) @scope
-
-[
-  (block)
-  (do_block)
-] @scope
+(method
+  body: (_) @scope.inside) @scope
