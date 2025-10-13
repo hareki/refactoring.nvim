@@ -513,9 +513,9 @@ func foo(a int) string {
   validate(lines, { 21, 0 }, expected_lines, " aeip", "bar<cr>")
 end
 
-T["powerhsell"] = MiniTest.new_set()
+T["powershell"] = MiniTest.new_set()
 
-T["powerhsell"]["works"] = function()
+T["powershell"]["works"] = function()
   local lines = [[
 class _F {
     [string]f() {
