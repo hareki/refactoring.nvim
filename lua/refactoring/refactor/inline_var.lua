@@ -1,5 +1,3 @@
-local contains = require("refactoring.range").contains
-local compare = require("refactoring.range").compare
 local iter = vim.iter
 local ts = vim.treesitter
 local api = vim.api
@@ -46,6 +44,8 @@ end)
 ---@param lang string
 ---@return nil|refactor.VariableInfo
 local function get_definition_info(definition, lang)
+  local contains = require("refactoring.range").contains
+
   local definition_buf = vim.fn.bufadd(definition.filename)
   if not api.nvim_buf_is_loaded(definition_buf) then vim.fn.bufload(definition_buf) end
   local definition_lang_tree, err2 = ts.get_parser(definition_buf, nil, { error = false })
@@ -140,6 +140,8 @@ end
 ---@param a Range4
 ---@param b Range4
 local function comp_non_overlaping_ranges_desc(a, b)
+  local compare = require("refactoring.range").compare
+
   local compare_start = compare({ a[1], a[2] }, { b[1], b[2] })
   if compare_start == 1 then return true end
   if compare_start == -1 then return false end
@@ -182,6 +184,8 @@ end
 -- TODO: preview is not working at all
 -- TODO: success message (can be disabled in config)
 function M.inline_var()
+  local contains = require("refactoring.range").contains
+
   local lang_tree, err1 = ts.get_parser(nil, nil, { error = false })
   if not lang_tree then
     vim.notify(err1, vim.log.levels.ERROR)

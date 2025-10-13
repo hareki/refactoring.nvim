@@ -147,7 +147,6 @@ code_generation.variable_declaration.cpp = code_generation.variable_declaration.
 -- TODO: remove first parameter (buf) after rewrite
 ---@param range_type 'v' | 'V' | ''
 function M.extract_var(_, range_type)
-  -- TODO: lazy load imports in other refactors
   local get_extracted_range = require("refactoring.range").get_extracted_range
   local contains = require("refactoring.range").contains
 

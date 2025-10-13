@@ -1,5 +1,3 @@
-local contains = require("refactoring.range").contains
-local compare = require("refactoring.range").compare
 local async = require "async"
 local iter = vim.iter
 local ts = vim.treesitter
@@ -778,6 +776,8 @@ end
 ---@return TSNode?
 ---@return {method: boolean?, singleton: boolean?, struct_name: string?, struct_var_name: string?}
 local function get_output_node(nested_lang_tree, query, buf, extracted_range)
+  local compare = require("refactoring.range").compare
+
   local outputs = {} ---@type refactor.Output[]
   for _, tree in ipairs(nested_lang_tree:trees()) do
     for _, match in query:iter_matches(tree:root(), buf) do
@@ -895,6 +895,8 @@ end
 ---@param end_ Range2
 ---@return TSNode|nil
 local function smaller_containing_scope(scopes, start, end_)
+  local contains = require("refactoring.range").contains
+
   local declaration_scope = iter(scopes)
     :filter(
       ---@param s TSNode
@@ -921,6 +923,8 @@ end
 ---@param range Range4
 ---@return TSNode[]
 local function scopes_for_range(all_scopes, range)
+  local contains = require("refactoring.range").contains
+
   return iter(all_scopes)
     :filter(
       ---@param s TSNode
@@ -949,6 +953,8 @@ end
 ---@param buf integer
 ---@return TSNode|nil
 local function get_declaration_scope(declarations_by_scope, all_scopes, reference, buf)
+  local compare = require("refactoring.range").compare
+
   local reference_range = { reference.identifier:range() }
   local scopes_for_reference = scopes_for_range(all_scopes, reference_range)
   table.sort(scopes_for_reference, node_comp_desc)
@@ -1054,6 +1060,9 @@ end
 
 ---@param opts refactor.extract_func.Opts
 local function extract_func(opts)
+  local contains = require("refactoring.range").contains
+  local compare = require("refactoring.range").compare
+
   local extracted_range = opts.extracted_range
   local in_buf = opts.in_buf
   local lines = opts.lines
