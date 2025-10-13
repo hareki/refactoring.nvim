@@ -1,3 +1,4 @@
+-- TODO: handle extra logic for extracting var into class scope
 local M = {}
 
 local async = require "async"

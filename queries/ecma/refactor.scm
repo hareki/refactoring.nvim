@@ -121,3 +121,7 @@
 (if_statement
   alternative: (else_clause
     (statement_block) @scope))
+
+(class_declaration
+  body: (class_body
+    (_) @scope.inside)) @scope

@@ -137,6 +137,8 @@
 
 (module) @scope
 
+(class_definition) @scope
+
 (function_definition
   body: (block) @scope.inside) @scope
 
