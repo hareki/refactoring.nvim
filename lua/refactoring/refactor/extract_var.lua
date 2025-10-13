@@ -128,6 +128,9 @@ local code_generation = {
     vim = function(opts)
       return ("let l:%s = %s"):format(opts.name, opts.value)
     end,
+    powershell = function(opts)
+      return ("$%s = %s"):format(opts.name, opts.value)
+    end,
   },
   variable = {
     php = function(opts)
@@ -135,6 +138,9 @@ local code_generation = {
     end,
     vim = function(opts)
       return ("l:%s"):format(opts.name)
+    end,
+    powershell = function(opts)
+      return ("$%s"):format(opts.name)
     end,
   },
 }

@@ -739,4 +739,52 @@ endfunction]]
   validate(lines, { 2, 0 }, expected_lines, 'f"', ' avf"', "foo<cr>")
 end
 
+T["powershell"] = MiniTest.new_set()
+
+T["powershell"]["works"] = function()
+  local lines = [[
+function get-foo {
+    Write-Host 'foo'
+
+    while ($true) {
+        Write-Host 'foo'
+        break
+    }
+
+    if ($true) {
+        Write-Host 'foo'
+    } else {
+        Write-Host 'foo'
+    }
+
+    for ($i = 0; $i -lt 5; $i++) {
+        Write-Host 'foo'
+    }
+}]]
+  local expected_lines = [[
+function get-foo {
+    $foo = 'foo'
+    Write-Host $foo
+
+    while ($true) {
+        Write-Host $foo
+        break
+    }
+
+    if ($true) {
+        Write-Host $foo
+    } else {
+        Write-Host $foo
+    }
+
+    for ($i = 0; $i -lt 5; $i++) {
+        Write-Host $foo
+    }
+}]]
+  child.cmd "edit tmp.ps1"
+  child.bo.expandtab = true
+  child.bo.shiftwidth = 4
+  validate(lines, { 2, 0 }, expected_lines, "f'", " avf'", "foo<cr>")
+end
+
 return T

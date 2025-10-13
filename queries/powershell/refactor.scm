@@ -122,10 +122,14 @@
   .
   (class_method_definition) @output.method)
 
-(class_statement) @scope
+(class_statement
+  (class_method_definition) @scope.inside) @scope
 
-(class_method_definition) @scope
+(class_method_definition
+  (script_block) @scope.inside) @scope
 
-(statement_block) @scope
+(statement_block
+  (statement_list) @scope.inside) @scope
 
-(function_statement) @scope
+(function_statement
+  (script_block) @scope.inside) @scope
