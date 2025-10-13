@@ -1474,9 +1474,13 @@ local function extract_func(opts)
   local body_indent ---@type integer
   body, body_indent = indent(expandtab, 0, body)
   local lang = nested_lang_tree:lang()
+  local get_return_statement = code_generation.return_statement[lang]
+  if not get_return_statement then return code_gen_error("return_statement", lang) end
+  local get_function_declaration = code_generation.function_declaration[lang]
+  if not get_function_declaration then return code_gen_error("function_declaration", lang) end
+  local get_function_call = code_generation.function_call[lang]
+  if not get_function_call then return code_gen_error("function_call", lang) end
   if #return_values > 0 then
-    local get_return_statement = code_generation.return_statement[lang]
-    if not get_return_statement then return code_gen_error("return_statement", lang) end
     local return_statement = get_return_statement {
       return_values = return_values,
     }
@@ -1484,8 +1488,6 @@ local function extract_func(opts)
   end
   local indent_width = vim.bo[in_buf].shiftwidth > 0 and vim.bo[in_buf].shiftwidth or vim.bo[in_buf].tabstop
   body = indent(expandtab, expandtab and 1 * indent_width or 1, body)
-  local get_function_declaration = code_generation.function_declaration[lang]
-  if not get_function_declaration then return code_gen_error("function_declaration", lang) end
   local function_definition = get_function_declaration {
     args = args,
     body = body,
@@ -1500,8 +1502,6 @@ local function extract_func(opts)
   if not expandtab then function_definition:gsub("^(%s+)", function(spaces)
     return ("\t"):rep(#spaces)
   end) end
-  local get_function_call = code_generation.function_call[lang]
-  if not get_function_call then return code_gen_error("function_call", lang) end
   local function_call = get_function_call {
     args = args,
     name = fn_name,

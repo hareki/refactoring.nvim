@@ -154,7 +154,6 @@ function M.extract_var(_, range_type)
   local extracted_range = get_extracted_range(range_type)
 
   local task = async.run(function()
-    -- TODO: check that all code_generations are not nil at begining of all tasks
     local var_name = input { prompt = "Variable name: " }
     if not var_name then return end
 
@@ -175,6 +174,8 @@ function M.extract_var(_, range_type)
 
     local get_var = code_generation.variable[lang]
     local variable = get_var and get_var { name = var_name } or var_name
+    local get_variable_declaration = code_generation.variable_declaration[lang]
+    if not get_variable_declaration then return code_gen_error("variable_declaration", lang) end
 
     local extracted_text = ts.get_node_text(encompassing_node, buf)
 
@@ -263,8 +264,6 @@ function M.extract_var(_, range_type)
     local output_node_start_row, output_node_start_col = output_node:start()
     local output_range = { output_node_start_row, output_node_start_col }
 
-    local get_variable_declaration = code_generation.variable_declaration[lang]
-    if not get_variable_declaration then return code_gen_error("variable_declaration", lang) end
     local variable_declaration = get_variable_declaration {
       name = var_name,
       value = extracted_text,
