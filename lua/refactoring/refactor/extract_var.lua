@@ -186,7 +186,6 @@ function M.extract_var(_, range_type)
 
     local extracted_text = ts.get_node_text(encompassing_node, buf)
 
-    -- TODO: not all languages can freely parse a sexpr. Check if this gives me issues for any language
     local ok, maybe_encompasing_query = pcall(ts.query.parse, lang, ("%s @tmp_query"):format(encompassing_node:sexpr()))
     if not ok then
       vim.notify(
