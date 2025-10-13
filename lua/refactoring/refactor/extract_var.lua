@@ -124,10 +124,16 @@ local code_generation = {
     ruby = function(opts)
       return ("%s = %s"):format(opts.name, opts.value)
     end,
+    vim = function(opts)
+      return ("let l:%s = %s"):format(opts.name, opts.value)
+    end,
   },
   variable = {
     php = function(opts)
       return ("$%s"):format(opts.name)
+    end,
+    vim = function(opts)
+      return ("l:%s"):format(opts.name)
     end,
   },
 }

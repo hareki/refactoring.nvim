@@ -693,4 +693,50 @@ end]]
   validate(lines, { 2, 0 }, expected_lines, 'f"', ' avf"', "foo<cr>")
 end
 
+T["vim"] = MiniTest.new_set()
+
+T["vim"]["works"] = function()
+  local lines = [[
+function! s:foo() abort
+    echo "foo"
+    while v:true
+        echo "foo"
+        break
+    endwhile
+
+    if v:true
+        echo "foo"
+    else
+        echo "foo"
+    endif
+
+    for i in range(0, 5)
+        echo "foo"
+    endfor
+endfunction]]
+  local expected_lines = [[
+function! s:foo() abort
+    let l:foo = "foo"
+    echo l:foo
+    while v:true
+        echo l:foo
+        break
+    endwhile
+
+    if v:true
+        echo l:foo
+    else
+        echo l:foo
+    endif
+
+    for i in range(0, 5)
+        echo l:foo
+    endfor
+endfunction]]
+  child.cmd "edit tmp.vim"
+  child.bo.expandtab = true
+  child.bo.shiftwidth = 4
+  validate(lines, { 2, 0 }, expected_lines, 'f"', ' avf"', "foo<cr>")
+end
+
 return T
