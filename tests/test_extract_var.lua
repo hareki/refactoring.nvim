@@ -693,9 +693,9 @@ end]]
   validate(lines, { 2, 0 }, expected_lines, 'f"', ' avf"', "foo<cr>")
 end
 
-T["vim"] = MiniTest.new_set()
+T["vimscript"] = MiniTest.new_set()
 
-T["vim"]["works"] = function()
+T["vimscript"]["works"] = function()
   local lines = [[
 function! s:foo() abort
     echo "foo"
