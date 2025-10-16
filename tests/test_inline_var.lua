@@ -46,7 +46,7 @@ end
 local function validate(lines, cursor, expected_lines)
   set_lines(lines)
   set_cursor(cursor[1], cursor[2])
-  child.lua [[vim.wait(1000, function() return #vim.lsp.get_clients({ bufnr = 0, name = 'lua_ls' }) == 1  end)]]
+  child.lua [[vim.wait(1000, function() return #vim.lsp.get_clients({ bufnr = 0 }) == 1  end)]]
   child.type_keys " ai"
   sleep(1500)
   eq(get_lines(), vim.split(expected_lines, "\n"))
