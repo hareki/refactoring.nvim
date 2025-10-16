@@ -2,44 +2,8 @@ local iter = vim.iter
 local ts = vim.treesitter
 local api = vim.api
 local async = require "async"
-local lsp = vim.lsp
 
 local M = {}
-
----@class refactor.QfItem
----@field filename string
----@field lnum integer
----@field end_lnum integer
----@field col integer
----@field end_col integer
----@field text string
----@field kind string?
-
----@type async fun(): refactor.QfItem[]
-local get_definitions = async.wrap(1, function(cb)
-  lsp.buf.definition {
-    on_list = function(args)
-      cb(args.items)
-    end,
-  }
-end)
-
----@type async fun(): refactor.QfItem[]
-local get_references = async.wrap(1, function(cb)
-  lsp.buf.references({
-    includeDeclaration = false,
-  }, {
-    on_list = function(args)
-      cb(args.items)
-    end,
-  })
-end)
-
--- TODO: move
----@type async fun(items: any[], opts: table)
-local select = async.wrap(3, function(items, opts, on_choice)
-  vim.ui.select(items, opts, on_choice)
-end)
 
 ---@param definition refactor.QfItem
 ---@param query vim.treesitter.Query
@@ -132,22 +96,6 @@ local function get_definition_info(definition, query)
   return variable_info
 end
 
--- TODO: extract all of these into another file
----@param get_key nil|fun(value: any): any
----@return fun(value: any): boolean
-local function is_unique(get_key)
-  ---@type {[string]: boolean}
-  local already_seen = {}
-
-  ---@param value any
-  return function(value)
-    local key = get_key and get_key(value) or value
-    if already_seen[key] then return false end
-    already_seen[key] = true
-    return true
-  end
-end
-
 ---@class refactor.VariableMatchInfo
 ---@field identifier TSNode[]
 ---@field identifier_separator TSNode[]|nil
@@ -168,6 +116,10 @@ end
 function M.inline_var()
   local contains = require("refactoring.range").contains
   local apply_text_edits = require("refactoring.util").apply_text_edits
+  local is_unique = require("refactoring.util").is_unique
+  local select = require("refactoring.util").select
+  local get_definitions = require("refactoring.util").get_definitions
+  local get_references = require("refactoring.util").get_references
 
   local lang_tree, err1 = ts.get_parser(nil, nil, { error = false })
   if not lang_tree then

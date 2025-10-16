@@ -1,73 +1,9 @@
 local async = require "async"
 local ts = vim.treesitter
 local api = vim.api
-local lsp = vim.lsp
 local iter = vim.iter
 
 local M = {}
-
--- NOTE: the indent logic in `vim.text.indent` counts each char as 1 indent
--- level. the indent logic in `vim.fn.indent` takes into account `expandtab`,
--- `tabstop` and `shiftwidth`.
----@param expandtab boolean
----@param size integer
----@param text string
----@param opts {expandtab: number}?
-local function indent(expandtab, size, text, opts)
-  local indented, previous_size = vim.text.indent(size, text, opts)
-
-  if not expandtab then
-    indented = indented:gsub("^( +)", function(spaces)
-      return ("\t"):rep(#spaces)
-    end)
-    indented = indented:gsub("\n( +)", function(spaces)
-      return "\n" .. ("\t"):rep(#spaces)
-    end)
-  end
-  return indented, previous_size
-end
-
--- TODO: move these functions into sepearated module everywhere
----@type async fun(): refactor.QfItem[]
-local get_definitions = async.wrap(1, function(cb)
-  lsp.buf.definition {
-    on_list = function(args)
-      cb(args.items)
-    end,
-  }
-end)
-
--- TODO: move these functions into sepearated module everywhere
----@type async fun(): refactor.QfItem[]
-local get_references = async.wrap(1, function(cb)
-  lsp.buf.references({
-    includeDeclaration = false,
-  }, {
-    on_list = function(args)
-      cb(args.items)
-    end,
-  })
-end)
-
----@type async fun(items: any[], opts: table)
-local select = async.wrap(3, function(items, opts, on_choice)
-  vim.ui.select(items, opts, on_choice)
-end)
-
----@param get_key nil|fun(value: any): any
----@return fun(value: any): boolean
-local function is_unique(get_key)
-  ---@type {[string]: boolean}
-  local already_seen = {}
-
-  ---@param value any
-  return function(value)
-    local key = get_key and get_key(value) or value
-    if already_seen[key] then return false end
-    already_seen[key] = true
-    return true
-  end
-end
 
 -- TODO: support type inference?
 ---@class refactor.inline_func.code_generation.assignment.Opts
@@ -100,15 +36,6 @@ local code_generation = {
   },
 }
 
----@param missing_code_gen string
----@param lang string
-local function code_gen_error(missing_code_gen, lang)
-  vim.notify(
-    ("There's no `%s` code generation defined for language %s"):format(missing_code_gen, lang),
-    vim.log.levels.ERROR
-  )
-end
-
 --As a side effect, loads all the buffers for all of the definitions and references
 ---@param definitions refactor.QfItem[]
 ---@param references refactor.QfItem[]
@@ -116,6 +43,7 @@ end
 ---@return nil|{[integer]: refactor.inline_func.ProcessedMatchInfo}
 local function get_processed_match_info(definitions, references, lang)
   local contains = require("refactoring.range").contains
+  local is_unique = require("refactoring.util").is_unique
 
   local query = ts.query.get(lang, "refactor")
   if not query then
@@ -319,6 +247,11 @@ end
 function M.inline_func(_)
   local contains = require("refactoring.range").contains
   local apply_text_edits = require("refactoring.util").apply_text_edits
+  local code_gen_error = require("refactoring.util").code_gen_error
+  local select = require("refactoring.util").select
+  local indent = require("refactoring.util").indent
+  local get_definitions = require("refactoring.util").get_definitions
+  local get_references = require("refactoring.util").get_references
 
   local lang_tree, err1 = ts.get_parser(nil, nil, { error = false })
   if not lang_tree then

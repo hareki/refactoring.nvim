@@ -7,12 +7,6 @@ local ts = vim.treesitter
 local iter = vim.iter
 local api = vim.api
 
--- TODO: move all of this common functions into some other file
----@type fun(opts: table): string
-local input = async.wrap(2, function(opts, cb)
-  vim.ui.input(opts, cb)
-end)
-
 ---@param node TSNode
 ---@param buf integer
 ---@param acc string[]|nil
@@ -34,15 +28,6 @@ end
 ---@return string
 local function significant_text(node, buf)
   return table.concat(significant_text_list(node, buf), "")
-end
-
----@param missing_code_gen string
----@param lang string
-local function code_gen_error(missing_code_gen, lang)
-  vim.notify(
-    ("There's no `%s` code generation defined for language %s"):format(missing_code_gen, lang),
-    vim.log.levels.ERROR
-  )
 end
 
 ---@class refactor.extract_var.code_generation.variable_declaration.Opts
@@ -133,6 +118,8 @@ function M.extract_var(_, range_type)
   local get_extracted_range = require("refactoring.range").get_extracted_range
   local contains = require("refactoring.range").contains
   local apply_text_edits = require("refactoring.util").apply_text_edits
+  local input = require("refactoring.util").input
+  local code_gen_error = require("refactoring.util").code_gen_error
 
   local buf = api.nvim_get_current_buf()
   local extracted_range = get_extracted_range(range_type)

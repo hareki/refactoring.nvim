@@ -6,11 +6,6 @@ local api = vim.api
 
 local M = {}
 
----@type fun(opts: table): string
-local input = async.wrap(2, function(opts, cb)
-  vim.ui.input(opts, cb)
-end)
-
 ---@class refactor.extract_func.code_generation.function_declaration.Opts
 ---@field args refactor.Variable[]
 ---@field name string
@@ -35,16 +30,6 @@ end)
 ---@field function_declaration {[string]: nil|fun(opts: refactor.extract_func.code_generation.function_declaration.Opts): string}
 ---@field function_call {[string]: nil|fun(opts: refactor.extract_func.code_generation.function_call.Opts): string}
 ---@field return_statement {[string]: nil|fun(opts: refactor.extract_func.code_generation.return_statement.Opts): string}
-
--- TODO: move these common functions
----@param missing_code_gen string
----@param lang string
-local function code_gen_error(missing_code_gen, lang)
-  vim.notify(
-    ("There's no `%s` code generation defined for language %s"):format(missing_code_gen, lang),
-    vim.log.levels.ERROR
-  )
-end
 
 ---@type refactor.extract_func.code_generation
 local code_generation = {
@@ -876,21 +861,6 @@ local function get_output_node(nested_lang_tree, query, buf, extracted_range)
     }
 end
 
----@param get_key nil|fun(value: any): any
----@return fun(value: any): boolean
-local function is_unique(get_key)
-  ---@type {[string]: boolean}
-  local already_seen = {}
-
-  ---@param value any
-  return function(value)
-    local key = get_key and get_key(value) or value
-    if already_seen[key] then return false end
-    already_seen[key] = true
-    return true
-  end
-end
-
 ---@param scopes TSNode[]
 ---@param start Range2
 ---@param end_ Range2
@@ -1002,24 +972,6 @@ local function get_declaration_scope(declarations_by_scope, all_scopes, referenc
   )
 end
 
----@param expandtab boolean
----@param size integer
----@param text string
----@param opts {expandtab: number}?
-local function indent(expandtab, size, text, opts)
-  local indented, previous_size = vim.text.indent(size, text, opts)
-
-  if not expandtab then
-    indented = indented:gsub("^( +)", function(spaces)
-      return ("\t"):rep(#spaces)
-    end)
-    indented = indented:gsub("\n( +)", function(spaces)
-      return "\n" .. ("\t"):rep(#spaces)
-    end)
-  end
-  return indented, previous_size
-end
-
 ---@param buf integer
 ---@param extracted_range Range4
 ---@return vim.treesitter.LanguageTree?, vim.treesitter.Query?
@@ -1064,6 +1016,9 @@ local function extract_func(opts)
   local contains = require("refactoring.range").contains
   local compare = require("refactoring.range").compare
   local apply_text_edits = require("refactoring.util").apply_text_edits
+  local code_gen_error = require("refactoring.util").code_gen_error
+  local is_unique = require("refactoring.util").is_unique
+  local indent = require("refactoring.util").indent
 
   local extracted_range = opts.extracted_range
   local in_buf = opts.in_buf
@@ -1547,6 +1502,7 @@ end
 ---@param range_type 'v' | 'V' | ''
 M.extract_func = function(_, range_type)
   local get_extracted_range = require("refactoring.range").get_extracted_range
+  local input = require("refactoring.util").input
 
   local buf = api.nvim_get_current_buf()
   local extracted_range, lines = get_extracted_range(range_type)
@@ -1571,6 +1527,7 @@ end
 ---@param range_type 'v' | 'V' | ''
 M.extract_func_to_file = function(_, range_type)
   local get_extracted_range = require("refactoring.range").get_extracted_range
+  local input = require("refactoring.util").input
 
   local buf = api.nvim_get_current_buf()
   local extracted_range, lines = get_extracted_range(range_type)
