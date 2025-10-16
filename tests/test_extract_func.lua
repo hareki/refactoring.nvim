@@ -1,4 +1,5 @@
 ---@module "mini.test"
+-- TODO: add tests for extract_func_to_file
 
 local child = MiniTest.new_child_neovim()
 

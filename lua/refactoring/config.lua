@@ -1,5 +1,3 @@
-local default_code_generation = require("refactoring.code_generation")
-
 local default_prompt_func_param_type = {
     go = false,
     java = false,
@@ -76,7 +74,6 @@ local default_extract_var_statements = {}
 ---| "cs"
 
 ---@class refactor.ConfigOpts
----@field code_generation? table<string, refactor.CodeGeneration>|{new_line: fun(): string}
 ---@field prompt_func_return_type? table<refactor.ft, boolean>
 ---@field prompt_func_param_type? table<refactor.ft, boolean>
 ---@field printf_statements? table<refactor.ft, string[]>
@@ -104,7 +101,6 @@ function Config:new(...)
             bufnr = nil,
         },
     }, {
-        code_generation = vim.deepcopy(default_code_generation),
         prompt_func_return_type = vim.deepcopy(default_prompt_func_return_type),
         prompt_func_param_type = vim.deepcopy(default_prompt_func_param_type),
         printf_statements = vim.deepcopy(default_printf_statements),
@@ -136,7 +132,6 @@ end
 
 function Config:reset()
     local c = self.config
-    c.code_generation = vim.deepcopy(default_code_generation)
     c.prompt_func_return_type = vim.deepcopy(default_prompt_func_return_type)
     c.prompt_func_param_type = vim.deepcopy(default_prompt_func_param_type)
     c.printf_statements = vim.deepcopy(default_printf_statements)
@@ -246,13 +241,6 @@ end
 ---@param bufnr integer
 function Config:set_test_bufnr(bufnr)
     self.config._automation.bufnr = bufnr
-end
-
---- Get the code generation for the current filetype
----@param lang string
-function Config:get_code_generation_for(lang)
-    return self.config.code_generation[lang]
-        or self.config.code_generation["default"]
 end
 
 ---@param filetype refactor.ft

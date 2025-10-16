@@ -35,15 +35,16 @@ local get_references = async.wrap(1, function(cb)
   })
 end)
 
+-- TODO: move
 ---@type async fun(items: any[], opts: table)
 local select = async.wrap(3, function(items, opts, on_choice)
   vim.ui.select(items, opts, on_choice)
 end)
 
 ---@param definition refactor.QfItem
----@param lang string
+---@param query vim.treesitter.Query
 ---@return nil|refactor.VariableInfo
-local function get_definition_info(definition, lang)
+local function get_definition_info(definition, query)
   local contains = require("refactoring.range").contains
 
   local definition_buf = vim.fn.bufadd(definition.filename)
@@ -61,12 +62,6 @@ local function get_definition_info(definition, lang)
     definition.end_lnum - 1,
     definition.end_col - 1,
   }
-
-  local query = ts.query.get(lang, "refactor")
-  if not query then
-    vim.notify(("There is no `refactor` query file for language %s"):format(lang), vim.log.levels.ERROR)
-    return
-  end
 
   local definition_matches_info = {} ---@type refactor.VariableMatchInfo[]
   for _, tree in ipairs(definition_nested_lang_tree:trees()) do
@@ -137,19 +132,6 @@ local function get_definition_info(definition, lang)
   return variable_info
 end
 
----@param a Range4
----@param b Range4
-local function comp_non_overlaping_ranges_desc(a, b)
-  local compare = require("refactoring.range").compare
-
-  local compare_start = compare({ a[1], a[2] }, { b[1], b[2] })
-  if compare_start == 1 then return true end
-  if compare_start == -1 then return false end
-
-  local compare_end = compare({ a[3], a[4] }, { b[3], b[4] })
-  return compare_end == 1
-end
-
 -- TODO: extract all of these into another file
 ---@param get_key nil|fun(value: any): any
 ---@return fun(value: any): boolean
@@ -185,6 +167,7 @@ end
 -- TODO: success message (can be disabled in config)
 function M.inline_var()
   local contains = require("refactoring.range").contains
+  local comp_non_overlaping_ranges_desc = require("refactoring.range").comp_non_overlaping_ranges_desc
 
   local lang_tree, err1 = ts.get_parser(nil, nil, { error = false })
   if not lang_tree then
@@ -210,12 +193,19 @@ function M.inline_var()
     local definitions = unpack(results[1]) ---@type refactor.QfItem[]
     local references = unpack(results[2]) ---@type refactor.QfItem[]
 
+    local query = ts.query.get(lang, "refactor")
+    if not query then
+      vim.notify(("There is no `refactor` query file for language %s"):format(lang), vim.log.levels.ERROR)
+      return
+    end
+
     ---@type {definition: refactor.QfItem, match: refactor.VariableInfo}[]
     local definitions_with_match = iter(definitions)
       :map(
         ---@param d refactor.QfItem
         function(d)
-          local definition_match = get_definition_info(d, lang)
+          -- TODO: parse once and reuse parsed info by buffer (like `inline_func`)
+          local definition_match = get_definition_info(d, query)
           return { definition = d, match = definition_match }
         end
       )

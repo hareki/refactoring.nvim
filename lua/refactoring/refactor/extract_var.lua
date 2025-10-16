@@ -1,4 +1,5 @@
 -- TODO: handle extra logic for extracting var into class scope
+-- TODO: preview is not working at all
 local M = {}
 
 local async = require "async"
@@ -90,6 +91,8 @@ end
 -- in the [some scope, I haven't think it through. Try to avoid loops and
 -- things like that unless necesary. Maybe as close as possible to the last
 -- declaration of the variables]
+
+-- TODO: extract inline "before" code examples from tests to files under the `test/` directory
 
 -- TODO: add per-feature configuration in `require'refactoring'.setup` that
 -- includes overrides for code_generation (and all of the language-dependant
@@ -266,6 +269,11 @@ function M.extract_var(_, range_type)
       return
     end
 
+    -- TODO: I'll need to compute the `output_range` manually.
+    -- - inside `smallest_common_scope`
+    -- - outside any nested scope
+    -- - after references used on `extracted_text`
+    -- - before all of the locations where variable is being inlined
     local output_node = smallest_common_scope.inside or smallest_common_scope.scope
     local output_node_start_row, output_node_start_col = output_node:start()
     local output_range = { output_node_start_row, output_node_start_col }

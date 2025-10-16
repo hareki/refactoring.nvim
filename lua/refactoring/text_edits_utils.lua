@@ -1,4 +1,3 @@
-local code = require("refactoring.code_generation")
 local Region = require("refactoring.region")
 
 local M = {}
@@ -13,7 +12,7 @@ local function to_region(point_or_region)
 end
 
 ---@param region refactor.Region
----@return refactor.TextEdit
+---@return refactor.TextEditOld
 function M.delete_text(region)
     return region:to_lsp_text_edit_replace("")
 end
@@ -21,7 +20,7 @@ end
 ---@param point_or_region refactor.Region|refactor.Point
 ---@param text string
 ---@param opts {below: boolean, _end: boolean}|nil
----@return refactor.TextEdit
+---@return refactor.TextEditOld
 function M.insert_new_line_text(point_or_region, text, opts)
     opts = opts or {
         below = true,
@@ -31,9 +30,9 @@ function M.insert_new_line_text(point_or_region, text, opts)
     local region = to_region(point_or_region)
 
     if opts.below then
-        text = code.new_line() .. text
+        text = '\n' .. text
     else
-        text = text .. code.new_line()
+        text = text .. '\n'
     end
 
     if opts._end then
@@ -48,7 +47,7 @@ end
 
 ---@param point_or_region refactor.Region|refactor.Point
 ---@param text string
----@return refactor.TextEdit
+---@return refactor.TextEditOld
 function M.insert_text(point_or_region, text)
     local region = to_region(point_or_region)
     local clone = region:clone()
@@ -60,7 +59,7 @@ end
 
 ---@param region refactor.Region
 ---@param text string
----@return refactor.TextEdit
+---@return refactor.TextEditOld
 function M.replace_text(region, text)
     local clone = region:clone()
 

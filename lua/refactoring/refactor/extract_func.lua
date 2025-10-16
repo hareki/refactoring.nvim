@@ -1,3 +1,4 @@
+-- TODO: preview is not working at all
 local async = require "async"
 local iter = vim.iter
 local ts = vim.treesitter

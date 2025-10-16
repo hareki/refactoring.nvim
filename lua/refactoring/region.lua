@@ -251,11 +251,11 @@ function Region:to_lsp_range_replace()
     }
 end
 
----@class refactor.TextEdit : lsp.TextEdit
+---@class refactor.TextEditOld : lsp.TextEdit
 ---@field bufnr integer?
 
 ---@param text string
----@return refactor.TextEdit
+---@return refactor.TextEditOld
 function Region:to_lsp_text_edit_insert(text)
     return {
         range = self:to_lsp_range_insert(),
@@ -264,7 +264,7 @@ function Region:to_lsp_text_edit_insert(text)
 end
 
 ---@param text string
----@return refactor.TextEdit
+---@return refactor.TextEditOld
 function Region:to_lsp_text_edit_replace(text)
     return {
         range = self:to_lsp_range_replace(),

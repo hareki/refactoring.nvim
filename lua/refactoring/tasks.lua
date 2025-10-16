@@ -37,7 +37,7 @@ function M.refactor_seed(input_bufnr, region_type, config)
     ---@field region_node? TSNode
     ---@field identifier_node? TSNode
     ---@field scope? TSNode
-    ---@field text_edits? refactor.TextEdit[] | {bufnr?: integer}[]
+    ---@field text_edits? refactor.TextEditOld[] | {bufnr?: integer}[]
     ---@field code refactor.CodeGeneration
     ---@field success_message? string
     local refactor = {
@@ -63,7 +63,7 @@ end
 
 ---@param bufnr integer
 ---@param ns integer
----@param edit_set refactor.TextEdit[]
+---@param edit_set refactor.TextEditOld[]
 local function preview_highlight(bufnr, ns, edit_set)
     api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
     for _, edit in pairs(edit_set) do
@@ -108,7 +108,7 @@ function M.refactor_apply_text_edits(refactor)
         return true, refactor
     end
 
-    ---@type table<integer, refactor.TextEdit[]>
+    ---@type table<integer, refactor.TextEditOld[]>
     local edits = {}
 
     for _, edit in pairs(refactor.text_edits) do

@@ -38,4 +38,15 @@ function M.get_extracted_range(range_type)
   return extracted_range, lines
 end
 
+---@param a Range4
+---@param b Range4
+function M.comp_non_overlaping_ranges_desc(a, b)
+  local compare_start = M.compare({ a[1], a[2] }, { b[1], b[2] })
+  if compare_start == 1 then return true end
+  if compare_start == -1 then return false end
+
+  local compare_end = M.compare({ a[3], a[4] }, { b[3], b[4] })
+  return compare_end == 1
+end
+
 return M

@@ -1,560 +1,590 @@
-local ts_locals = require("refactoring.ts-locals")
-local Region = require("refactoring.region")
-local text_edits_utils = require("refactoring.text_edits_utils")
-local indent = require("refactoring.indent")
-local code = require("refactoring.code_generation")
-local notify = require("refactoring.notify")
+local async = require "async"
+local ts = vim.treesitter
+local api = vim.api
+local lsp = vim.lsp
+local iter = vim.iter
 
 local M = {}
 
----@param refactor refactor.Refactor
----@return TSNode? scope
----@return TSNode? identifier
-local function get_function_declaration(refactor)
-    local current_node = vim.treesitter.get_node({ bufnr = refactor.bufnr })
+-- NOTE: the indent logic in `vim.text.indent` counts each char as 1 indent
+-- level. the indent logic in `vim.fn.indent` takes into account `expandtab`,
+-- `tabstop` and `shiftwidth`.
+---@param expandtab boolean
+---@param size integer
+---@param text string
+---@param opts {expandtab: number}?
+local function indent(expandtab, size, text, opts)
+  local indented, previous_size = vim.text.indent(size, text, opts)
 
-    if current_node == nil then
-        return nil, nil
-    end
-
-    local definition = ts_locals.find_definition(current_node, refactor.bufnr)
-
-    local scope = ts_locals.containing_scope(definition, refactor.bufnr, false)
-
-    if scope and definition then
-        return scope, definition
-    end
+  if not expandtab then
+    indented = indented:gsub("^( +)", function(spaces)
+      return ("\t"):rep(#spaces)
+    end)
+    indented = indented:gsub("\n( +)", function(spaces)
+      return "\n" .. ("\t"):rep(#spaces)
+    end)
+  end
+  return indented, previous_size
 end
 
----@param refactor refactor.Refactor
----@param function_declaration TSNode
----@param identifier TSNode
----@return TSNode[]
-local function get_references(refactor, function_declaration, identifier)
-    ---@type TSNode[]
-    local values = {}
-    for _, value in
-        ipairs(
-            refactor.ts:loop_thru_nodes(
-                function_declaration,
-                refactor.ts.function_references
-            )
-        )
-    do
-        -- TODO: ugly ugly! -- need to filter out extra references to another functions
-        if
-            vim.treesitter.get_node_text(value, refactor.bufnr)
-            == vim.treesitter.get_node_text(identifier, refactor.bufnr)
-        then
-            table.insert(values, value)
+-- TODO: move these functions into sepearated module everywhere
+---@type async fun(): refactor.QfItem[]
+local get_definitions = async.wrap(1, function(cb)
+  lsp.buf.definition {
+    on_list = function(args)
+      cb(args.items)
+    end,
+  }
+end)
+
+-- TODO: move these functions into sepearated module everywhere
+---@type async fun(): refactor.QfItem[]
+local get_references = async.wrap(1, function(cb)
+  lsp.buf.references({
+    includeDeclaration = false,
+  }, {
+    on_list = function(args)
+      cb(args.items)
+    end,
+  })
+end)
+
+---@type async fun(items: any[], opts: table)
+local select = async.wrap(3, function(items, opts, on_choice)
+  vim.ui.select(items, opts, on_choice)
+end)
+
+---@param get_key nil|fun(value: any): any
+---@return fun(value: any): boolean
+local function is_unique(get_key)
+  ---@type {[string]: boolean}
+  local already_seen = {}
+
+  ---@param value any
+  return function(value)
+    local key = get_key and get_key(value) or value
+    if already_seen[key] then return false end
+    already_seen[key] = true
+    return true
+  end
+end
+
+-- TODO: support type inference?
+---@class refactor.inline_func.code_generation.assignment.Opts
+---@field left string[]
+---@field right string[]
+
+---@class refactor.inline_func.code_generation
+---@field assignment {[string]: nil|fun(opts: refactor.inline_func.code_generation.assignment.Opts): string}
+
+---@type refactor.inline_func.code_generation
+local code_generation = {
+  assignment = {
+    lua = function(opts)
+      if #opts.left == 0 then return "" end
+
+      if #opts.left < #opts.right then
+        for _ = #opts.left + 1, #opts.right do
+          table.remove(opts.right)
         end
-    end
-    return values
-end
-
----@param refactor refactor.Refactor
----@param function_declaration TSNode
----@return string[]
-local function get_function_returned_values(refactor, function_declaration)
-    ---@type string[]
-    local values = {}
-    for _, value in ipairs(refactor.ts:get_return_values(function_declaration)) do
-        table.insert(
-            values,
-            vim.treesitter.get_node_text(value, refactor.bufnr)
-        )
-    end
-    return values
-end
-
----@param refactor refactor.Refactor
----@param function_declaration TSNode
----@return string[]
-local function get_function_parameter_names(refactor, function_declaration)
-    ---@type string[]
-    local values = {}
-    for _, value in ipairs(refactor.ts:get_function_args(function_declaration)) do
-        table.insert(
-            values,
-            vim.treesitter.get_node_text(value, refactor.bufnr)
-        )
-    end
-    return values
-end
-
----@param refactor refactor.Refactor
----@param declarator_node TSNode
----@return string[]
-local function get_function_arguments(refactor, declarator_node)
-    ---@type string[]
-    local args = {}
-    for _, value in
-        ipairs(
-            refactor.ts:loop_thru_nodes(
-                declarator_node,
-                refactor.ts.caller_args
-            )
-        )
-    do
-        table.insert(args, vim.treesitter.get_node_text(value, refactor.bufnr))
-    end
-    return args
-end
-
----@param refactor refactor.Refactor
----@param function_declaration TSNode
----@return string[]
-local function get_function_body_text(refactor, function_declaration)
-    local function_body_text = {}
-
-    local function_body = refactor.ts:get_function_body(function_declaration)
-
-    for _, statement in ipairs(function_body) do
-        local region = Region:from_node(statement)
-        local region_with_indent = Region:from_values(
-            refactor.bufnr,
-            region.start_row,
-            1,
-            region.end_row,
-            region.end_col
-        )
-        for _, line in ipairs(region_with_indent:get_text()) do
-            if
-                refactor.ts.is_return_statement
-                and not refactor.ts.is_return_statement(line)
-            then
-                table.insert(function_body_text, line)
-            end
+      elseif #opts.right < #opts.left then
+        for _ = #opts.right + 1, #opts.left do
+          table.insert(opts.right, "nil")
         end
-    end
+      end
 
-    return function_body_text
-end
-
----@param refactor refactor.Refactor
----@param indent_space string
----@param keys string[]
----@param values string[]
----@return string[]
-local function get_params_as_constants(refactor, indent_space, keys, values)
-    -- TODO: keys length and values should be the same
-    ---@type string[]
-    local constants = {}
-    for idx, _ in ipairs(values) do
-        local name = keys[idx]
-        local value = values[idx]
-        if name ~= value then
-            local constant = refactor.code.constant({
-                name = name,
-                value = value,
-            })
-            -- TODO: refactor to a one line constant
-            if idx == 1 then
-                table.insert(constants, constant)
-            else
-                table.insert(
-                    constants,
-                    table.concat({ indent_space, constant }, "")
-                )
-            end
-        end
-    end
-    return constants
-end
-
----@param refactor refactor.Refactor
-local function supports_115(refactor)
-    local ts = refactor.ts
-    return ts.return_statement
-        and ts.return_values
-        and ts.function_references
-        and ts.caller_args
-        and ts.is_return_statement
-end
-
----@param refactor refactor.Refactor
----@return boolean
----@return refactor.Refactor|string
-local function inline_func_setup(refactor)
-    local utils = require("refactoring.utils")
-
-    if not supports_115(refactor) then
-        return false,
-            ("inline function is not supported for filetype `%s`. Please open an issue asking for support for it or a PR adding support to it."):format(
-                refactor.filetype
-            )
-    end
-
-    local scope, identifier = get_function_declaration(refactor)
-
-    if scope == nil or identifier == nil then
-        return false, "No function declaration found"
-    end
-
-    local scope_parent = scope:parent()
-    if not scope_parent then
-        return false, "No scope parent"
-    end
-
-    local function_references =
-        get_references(refactor, scope_parent, identifier)
-
-    if #function_references == 0 then
-        return false, "Error: no function usages to inline"
-    end
-
-    local text_edits = {}
-    local ok, function_body_text =
-        pcall(get_function_body_text, refactor, scope)
-    if not ok then
-        return ok, function_body_text
-    end
-    local ok2, returned_values =
-        pcall(get_function_returned_values, refactor, scope)
-    if not ok2 then
-        return ok2, returned_values
-    end
-    local ok3, parameters = pcall(get_function_parameter_names, refactor, scope)
-    if not ok3 then
-        return ok3, parameters
-    end
-
-    local ok4, return_statements =
-        pcall(refactor.ts.get_return_statements, refactor.ts, scope)
-
-    if not ok4 then
-        return ok4, return_statements
-    end
-
-    if #return_statements > 1 then
-        return false,
-            "Inline function of a function with multiple return statements is not supported"
-    end
-
-    local refactor_is_possible = false
-
-    -- TODO (TheLeoP): check if indenting is suported in all of 115
-    if not vim.tbl_isempty(function_body_text) then
-        indent.lines_remove_indent(
-            function_body_text,
-            1,
-            #function_body_text,
-            indent.line_indent_amount(function_body_text[1], refactor.bufnr),
-            refactor.bufnr
-        )
-    end
-
-    for _, reference in ipairs(function_references) do
-        local reference_parent = reference:parent()
-        if not reference_parent then
-            return false, "No reference parent"
-        end
-
-        -- TODO (TheLeoP): check if this can be done using `indent.buf_indent_amount`
-        --
-        -- Copy indentation of the line where the function is called
-        local reference_region = Region:from_node(reference)
-        local region_with_indent = Region:from_values(
-            refactor.bufnr,
-            reference_region.start_row,
-            1,
-            reference_region.end_row,
-            reference_region.end_col
-        )
-        local indent_amount = indent.line_indent_amount(
-            region_with_indent:get_text()[1],
-            refactor.bufnr
-        )
-        local indentation = indent.indent(indent_amount, refactor.bufnr)
-
-        -- inlines function body into the new place (without return statements)
-        if
-            #parameters == 0
-            and #returned_values == 0
-            and #function_body_text > 0
-        then
-            refactor_is_possible = true
-            for _, sentence in ipairs(function_body_text) do
-                table.insert(
-                    text_edits,
-                    text_edits_utils.insert_new_line_text(
-                        Region:from_node(reference_parent, refactor.bufnr),
-                        table.concat({ indentation, sentence }, ""),
-                        { below = false, _end = false }
-                    )
-                )
-            end
-
-        -- replaces the function call with the returned value
-        -- TODO: this could be merged into next one
-        elseif
-            #parameters == 0
-            and #returned_values == 1
-            and #function_body_text == 0
-        then
-            refactor_is_possible = true
-            for _, sentence in ipairs(returned_values) do
-                table.insert(
-                    text_edits,
-                    text_edits_utils.insert_text(
-                        Region:from_node(reference_parent, refactor.bufnr),
-                        sentence
-                    )
-                )
-            end
-
-        -- replaces the function call with the returned value and inlines the function body
-        elseif
-            #parameters == 0
-            and #returned_values == 1
-            and #function_body_text > 0
-        then
-            refactor_is_possible = true
-            for _, sentence in ipairs(function_body_text) do
-                table.insert(
-                    text_edits,
-                    text_edits_utils.insert_new_line_text(
-                        utils.region_one_line_up_from_node(reference),
-                        table.concat({ indentation, sentence }, ""),
-                        { below = false, _end = false }
-                    )
-                )
-            end
-            for _, sentence in ipairs(returned_values) do
-                table.insert(
-                    text_edits,
-                    text_edits_utils.insert_text(
-                        Region:from_node(reference_parent, refactor.bufnr),
-                        sentence
-                    )
-                )
-            end
-
-        -- replaces the function call with the returned values (multiple)
-        -- TODO: this could be merged into the next one
-        elseif
-            #parameters == 0
-            and #returned_values > 1
-            and #function_body_text == 0
-        then
-            refactor_is_possible = true
-            for idx, sentence in ipairs(returned_values) do
-                local comma = ""
-                if idx ~= #returned_values then
-                    comma = ", "
-                end
-                table.insert(
-                    text_edits,
-                    text_edits_utils.insert_text(
-                        Region:from_node(reference_parent, refactor.bufnr),
-                        table.concat({ sentence, comma }, "")
-                    )
-                )
-            end
-
-        -- replaces the function call with the returned values (multiple) and alse function body (multiple lines)
-        elseif
-            #parameters == 0
-            and #returned_values > 1
-            and #function_body_text > 1
-        then
-            refactor_is_possible = true
-            for _, sentence in ipairs(function_body_text) do
-                table.insert(
-                    text_edits,
-                    text_edits_utils.insert_new_line_text(
-                        utils.region_one_line_up_from_node(reference),
-                        table.concat({ indentation, sentence }, ""),
-                        -- TODO: this could be merged into the next one
-                        { below = false, _end = false }
-                    )
-                )
-            end
-            for idx, sentence in ipairs(returned_values) do
-                local comma = ""
-                if idx ~= #returned_values then
-                    comma = ", "
-                end
-                table.insert(
-                    text_edits,
-                    text_edits_utils.insert_text(
-                        Region:from_node(reference_parent, refactor.bufnr),
-                        table.concat({ sentence, comma }, "")
-                    )
-                )
-            end
-
-        -- replaces the function call with the body and creates a constant to store the function arguments
-        elseif
-            #parameters > 0
-            and #returned_values == 0
-            and #function_body_text > 0
-        then
-            refactor_is_possible = true
-            local arguments_list =
-                get_function_arguments(refactor, reference_parent)
-            local constants = get_params_as_constants(
-                refactor,
-                indentation,
-                parameters,
-                arguments_list
-            )
-            for _, constant in ipairs(constants) do
-                local insert_text = text_edits_utils.insert_text(
-                    Region:from_node(reference_parent, refactor.bufnr),
-                    constant
-                )
-                table.insert(text_edits, insert_text)
-            end
-            for _, sentence in ipairs(function_body_text) do
-                local new_line = ""
-                if #function_body_text > 1 then
-                    new_line = code.new_line()
-                end
-                table.insert(
-                    text_edits,
-                    text_edits_utils.insert_text(
-                        Region:from_node(reference_parent, refactor.bufnr),
-                        table.concat({ indentation, sentence, new_line }, "")
-                    )
-                )
-            end
-
-        -- replaces the function call with all params and create constants for the given param
-        elseif
-            #parameters > 0
-            and #returned_values > 0
-            and #function_body_text == 0
-        then
-            refactor_is_possible = true
-            local arguments_list =
-                get_function_arguments(refactor, reference_parent)
-            local constants = get_params_as_constants(
-                refactor,
-                indentation,
-                parameters,
-                arguments_list
-            )
-            for _, constant in ipairs(constants) do
-                table.insert(
-                    text_edits,
-                    text_edits_utils.insert_text(
-                        utils.region_one_line_up_from_node(reference),
-                        table.concat({ indentation, constant }, "")
-                    )
-                )
-            end
-            for idx, sentence in ipairs(returned_values) do
-                local comma = ""
-                if idx ~= #returned_values then
-                    comma = ", "
-                end
-                table.insert(
-                    text_edits,
-                    text_edits_utils.insert_text(
-                        Region:from_node(reference_parent, refactor.bufnr),
-                        table.concat({ sentence, comma }, "")
-                    )
-                )
-            end
-        elseif
-            #parameters > 0
-            and #returned_values > 0
-            and #function_body_text > 0
-        then
-            refactor_is_possible = true
-            local new_line = code.new_line()
-
-            local arguments_list =
-                get_function_arguments(refactor, reference_parent)
-            local constants = get_params_as_constants(
-                refactor,
-                indentation,
-                parameters,
-                arguments_list
-            )
-            for _, constant in ipairs(constants) do
-                table.insert(
-                    text_edits,
-                    text_edits_utils.insert_text(
-                        utils.region_one_line_up_from_node(reference),
-                        table.concat({ indentation, constant }, "")
-                    )
-                )
-            end
-            for _, sentence in ipairs(function_body_text) do
-                table.insert(
-                    text_edits,
-                    text_edits_utils.insert_text(
-                        utils.region_one_line_up_from_node(reference),
-                        table.concat({ indentation, sentence, new_line }, "")
-                    )
-                )
-            end
-            for idx, sentence in ipairs(returned_values) do
-                local comma = ""
-                if idx ~= #returned_values then
-                    comma = ", "
-                end
-                table.insert(
-                    text_edits,
-                    text_edits_utils.insert_text(
-                        Region:from_node(reference_parent, refactor.bufnr),
-                        table.concat({ sentence, comma }, "")
-                    )
-                )
-            end
-        end
-
-        if refactor_is_possible then
-            -- Delete original reference
-            local delete_text = text_edits_utils.delete_text(
-                Region:from_node(reference_parent, refactor.bufnr)
-            )
-            table.insert(text_edits, delete_text)
-        end
-    end
-
-    if refactor_is_possible then
-        -- deletes function declaration
-        table.insert(
-            text_edits,
-            text_edits_utils.delete_text(
-                Region:from_node(scope, refactor.bufnr)
-            )
-        )
-    else
-        return false,
-            "inline function is not possible. If you think this is a bug, please open an issue including the exact code you encountered this error with"
-    end
-
-    refactor.text_edits = text_edits
-    return true, refactor
-end
-
-local ensure_code_gen_list = {
-    "constant",
+      local left = table.concat(opts.left, ", ")
+      local right = table.concat(opts.right, ", ")
+      return ("local %s = %s"):format(left, right)
+    end,
+  },
 }
 
----@param refactor refactor.Refactor
-local function ensure_code_gen_115(refactor)
-    local tasks = require("refactoring.tasks")
-
-    return tasks.ensure_code_gen(refactor, ensure_code_gen_list)
+---@param missing_code_gen string
+---@param lang string
+local function code_gen_error(missing_code_gen, lang)
+  vim.notify(
+    ("There's no `%s` code generation defined for language %s"):format(missing_code_gen, lang),
+    vim.log.levels.ERROR
+  )
 end
 
----@param bufnr integer
----@param region_type 'v' | 'V' | '' | nil
----@param opts refactor.Config
-function M.inline_func(bufnr, region_type, opts)
-    local tasks = require("refactoring.tasks")
-    local Pipeline = require("refactoring.pipeline")
+---@class refactor.TextEdit
+---@field range Range4
+---@field lines string[]
 
-    local seed = tasks.refactor_seed(bufnr, region_type, opts)
-    Pipeline:from_task(ensure_code_gen_115)
-        :add_task(inline_func_setup)
-        :after(tasks.post_refactor)
-        :run(nil, notify.error, seed)
+---@param a refactor.TextEdit
+---@param b refactor.TextEdit
+local function comp_non_overlaping_text_edits_desc(a, b)
+  local comp_non_overlaping_ranges_desc = require("refactoring.range").comp_non_overlaping_ranges_desc
+
+  return comp_non_overlaping_ranges_desc(a.range, b.range)
+end
+
+---@param text_edits_by_buf {[integer]: refactor.TextEdit[]}
+local function apply_text_edits(text_edits_by_buf)
+  for buf, text_edits in pairs(text_edits_by_buf) do
+    table.sort(text_edits, comp_non_overlaping_text_edits_desc)
+
+    for _, text_edit in ipairs(text_edits) do
+      api.nvim_buf_set_text(
+        buf,
+        text_edit.range[1],
+        text_edit.range[2],
+        text_edit.range[3],
+        text_edit.range[4],
+        text_edit.lines
+      )
+    end
+  end
+end
+
+--As a side effect, loads all the buffers for all of the definitions and references
+---@param definitions refactor.QfItem[]
+---@param references refactor.QfItem[]
+---@param lang string
+---@return nil|{[integer]: refactor.inline_func.ProcessedMatchInfo}
+local function get_processed_match_info(definitions, references, lang)
+  local contains = require("refactoring.range").contains
+
+  local query = ts.query.get(lang, "refactor")
+  if not query then
+    vim.notify(("There is no `refactor` query file for language %s"):format(lang), vim.log.levels.ERROR)
+    return
+  end
+
+  local ts_info = iter({ definitions, references })
+    :flatten(1)
+    :map(
+      ---@param item refactor.QfItem
+      function(item)
+        local buf = vim.fn.bufadd(item.filename)
+        if not api.nvim_buf_is_loaded(buf) then vim.fn.bufload(buf) end
+        return buf, item
+      end
+    )
+    :filter(is_unique())
+    :map(
+      ---@param buf integer
+      ---@param item refactor.QfItem
+      function(buf, item)
+        local item_lang_tree, err2 = ts.get_parser(buf, lang, { error = false })
+        if not item_lang_tree then
+          vim.notify(err2, vim.log.levels.ERROR)
+          return
+        end
+
+        item_lang_tree:parse(true)
+        local item_nested_lang_tree = item_lang_tree:language_for_range {
+          item.lnum - 1,
+          item.col - 1,
+          item.end_lnum - 1,
+          item.end_col - 1,
+        }
+
+        local functions_info = {} ---@type refactor.FunctionInfo[]
+        local returns_info = {} ---@type refactor.ReturnInfo[]
+        local function_calls_info = {} ---@type refactor.FunctionCallInfo[]
+        for _, tree in ipairs(item_nested_lang_tree:trees()) do
+          for _, match in query:iter_matches(tree:root(), buf) do
+            local function_info ---@type nil|refactor.FunctionInfo
+            local return_info ---@type nil|refactor.ReturnInfo
+            local function_call_info ---@type nil|refactor.FunctionCallInfo
+
+            for capture_id, nodes in pairs(match) do
+              local name = query.captures[capture_id]
+
+              if name == "function" then
+                function_info = function_info or {}
+                function_info["function"] = nodes[1]
+              elseif name == "function.outside" then
+                function_info = function_info or {}
+                function_info.outside = nodes[1]
+              elseif name == "function.body" then
+                function_info = function_info or {}
+                function_info.body = nodes
+              elseif name == "function.comment" then
+                function_info = function_info or {}
+                function_info.comments = nodes
+              elseif name == "function.arg" then
+                function_info = function_info or {}
+                function_info.args = nodes
+              end
+
+              if name == "return" then
+                return_info = return_info or {}
+                return_info["return"] = nodes[1]
+              elseif name == "return.value" then
+                return_info = return_info or {}
+                return_info.values = nodes
+              end
+
+              if name == "function_call" then
+                function_call_info = function_call_info or {}
+                function_call_info.function_call = nodes[1]
+              elseif name == "function_call.name" then
+                function_call_info = function_call_info or {}
+                function_call_info.name = nodes[1]
+              elseif name == "function_call.arg" then
+                function_call_info = function_call_info or {}
+                function_call_info.args = nodes
+              elseif name == "function_call.return_value" then
+                function_call_info = function_call_info or {}
+                function_call_info.return_values = nodes
+              elseif name == "function_call.outside" then
+                function_call_info = function_call_info or {}
+                function_call_info.outside = nodes[1]
+              end
+            end
+
+            if function_info then table.insert(functions_info, function_info) end
+            if function_call_info then table.insert(function_calls_info, function_call_info) end
+            if return_info then table.insert(returns_info, return_info) end
+          end
+        end
+
+        return buf,
+          {
+            functions = functions_info,
+            function_calls = function_calls_info,
+            returns = returns_info,
+          }
+      end
+    )
+    :fold(
+      {},
+      ---@param acc {[integer]: refactor.inline_func.MatchInfo}
+      ---@param k integer
+      ---@param v nil|refactor.inline_func.MatchInfo
+      function(acc, k, v)
+        acc[k] = v
+        return acc
+      end
+    )
+
+  iter(pairs(ts_info)):each(
+    ---@param match_info refactor.inline_func.MatchInfo
+    function(_, match_info)
+      iter(match_info.returns):each(
+        ---@param return_info refactor.ReturnInfo
+        function(return_info)
+          local r_start_row, r_start_col, r_end_row, r_end_col = return_info["return"]:range()
+          local return_start = { r_start_row, r_start_col }
+          local return_end = { r_end_row, r_end_col }
+
+          ---@type nil|refactor.ProcessedFunctionInfo
+          local function_for_return = iter(match_info.functions)
+            :filter(
+              ---@param function_info refactor.FunctionInfo
+              function(function_info)
+                local start_row, start_col, end_row, end_col = function_info["function"]:range()
+                local function_range = { start_row, start_col, end_row, end_col }
+                return contains(function_range, return_start) and contains(function_range, return_end)
+              end
+            )
+            :fold(
+              nil,
+              ---@param acc nil|refactor.FunctionInfo
+              ---@param function_info refactor.FunctionInfo
+              function(acc, function_info)
+                if not acc then return function_info end
+                if function_info["function"]:byte_length() < acc["function"]:byte_length() then return function_info end
+                return acc
+              end
+            )
+          if not function_for_return then return end
+
+          function_for_return.returns_info = function_for_return.returns_info or {}
+          table.insert(function_for_return.returns_info, return_info)
+        end
+      )
+    end
+  )
+  ---@diagnostic disable-next-line: cast-type-mismatch
+  ---@cast ts_info {[integer]: refactor.inline_func.ProcessedMatchInfo}
+
+  return ts_info
+end
+
+-- TODO: be consistent about what is singular/plural ins this kind of classes.
+-- Captures will be singular, but lua structures plural
+---@class refactor.ReturnInfo
+---@field return TSNode
+---@field values TSNode[]?
+
+---@class refactor.FunctionInfo
+---@field function TSNode
+---@field outside TSNode?
+---@field body TSNode[]
+---@field comments TSNode[]?
+---@field args TSNode[]?
+
+---@class refactor.FunctionCallInfo
+---@field function_call TSNode
+---@field name TSNode
+---@field args TSNode[]?
+---@field return_values TSNode[]?
+---@field outside TSNode?
+
+---@class refactor.ProcessedFunctionInfo
+---@field function TSNode
+---@field outside TSNode?
+---@field body TSNode[]
+---@field comments TSNode[]?
+---@field args TSNode[]?
+---@field returns_info nil|refactor.ReturnInfo[]
+
+---@class refactor.inline_func.MatchInfo
+---@field functions refactor.FunctionInfo[]
+---@field function_calls refactor.FunctionCallInfo[]
+---@field returns refactor.ReturnInfo[]
+
+---@class refactor.inline_func.ProcessedMatchInfo
+---@field functions refactor.ProcessedFunctionInfo[]
+---@field function_calls refactor.FunctionCallInfo[]
+---@field returns refactor.ReturnInfo[]
+
+-- TODO: remove first param (buf) after rewrite
+---@param _ integer
+function M.inline_func(_)
+  local contains = require("refactoring.range").contains
+
+  local lang_tree, err1 = ts.get_parser(nil, nil, { error = false })
+  if not lang_tree then
+    vim.notify(err1, vim.log.levels.ERROR)
+    return
+  end
+  -- TODO: use async parsing
+  lang_tree:parse(true)
+  local cursor = api.nvim_win_get_cursor(0)
+  local nested_lang_tree = lang_tree:language_for_range {
+    cursor[1] - 1,
+    cursor[2],
+    cursor[1] - 1,
+    cursor[2],
+  }
+  local lang = nested_lang_tree:lang()
+
+  local get_assignment = code_generation.assignment[lang]
+  if not get_assignment then return code_gen_error("assignment", lang) end
+
+  local task = async.run(function()
+    local results = async.await_all {
+      async.run(get_definitions),
+      async.run(get_references),
+    }
+    local definitions = unpack(results[1]) ---@type refactor.QfItem[]
+    local references = unpack(results[2]) ---@type refactor.QfItem[]
+
+    local ts_info = get_processed_match_info(definitions, references, lang)
+    if not ts_info then return end
+
+    ---@class refactor.inline_func.DefinitionWithFunctionInfo
+    ---@field definition refactor.QfItem
+    ---@field function_info refactor.ProcessedFunctionInfo
+
+    ---@type refactor.inline_func.DefinitionWithFunctionInfo[]
+    local definitions_with_function_info = iter(definitions)
+      :map(
+        ---@param d refactor.QfItem
+        function(d)
+          local buf = vim.fn.bufadd(d.filename)
+
+          local match_info = ts_info[buf]
+          local d_start = { d.lnum - 1, d.col - 1 }
+          local d_end = { d.end_lnum - 1, d.end_col - 1 }
+          local function_info = iter(match_info.functions):find(
+            ---@param function_info refactor.FunctionInfo
+            function(function_info)
+              local start_row, start_col, end_row, end_col = function_info["function"]:range()
+              local function_range = { start_row, start_col, end_row, end_col }
+              return contains(function_range, d_start) and contains(function_range, d_end)
+            end
+          )
+
+          return { definition = d, function_info = function_info }
+        end
+      )
+      :filter(
+        ---@param definition_with_function_info refactor.inline_func.DefinitionWithFunctionInfo
+        function(definition_with_function_info)
+          return definition_with_function_info.function_info ~= nil
+        end
+      )
+      :totable()
+
+    if #definitions_with_function_info == 0 then
+      vim.notify("Couldn't find the definition of the symbol under cursor using treesitter", vim.log.levels.ERROR)
+      return
+    end
+    local definition_with_function_info = #definitions_with_function_info == 1 and definitions_with_function_info[1]
+      or select(definitions_with_function_info, {
+        prompt = "Multiple definitions found, select one",
+        format_item =
+          ---@param item refactor.inline_func.DefinitionWithFunctionInfo
+          function(item)
+            local buf = vim.fn.bufadd(item.definition.filename)
+            return ts.get_node_text(item.function_info["function"], buf)
+          end,
+      })
+    local definition, function_info =
+      definition_with_function_info.definition, definition_with_function_info.function_info
+    local in_buf = vim.fn.bufadd(definition.filename)
+    if function_info.returns_info and #function_info.returns_info > 1 then
+      vim.notify("The function has multiple return statements", vim.log.levels.WARN)
+      return
+    end
+
+    ---@class refactor.inline_func.ReferenceWithFunctionCallInfo
+    ---@field reference refactor.QfItem
+    ---@field function_call_info refactor.FunctionCallInfo
+
+    ---@type refactor.inline_func.ReferenceWithFunctionCallInfo[]
+    local references_with_function_call_info = iter(references)
+      :map(
+        ---@param r refactor.QfItem
+        function(r)
+          local buf = vim.fn.bufadd(r.filename)
+
+          local match_info = ts_info[buf]
+          local r_start = { r.lnum - 1, r.col - 1 }
+          local r_end = { r.end_lnum - 1, r.end_col - 1 }
+          local function_call_info = iter(match_info.function_calls):find(
+            ---@param function_call_info refactor.FunctionCallInfo
+            function(function_call_info)
+              local start_row, start_col, end_row, end_col = function_call_info.function_call:range()
+              local function_call_range = { start_row, start_col, end_row, end_col }
+              return contains(function_call_range, r_start) and contains(function_call_range, r_end)
+            end
+          )
+
+          return { reference = r, function_call_info = function_call_info }
+        end
+      )
+      :filter(
+        ---@param reference_with_function_call_info refactor.inline_func.ReferenceWithFunctionCallInfo
+        function(reference_with_function_call_info)
+          return reference_with_function_call_info.function_call_info ~= nil
+        end
+      )
+      :totable()
+
+    local body_start_row, body_start_col = function_info.body[1]:start()
+    local body_end_row, body_end_col ---@type integer, integer
+    if not function_info.returns_info or #function_info.returns_info == 0 then
+      body_end_row, body_end_col = function_info.body[#function_info.body]:end_()
+    else
+      body_end_row, body_end_col = function_info.returns_info[1]["return"]:start()
+    end
+
+    local body_lines_without_return =
+      api.nvim_buf_get_text(in_buf, body_start_row, body_start_col, body_end_row, body_end_col, {})
+    local body_without_return = iter(body_lines_without_return)
+      :map(
+        ---@param line string
+        function(line)
+          local dedented = line:gsub("^(%s*)", "")
+          return dedented
+        end
+      )
+      :join "\n"
+    local args = function_info.args
+      and iter(function_info.args)
+        :map(
+          ---@param arg TSNode
+          function(arg)
+            return ts.get_node_text(arg, in_buf)
+          end
+        )
+        :totable()
+    local function_return_values = (function_info.returns_info and function_info.returns_info[1].values)
+      and iter(function_info.returns_info[1].values)
+        :map(
+          ---@param return_value TSNode
+          function(return_value)
+            return ts.get_node_text(return_value, in_buf)
+          end
+        )
+        :totable()
+
+    ---@type {[integer]: refactor.TextEdit[]}
+    local text_edits_by_buf = {}
+    iter(references_with_function_call_info):each(
+      ---@param r refactor.inline_func.ReferenceWithFunctionCallInfo
+      function(r)
+        local out_buf = vim.fn.bufadd(r.reference.filename)
+        local inlined_function_lines = {} ---@type string[]
+
+        if args or r.function_call_info.args then
+          local params = r.function_call_info.args
+            and iter(r.function_call_info.args)
+              :map(
+                ---@param arg TSNode
+                function(arg)
+                  return ts.get_node_text(arg, out_buf)
+                end
+              )
+              :totable()
+          -- TODO: check if args[i] == params[i] and remove both of the from the
+          -- lists if true
+          local args_assignment = get_assignment {
+            left = args or {},
+            right = params or {},
+          }
+          vim.list_extend(inlined_function_lines, vim.split(args_assignment, "\n"))
+        end
+
+        local fc_start_row, fc_start_col, fc_end_row, fc_end_col = (
+          r.function_call_info.outside or r.function_call_info.function_call
+        ):range()
+        local function_call = table.concat(api.nvim_buf_get_lines(out_buf, fc_start_row, fc_end_row, true), "\n")
+
+        local _, indent_amount = indent(vim.bo[out_buf].expandtab, 0, function_call)
+        local indented_body_without_return = indent(vim.bo[out_buf].expandtab, indent_amount, body_without_return)
+        vim.list_extend(inlined_function_lines, vim.split(indented_body_without_return, "\n"))
+
+        if function_return_values or r.function_call_info.return_values then
+          local function_call_return_values = r.function_call_info.return_values
+            and iter(r.function_call_info.return_values)
+              :map(
+                ---@param return_value TSNode
+                function(return_value)
+                  return ts.get_node_text(return_value, out_buf)
+                end
+              )
+              :totable()
+          local return_values_assignment = get_assignment {
+            left = function_call_return_values or {},
+            right = function_return_values or {},
+          }
+          vim.list_extend(inlined_function_lines, vim.split(return_values_assignment, "\n"))
+        end
+
+        text_edits_by_buf[out_buf] = text_edits_by_buf[out_buf] or {}
+        table.insert(text_edits_by_buf[out_buf], {
+          range = { fc_start_row, fc_start_col, fc_end_row, fc_end_col },
+          lines = inlined_function_lines,
+        })
+      end
+    )
+
+    local function_start_row, function_start_col, function_end_row, function_end_col = (
+      function_info.outside or function_info["function"]
+    ):range()
+    if function_info.comments then
+      function_start_row, function_start_col = function_info.comments[1]:range()
+    end
+
+    text_edits_by_buf[in_buf] = text_edits_by_buf[in_buf] or {}
+    table.insert(text_edits_by_buf[in_buf], {
+      range = { function_start_row, function_start_col, function_end_row, function_end_col },
+      lines = {},
+    })
+
+    -- TODO: create, order and apply text edits in all refactors
+    apply_text_edits(text_edits_by_buf)
+  end)
+  task:raise_on_error()
 end
 
 return M

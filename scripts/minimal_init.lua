@@ -62,3 +62,6 @@ end, { expr = true })
 vim.keymap.set("n", "<leader>av", function()
   return require("refactoring").refactor "Extract Variable"
 end, { expr = true })
+vim.keymap.set("n", "<leader>aI", function()
+  return require("refactoring").refactor "Inline Function"
+end, { expr = true })
