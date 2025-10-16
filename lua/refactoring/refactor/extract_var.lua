@@ -36,33 +36,6 @@ local function significant_text(node, buf)
   return table.concat(significant_text_list(node, buf), "")
 end
 
--- TODO: move all of this common functions into some other file
----@param a TSNode
----@param b TSNode
----@return boolean
-local function node_comp_desc(a, b)
-  local a_row, a_col, a_bytes = a:start()
-  local b_row, b_col, b_bytes = b:start()
-  if a_row ~= b_row then return a_row > b_row end
-
-  return (a_col > b_col or a_col + a_bytes > b_col + b_bytes)
-end
-
----@param get_key nil|fun(value: any): any
----@return fun(value: any): boolean
-local function is_unique(get_key)
-  ---@type {[string]: boolean}
-  local already_seen = {}
-
-  ---@param value any
-  return function(value)
-    local key = get_key and get_key(value) or value
-    if already_seen[key] then return false end
-    already_seen[key] = true
-    return true
-  end
-end
-
 ---@param missing_code_gen string
 ---@param lang string
 local function code_gen_error(missing_code_gen, lang)
@@ -159,6 +132,7 @@ code_generation.variable_declaration.cpp = code_generation.variable_declaration.
 function M.extract_var(_, range_type)
   local get_extracted_range = require("refactoring.range").get_extracted_range
   local contains = require("refactoring.range").contains
+  local apply_text_edits = require("refactoring.util").apply_text_edits
 
   local buf = api.nvim_get_current_buf()
   local extracted_range = get_extracted_range(range_type)
@@ -228,13 +202,15 @@ function M.extract_var(_, range_type)
       end
     end
 
-    table.sort(matching_nodes, node_comp_desc)
+    ---@type {[integer]: refactor.TextEdit[]}
+    local text_edits_by_buf = {}
+    text_edits_by_buf[buf] = {}
     iter(matching_nodes):each(
       ---@param n TSNode
       function(n)
         -- TODO: I may need to handle end_row-exclusive, 0-col Treesitter ranges everywhere
-        local start_row, start_col, end_row, end_col = n:range()
-        api.nvim_buf_set_text(buf, start_row, start_col, end_row, end_col, { variable })
+        local range = { n:range() }
+        table.insert(text_edits_by_buf[buf], { range = range, lines = { variable } })
       end
     )
 
@@ -286,14 +262,17 @@ function M.extract_var(_, range_type)
     local output_start_line = api.nvim_buf_get_lines(buf, output_range[1], output_range[1] + 1, true)[1]
     local _, indent_amount = vim.text.indent(0, output_start_line)
     table.insert(variable_declaration_lines, (vim.bo[buf].expandtab and " " or "\t"):rep(indent_amount))
-    api.nvim_buf_set_text(
-      buf,
-      output_range[1],
-      output_range[2],
-      output_range[1],
-      output_range[2],
-      variable_declaration_lines
-    )
+    table.insert(text_edits_by_buf[buf], {
+      range = {
+        output_range[1],
+        output_range[2],
+        output_range[1],
+        output_range[2],
+      },
+      lines = variable_declaration_lines,
+    })
+
+    apply_text_edits(text_edits_by_buf)
   end)
 
   task:raise_on_error()

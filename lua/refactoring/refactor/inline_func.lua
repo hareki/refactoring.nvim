@@ -109,36 +109,6 @@ local function code_gen_error(missing_code_gen, lang)
   )
 end
 
----@class refactor.TextEdit
----@field range Range4
----@field lines string[]
-
----@param a refactor.TextEdit
----@param b refactor.TextEdit
-local function comp_non_overlaping_text_edits_desc(a, b)
-  local comp_non_overlaping_ranges_desc = require("refactoring.range").comp_non_overlaping_ranges_desc
-
-  return comp_non_overlaping_ranges_desc(a.range, b.range)
-end
-
----@param text_edits_by_buf {[integer]: refactor.TextEdit[]}
-local function apply_text_edits(text_edits_by_buf)
-  for buf, text_edits in pairs(text_edits_by_buf) do
-    table.sort(text_edits, comp_non_overlaping_text_edits_desc)
-
-    for _, text_edit in ipairs(text_edits) do
-      api.nvim_buf_set_text(
-        buf,
-        text_edit.range[1],
-        text_edit.range[2],
-        text_edit.range[3],
-        text_edit.range[4],
-        text_edit.lines
-      )
-    end
-  end
-end
-
 --As a side effect, loads all the buffers for all of the definitions and references
 ---@param definitions refactor.QfItem[]
 ---@param references refactor.QfItem[]
@@ -348,6 +318,7 @@ end
 ---@param _ integer
 function M.inline_func(_)
   local contains = require("refactoring.range").contains
+  local apply_text_edits = require("refactoring.util").apply_text_edits
 
   local lang_tree, err1 = ts.get_parser(nil, nil, { error = false })
   if not lang_tree then
@@ -581,7 +552,6 @@ function M.inline_func(_)
       lines = {},
     })
 
-    -- TODO: create, order and apply text edits in all refactors
     apply_text_edits(text_edits_by_buf)
   end)
   task:raise_on_error()

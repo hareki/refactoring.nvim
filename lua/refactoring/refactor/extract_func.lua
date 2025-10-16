@@ -1063,6 +1063,7 @@ end
 local function extract_func(opts)
   local contains = require("refactoring.range").contains
   local compare = require("refactoring.range").compare
+  local apply_text_edits = require("refactoring.util").apply_text_edits
 
   local extracted_range = opts.extracted_range
   local in_buf = opts.in_buf
@@ -1512,14 +1513,10 @@ local function extract_func(opts)
   }
   function_call = indent(expandtab, body_indent, function_call)
 
-  api.nvim_buf_set_text(
-    in_buf,
-    extracted_range[1],
-    extracted_range[2],
-    extracted_range[3],
-    extracted_range[4],
-    vim.split(function_call, "\n")
-  )
+  ---@type {[integer]: refactor.TextEdit[]}
+  local text_edits_by_buf = {}
+  text_edits_by_buf[in_buf] = {}
+  table.insert(text_edits_by_buf[in_buf], { range = extracted_range, lines = vim.split(function_call, "\n") })
 
   local function_definition_lines = vim.split(function_definition, "\n")
   if output_opts.method then
@@ -1534,14 +1531,12 @@ local function extract_func(opts)
     local length = #function_definition_lines
     function_definition_lines[length] = function_definition_lines[length] .. last_line_indent
   end
-  api.nvim_buf_set_text(
-    out_buf,
-    output_range[1],
-    output_range[2],
-    output_range[1],
-    output_range[2],
-    function_definition_lines
-  )
+  text_edits_by_buf[out_buf] = text_edits_by_buf[out_buf] or {}
+  table.insert(text_edits_by_buf[out_buf], {
+    range = { output_range[1], output_range[2], output_range[1], output_range[2] },
+    lines = function_definition_lines,
+  })
+  apply_text_edits(text_edits_by_buf)
 
   -- TODO: maybe use snippets to expand the generated function and
   -- navigate through type placeholders?

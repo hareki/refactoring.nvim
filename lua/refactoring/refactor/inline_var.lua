@@ -167,7 +167,7 @@ end
 -- TODO: success message (can be disabled in config)
 function M.inline_var()
   local contains = require("refactoring.range").contains
-  local comp_non_overlaping_ranges_desc = require("refactoring.range").comp_non_overlaping_ranges_desc
+  local apply_text_edits = require("refactoring.util").apply_text_edits
 
   local lang_tree, err1 = ts.get_parser(nil, nil, { error = false })
   if not lang_tree then
@@ -259,35 +259,34 @@ function M.inline_var()
 
     local value_text = ts.get_node_text(value_node, definition_buf)
     local identifier_text = ts.get_node_text(identifier_node, definition_buf)
-    table.sort(references, function(a, b)
-      return comp_non_overlaping_ranges_desc(
-        { a.lnum, a.col, a.end_lnum, a.end_col },
-        { b.lnum, b.col, b.end_lnum, b.end_col }
-      )
-    end)
+
+    ---@type {[integer]: refactor.TextEdit[]}
+    local text_edits_by_buf = {}
     iter(references):each(
       ---@param reference refactor.QfItem
       function(reference)
         local buf = vim.fn.bufadd(reference.filename)
         if not api.nvim_buf_is_loaded(buf) then vim.fn.bufload(buf) end
-        api.nvim_buf_set_text(
-          buf,
-          reference.lnum - 1,
-          -- NOTE: references of `bar` on `foo.bar` won't include
-          -- `foo.`. So, account for all of the identifier length
-          reference.end_col
-            - 1
-            - #identifier_text,
-          reference.end_lnum - 1,
-          reference.end_col - 1,
-          vim.split(value_text, "\n")
-        )
+
+        text_edits_by_buf[buf] = text_edits_by_buf[buf] or {}
+        table.insert(text_edits_by_buf[buf], {
+          range = {
+            reference.lnum - 1,
+            -- NOTE: references of `bar` on `foo.bar` won't include
+            -- `foo.`. So, account for all of the identifier length
+            reference.end_col
+              - 1
+              - #identifier_text,
+            reference.end_lnum - 1,
+            reference.end_col - 1,
+          },
+          lines = vim.split(value_text, "\n"),
+        })
       end
     )
 
     if definition_info.value_separator or definition_info.identifier_separator then
-      ---@type Range4[]
-      local ranges = iter({
+      iter({
           definition_info.value_separator,
           value_node,
           definition_info.identifier_separator,
@@ -302,15 +301,24 @@ function M.inline_var()
             return { n:range() }
           end
         )
-        :totable()
-      table.sort(ranges, comp_non_overlaping_ranges_desc)
-      for _, range in ipairs(ranges) do
-        api.nvim_buf_set_text(definition_buf, range[1], range[2], range[3], range[4], {})
-      end
+        :each(
+          ---@param range Range4
+          function(range)
+            text_edits_by_buf[definition_buf] = text_edits_by_buf[definition_buf] or {}
+            table.insert(text_edits_by_buf[definition_buf], { range = range, lines = {} })
+          end
+        )
     else
       local start_row, start_col, end_row, end_col = declaration_node:range()
-      api.nvim_buf_set_text(definition_buf, start_row, start_col, end_row, end_col, {})
+
+      text_edits_by_buf[definition_buf] = text_edits_by_buf[definition_buf] or {}
+      table.insert(
+        text_edits_by_buf[definition_buf],
+        { range = { start_row, start_col, end_row, end_col }, lines = {} }
+      )
     end
+
+    apply_text_edits(text_edits_by_buf)
   end)
   task:raise_on_error()
 end
