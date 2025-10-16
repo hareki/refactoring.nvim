@@ -1,8 +1,8 @@
 local api = vim.api
 
 local function getpos()
-    local cursor = api.nvim_win_get_cursor(0)
-    return cursor[1], cursor[2]
+  local cursor = api.nvim_win_get_cursor(0)
+  return cursor[1], cursor[2]
 end
 
 ---@class refactor.Point
@@ -13,7 +13,7 @@ Point.__index = Point
 
 ---@param self refactor.Point
 function Point.__tostring(self)
-    return ([[
+  return ([[
 {
   row = %s,
   col = %s,
@@ -23,43 +23,43 @@ end
 --- Get a Point from the current selection
 ---@return refactor.Point
 function Point:from_cursor()
-    local row, col = getpos()
+  local row, col = getpos()
 
-    return setmetatable({
-        row = row,
-        col = col,
-    }, self)
+  return setmetatable({
+    row = row,
+    col = col,
+  }, self)
 end
 
 function Point:from_values(row, col)
-    return setmetatable({
-        row = row,
-        col = col,
-    }, self)
+  return setmetatable({
+    row = row,
+    col = col,
+  }, self)
 end
 
 function Point:empty()
-    return setmetatable({}, self)
+  return setmetatable({}, self)
 end
 
 --- Convert a point to a tree sitter point
 function Point:to_ts()
-    return self.row - 1, self.col
+  return self.row - 1, self.col
 end
 
 ---@param root TSNode
 function Point:to_ts_node(root)
-    local s_row, s_col = self:to_ts()
-    return root:descendant_for_range(s_row, s_col, self:to_ts())
+  local s_row, s_col = self:to_ts()
+  return root:descendant_for_range(s_row, s_col, self:to_ts())
 end
 
 function Point:clone()
-    local clone = Point:empty()
+  local clone = Point:empty()
 
-    clone.row = self.row
-    clone.col = self.col
+  clone.row = self.row
+  clone.col = self.col
 
-    return clone
+  return clone
 end
 
 --- Compare the position of two points.
@@ -68,35 +68,31 @@ end
 ---@param point refactor.Point the second point to compare to.
 ---@return integer # either -1, 0 or 1
 function Point:compare_to(point)
-    if self.row ~= point.row then
-        return self.row < point.row and -1 or 1
-    end
+  if self.row ~= point.row then return self.row < point.row and -1 or 1 end
 
-    if self.col ~= point.col then
-        return self.col < point.col and -1 or 1
-    end
+  if self.col ~= point.col then return self.col < point.col and -1 or 1 end
 
-    return 0
+  return 0
 end
 
 --- Returns true if position of self < position of point
 function Point:lt(point)
-    return self:compare_to(point) == -1
+  return self:compare_to(point) == -1
 end
 
 --- Returns true if position of self > position of point
 function Point:gt(point)
-    return self:compare_to(point) == 1
+  return self:compare_to(point) == 1
 end
 
 --- Returns true if position of self <= position of point
 function Point:leq(point)
-    return not self:gt(point)
+  return not self:gt(point)
 end
 
 --- Returns true if position of self >= position of point
 function Point:geq(point)
-    return not self:lt(point)
+  return not self:lt(point)
 end
 
 return Point

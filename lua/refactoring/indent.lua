@@ -6,10 +6,8 @@ local M = {}
 ---@param bufnr number
 ---@return number
 M.buf_indent_width = function(bufnr)
-    local efective_shiftwidth = vim.bo[bufnr].shiftwidth > 0
-            and vim.bo[bufnr].shiftwidth
-        or vim.bo[bufnr].tabstop
-    return efective_shiftwidth
+  local efective_shiftwidth = vim.bo[bufnr].shiftwidth > 0 and vim.bo[bufnr].shiftwidth or vim.bo[bufnr].tabstop
+  return efective_shiftwidth
 end
 
 ---Returns indent amount of a given line in a given buffer
@@ -28,7 +26,7 @@ end
 ---@param bufnr number
 ---@return number
 M.line_indent_amount = function(line, bufnr)
-    return M.line_indent_width(line, bufnr) / M.buf_indent_width(bufnr)
+  return M.line_indent_width(line, bufnr) / M.buf_indent_width(bufnr)
 end
 
 ---Returns indent width of a given line in a given buffer
@@ -43,66 +41,64 @@ end
 ---@param bufnr number
 ---@return number
 M.line_indent_width = function(line, bufnr)
-    local indent_char = M.indent_char(bufnr)
-    local whitespace = 0
-    for char in line:gmatch(".") do
-        if char ~= indent_char then
-            break
-        end
-        whitespace = whitespace + 1
-    end
-    return whitespace
+  local indent_char = M.indent_char(bufnr)
+  local whitespace = 0
+  for char in line:gmatch "." do
+    if char ~= indent_char then break end
+    whitespace = whitespace + 1
+  end
+  return whitespace
 end
 
 ---@param indent_amount number
 ---@param bufnr number
 ---@return string
 local function space_indent(indent_amount, bufnr)
-    ---@type string[]
-    local indent = {}
+  ---@type string[]
+  local indent = {}
 
-    ---@type string[]
-    local single_indent_table = {}
-    for i = 1, M.buf_indent_width(bufnr) do
-        single_indent_table[i] = " "
-    end
-    local single_indent = table.concat(single_indent_table, "")
+  ---@type string[]
+  local single_indent_table = {}
+  for i = 1, M.buf_indent_width(bufnr) do
+    single_indent_table[i] = " "
+  end
+  local single_indent = table.concat(single_indent_table, "")
 
-    for i = 1, indent_amount do
-        indent[i] = single_indent
-    end
+  for i = 1, indent_amount do
+    indent[i] = single_indent
+  end
 
-    return table.concat(indent, "")
+  return table.concat(indent, "")
 end
 
 ---@param indent_amount number
 ---@return string
 local function tab_indent(indent_amount)
-    ---@type string[]
-    local indent = {}
-    for i = 1, indent_amount do
-        indent[i] = "\t"
-    end
-    return table.concat(indent, "")
+  ---@type string[]
+  local indent = {}
+  for i = 1, indent_amount do
+    indent[i] = "\t"
+  end
+  return table.concat(indent, "")
 end
 
 ---@param indent_amount number
 ---@param bufnr number
 ---@return string
 M.indent = function(indent_amount, bufnr)
-    local use_spaces = vim.bo[bufnr].expandtab
+  local use_spaces = vim.bo[bufnr].expandtab
 
-    if use_spaces then
-        return space_indent(indent_amount, bufnr)
-    else
-        return tab_indent(indent_amount)
-    end
+  if use_spaces then
+    return space_indent(indent_amount, bufnr)
+  else
+    return tab_indent(indent_amount)
+  end
 end
 
 ---@param bufnr number
 ---@return string
 M.indent_char = function(bufnr)
-    return vim.bo[bufnr].expandtab and " " or "\t"
+  return vim.bo[bufnr].expandtab and " " or "\t"
 end
 
 ---@param lines string[]
@@ -111,11 +107,11 @@ end
 ---@param indent_amount number
 ---@param bufnr number
 M.lines_remove_indent = function(lines, start, finish, indent_amount, bufnr)
-    local effective_indent = indent_amount * M.buf_indent_width(bufnr)
+  local effective_indent = indent_amount * M.buf_indent_width(bufnr)
 
-    for i = start, finish do
-        lines[i] = lines[i]:sub(effective_indent + 1, #lines[i])
-    end
+  for i = start, finish do
+    lines[i] = lines[i]:sub(effective_indent + 1, #lines[i])
+  end
 end
 
 return M

@@ -1,20 +1,20 @@
-local Region = require("refactoring.region")
+local Region = require "refactoring.region"
 
 local M = {}
 
 ---@param point_or_region refactor.Region|refactor.Point
 ---@return refactor.Region
 local function to_region(point_or_region)
-    if not point_or_region.end_row then
-        return Region:from_point(point_or_region --[[@as refactor.Point]])
-    end
-    return point_or_region --[[@as refactor.Region]]
+  if not point_or_region.end_row then
+    return Region:from_point(point_or_region --[[@as refactor.Point]])
+  end
+  return point_or_region --[[@as refactor.Region]]
 end
 
 ---@param region refactor.Region
 ---@return refactor.TextEditOld
 function M.delete_text(region)
-    return region:to_lsp_text_edit_replace("")
+  return region:to_lsp_text_edit_replace ""
 end
 
 ---@param point_or_region refactor.Region|refactor.Point
@@ -22,48 +22,48 @@ end
 ---@param opts {below: boolean, _end: boolean}|nil
 ---@return refactor.TextEditOld
 function M.insert_new_line_text(point_or_region, text, opts)
-    opts = opts or {
-        below = true,
-        _end = true,
-    }
+  opts = opts or {
+    below = true,
+    _end = true,
+  }
 
-    local region = to_region(point_or_region)
+  local region = to_region(point_or_region)
 
-    if opts.below then
-        text = '\n' .. text
-    else
-        text = text .. '\n'
-    end
+  if opts.below then
+    text = "\n" .. text
+  else
+    text = text .. "\n"
+  end
 
-    if opts._end then
-        region.start_col = vim.v.maxcol
-        region.end_col = vim.v.maxcol
-    else
-        region.start_col = 1
-        region.end_col = 1
-    end
-    return region:to_lsp_text_edit_insert(text)
+  if opts._end then
+    region.start_col = vim.v.maxcol
+    region.end_col = vim.v.maxcol
+  else
+    region.start_col = 1
+    region.end_col = 1
+  end
+  return region:to_lsp_text_edit_insert(text)
 end
 
 ---@param point_or_region refactor.Region|refactor.Point
 ---@param text string
 ---@return refactor.TextEditOld
 function M.insert_text(point_or_region, text)
-    local region = to_region(point_or_region)
-    local clone = region:clone()
-    clone.end_col = clone.start_col
-    clone.end_row = clone.start_row
+  local region = to_region(point_or_region)
+  local clone = region:clone()
+  clone.end_col = clone.start_col
+  clone.end_row = clone.start_row
 
-    return clone:to_lsp_text_edit_insert(text)
+  return clone:to_lsp_text_edit_insert(text)
 end
 
 ---@param region refactor.Region
 ---@param text string
 ---@return refactor.TextEditOld
 function M.replace_text(region, text)
-    local clone = region:clone()
+  local clone = region:clone()
 
-    return clone:to_lsp_text_edit_replace(text)
+  return clone:to_lsp_text_edit_replace(text)
 end
 
 return M

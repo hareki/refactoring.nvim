@@ -1,7 +1,7 @@
-local extract_func = require("refactoring.refactor.extract_func")
-local inline_func = require("refactoring.refactor.inline_func")
-local extract_var = require("refactoring.refactor.extract_var")
-local inline_var = require("refactoring.refactor.inline_var")
+local extract_func = require "refactoring.refactor.extract_func"
+local inline_func = require "refactoring.refactor.inline_func"
+local extract_var = require "refactoring.refactor.extract_var"
+local inline_var = require "refactoring.refactor.inline_var"
 
 ---@type table<string|integer, refactor.RefactorFunc> | {refactor_names: table<string, string>}
 local M = {}
@@ -18,11 +18,11 @@ M[119] = extract_var.extract_var
 M[123] = inline_var.inline_var
 
 M.refactor_names = {
-    ["Inline Variable"] = "inline_var",
-    ["Extract Variable"] = "extract_var",
-    ["Extract Function"] = "extract_func",
-    ["Extract Function To File"] = "extract_func_to_file",
-    ["Inline Function"] = "inline_func",
+  ["Inline Variable"] = "inline_var",
+  ["Extract Variable"] = "extract_var",
+  ["Extract Function"] = "extract_func",
+  ["Extract Function To File"] = "extract_func_to_file",
+  ["Inline Function"] = "inline_func",
 }
 
 return M

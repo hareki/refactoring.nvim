@@ -1,22 +1,22 @@
 local default_prompt_func_param_type = {
-    go = false,
-    java = false,
+  go = false,
+  java = false,
 
-    cpp = false,
-    c = false,
+  cpp = false,
+  c = false,
 }
 
 local default_prompt_func_return_type = {
-    go = false,
-    java = false,
+  go = false,
+  java = false,
 
-    cpp = false,
-    c = false,
+  cpp = false,
+  c = false,
 }
 
 local default_visibility = {
-    php = "public",
-    default = false,
+  php = "public",
+  default = false,
 }
 
 local default_printf_statements = {}
@@ -96,158 +96,146 @@ Config.__index = Config
 ---@vararg refactor.ConfigOpts
 ---@return refactor.Config
 function Config:new(...)
-    local c = vim.tbl_deep_extend("force", {
-        _automation = {
-            bufnr = nil,
-        },
-    }, {
-        prompt_func_return_type = vim.deepcopy(default_prompt_func_return_type),
-        prompt_func_param_type = vim.deepcopy(default_prompt_func_param_type),
-        printf_statements = vim.deepcopy(default_printf_statements),
-        print_var_statements = vim.deepcopy(default_print_var_statements),
-        extract_var_statements = vim.deepcopy(default_extract_var_statements),
-        visibility = vim.deepcopy(default_visibility),
-        show_success_message = false,
-    })
+  local c = vim.tbl_deep_extend("force", {
+    _automation = {
+      bufnr = nil,
+    },
+  }, {
+    prompt_func_return_type = vim.deepcopy(default_prompt_func_return_type),
+    prompt_func_param_type = vim.deepcopy(default_prompt_func_param_type),
+    printf_statements = vim.deepcopy(default_printf_statements),
+    print_var_statements = vim.deepcopy(default_print_var_statements),
+    extract_var_statements = vim.deepcopy(default_extract_var_statements),
+    visibility = vim.deepcopy(default_visibility),
+    show_success_message = false,
+  })
 
-    for idx = 1, select("#", ...) do
-        c = vim.tbl_deep_extend("force", {}, c, select(idx, ...))
-    end
+  for idx = 1, select("#", ...) do
+    c = vim.tbl_deep_extend("force", {}, c, select(idx, ...))
+  end
 
-    return setmetatable({
-        config = c,
-    }, self)
+  return setmetatable({
+    config = c,
+  }, self)
 end
 
 ---@return refactor.c
 function Config:get()
-    return self.config
+  return self.config
 end
 
 ---@param opts refactor.ConfigOpts
 ---@return refactor.Config
 function Config:merge(opts)
-    return Config:new(self.config, opts or {})
+  return Config:new(self.config, opts or {})
 end
 
 function Config:reset()
-    local c = self.config
-    c.prompt_func_return_type = vim.deepcopy(default_prompt_func_return_type)
-    c.prompt_func_param_type = vim.deepcopy(default_prompt_func_param_type)
-    c.printf_statements = vim.deepcopy(default_printf_statements)
-    c.print_var_statements = vim.deepcopy(default_print_var_statements)
-    c.extract_var_statements = vim.deepcopy(default_extract_var_statements)
-    c.visibility = vim.deepcopy(default_visibility)
+  local c = self.config
+  c.prompt_func_return_type = vim.deepcopy(default_prompt_func_return_type)
+  c.prompt_func_param_type = vim.deepcopy(default_prompt_func_param_type)
+  c.printf_statements = vim.deepcopy(default_printf_statements)
+  c.print_var_statements = vim.deepcopy(default_print_var_statements)
+  c.extract_var_statements = vim.deepcopy(default_extract_var_statements)
+  c.visibility = vim.deepcopy(default_visibility)
 end
 
 ---@param inputs string|string[]
 function Config:automate_input(inputs)
-    if type(inputs) ~= "table" then
-        inputs = { inputs }
-    end
+  if type(inputs) ~= "table" then inputs = { inputs } end
 
-    self.config._automation.inputs = inputs
-    self.config._automation.inputs_idx = 0
+  self.config._automation.inputs = inputs
+  self.config._automation.inputs_idx = 0
 end
 
 ---@param filetype refactor.ft
 ---@return boolean
 function Config:get_prompt_func_param_type(filetype)
-    if self.config.prompt_func_param_type[filetype] == nil then
-        return false
-    end
-    return self.config.prompt_func_param_type[filetype]
+  if self.config.prompt_func_param_type[filetype] == nil then return false end
+  return self.config.prompt_func_param_type[filetype]
 end
 
 ---@param override_map table<refactor.ft, boolean>
 function Config:set_prompt_func_param_type(override_map)
-    self.config.prompt_func_param_type = override_map
+  self.config.prompt_func_param_type = override_map
 end
 
 ---@param filetype refactor.ft
 ---@return boolean
 function Config:get_prompt_func_return_type(filetype)
-    if self.config.prompt_func_return_type[filetype] == nil then
-        return false
-    end
-    return self.config.prompt_func_return_type[filetype]
+  if self.config.prompt_func_return_type[filetype] == nil then return false end
+  return self.config.prompt_func_return_type[filetype]
 end
 
 ---@param override_map table<refactor.ft, boolean>
 function Config:set_prompt_func_return_type(override_map)
-    self.config.prompt_func_return_type = override_map
+  self.config.prompt_func_return_type = override_map
 end
 
 ---@param filetype refactor.ft
 ---@return string[]|false
 function Config:get_printf_statements(filetype)
-    if self.config.printf_statements[filetype] == nil then
-        return false
-    end
-    return self.config.prompt_func_return_type[filetype]
+  if self.config.printf_statements[filetype] == nil then return false end
+  return self.config.prompt_func_return_type[filetype]
 end
 
 ---@param override_map table<refactor.ft, string[]>
 function Config:set_printf_statements(override_map)
-    self.config.printf_statements = override_map
+  self.config.printf_statements = override_map
 end
 
 ---@param filetype refactor.ft
 ---@return string[]|false
 function Config:get_print_var_statements(filetype)
-    if self.config.print_var_statements[filetype] == nil then
-        return false
-    end
-    return self.config.prompt_func_return_type[filetype]
+  if self.config.print_var_statements[filetype] == nil then return false end
+  return self.config.prompt_func_return_type[filetype]
 end
 
 function Config:set_print_var_statements(override_map)
-    self.config.print_var_statements = override_map
+  self.config.print_var_statements = override_map
 end
 
 ---@param filetype refactor.ft: the filetype
 ---@return string|false
 function Config:get_extract_var_statement(filetype)
-    if self.config.extract_var_statements[filetype] == nil then
-        return false
-    end
-    return self.config.extract_var_statements[filetype]
+  if self.config.extract_var_statements[filetype] == nil then return false end
+  return self.config.extract_var_statements[filetype]
 end
 
 ---@param override_statement string|nil extract_var_statement
 ---@param filetype refactor.ft filetype for which to override the extract_var_statement
 function Config:set_extract_var_statement(filetype, override_statement)
-    self.config.extract_var_statements[filetype] = override_statement
+  self.config.extract_var_statements[filetype] = override_statement
 end
 
 function Config:get_automated_input()
-    local a = self.config._automation
-    if a.inputs then
-        local inputs = a.inputs
-        if #inputs > a.inputs_idx then
-            a.inputs_idx = a.inputs_idx + 1
-            return a.inputs[a.inputs_idx]
-        end
+  local a = self.config._automation
+  if a.inputs then
+    local inputs = a.inputs
+    if #inputs > a.inputs_idx then
+      a.inputs_idx = a.inputs_idx + 1
+      return a.inputs[a.inputs_idx]
     end
+  end
 
-    return nil
+  return nil
 end
 
 ---@return integer
 function Config:get_test_bufnr()
-    return self.config._automation.bufnr
+  return self.config._automation.bufnr
 end
 
 ---@param bufnr integer
 function Config:set_test_bufnr(bufnr)
-    self.config._automation.bufnr = bufnr
+  self.config._automation.bufnr = bufnr
 end
 
 ---@param filetype refactor.ft
 ---@return string
 function Config:get_visibility_for(filetype)
-    filetype = filetype or vim.bo[0].ft
-    return self.config.visibility[filetype] or self.config.visibility["default"]
+  filetype = filetype or vim.bo[0].ft
+  return self.config.visibility[filetype] or self.config.visibility["default"]
 end
 
 local config = Config:new()
@@ -255,13 +243,13 @@ local M = {}
 
 ---@return refactor.Config
 function M.get()
-    return config
+  return config
 end
 
 ---@param c refactor.ConfigOpts
 function M.setup(c)
-    c = c or {}
-    config = Config:new(c)
+  c = c or {}
+  config = Config:new(c)
 end
 
 return M
