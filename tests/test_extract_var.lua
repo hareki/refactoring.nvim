@@ -176,6 +176,36 @@ end
   validate(lines, { 1, 0 }, expected_lines, " avi)", "foo<cr>")
 end
 
+T["lua"]["uses closest point to highest extracted text with correct scope"] = function()
+  local lines = [[
+print("bar")
+print("bar")
+print("bar")
+print("bar")
+local function bar()
+  print("foo")
+end
+
+print("foo")
+]]
+  local expected_lines = [[
+print("bar")
+print("bar")
+print("bar")
+print("bar")
+local foo = "foo"
+local function bar()
+  print(foo)
+end
+
+print(foo)
+]]
+  child.cmd "edit tmp.lua"
+  child.bo.expandtab = true
+  child.bo.shiftwidth = 2
+  validate(lines, { 6, 0 }, expected_lines, " avi)", "foo<cr>")
+end
+
 T["javascript"] = MiniTest.new_set()
 
 T["javascript"]["works"] = function()

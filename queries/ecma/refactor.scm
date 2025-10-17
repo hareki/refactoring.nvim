@@ -116,11 +116,11 @@
     (_) @scope.inside)) @scope
 
 (if_statement
-  consequence: (statement_block) @scope)
+  consequence: (statement_block) @scope) @scope.outside
 
 (if_statement
   alternative: (else_clause
-    (statement_block) @scope))
+    (statement_block) @scope)) @scope.outside
 
 (class_declaration
   body: (class_body

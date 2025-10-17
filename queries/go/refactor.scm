@@ -121,11 +121,11 @@
 
 (if_statement
   consequence: (block
-    (statement_list) @scope))
+    (statement_list) @scope)) @scope.outside
 
 (if_statement
   alternative: (block
-    (statement_list) @scope))
+    (statement_list) @scope)) @scope.outside
 
 (expression_switch_statement) @scope
 

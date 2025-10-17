@@ -96,8 +96,8 @@
     (_) @scope.inside)) @scope
 
 (if_statement
-  consequence: (_) @scope)
+  consequence: (_) @scope) @scope.outside
 
 (if_statement
   alternative: (else_clause
-    (_) @scope))
+    (_) @scope)) @scope.outside

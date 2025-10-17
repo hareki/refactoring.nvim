@@ -110,13 +110,15 @@ code_generation.variable_declaration.cpp = code_generation.variable_declaration.
 
 ---@class refactor.Scope
 ---@field scope TSNode
----@field inside TSNode|nil
+---@field inside TSNode?
+---@field outside TSNode?
 
 -- TODO: remove first parameter (buf) after rewrite
 ---@param range_type 'v' | 'V' | ''
 function M.extract_var(_, range_type)
   local get_extracted_range = require("refactoring.range").get_extracted_range
   local contains = require("refactoring.range").contains
+  local compare = require("refactoring.range").compare
   local apply_text_edits = require("refactoring.util").apply_text_edits
   local input = require("refactoring.util").input
   local code_gen_error = require("refactoring.util").code_gen_error
@@ -183,6 +185,9 @@ function M.extract_var(_, range_type)
           elseif name == "scope.inside" then
             match_info = match_info or {}
             match_info.inside = nodes[1]
+          elseif name == "scope.outside" then
+            match_info = match_info or {}
+            match_info.outside = nodes[1]
           end
         end
         if match_info then table.insert(scopes, match_info) end
@@ -228,18 +233,85 @@ function M.extract_var(_, range_type)
         end
       )
     if not smallest_common_scope then
+      -- TODO: put all of this notifies into a single function and return to
+      -- put into a single line
       vim.notify "Couldn't find the smallest common scope using Treesitter"
       return
     end
 
-    -- TODO: I'll need to compute the `output_range` manually.
-    -- - inside `smallest_common_scope`
-    -- - outside any nested scope
-    -- - after references used on `extracted_text`
-    -- - before all of the locations where variable is being inlined
-    local output_node = smallest_common_scope.inside or smallest_common_scope.scope
-    local output_node_start_row, output_node_start_col = output_node:start()
-    local output_range = { output_node_start_row, output_node_start_col }
+    local smallest_common_scope_start = { (smallest_common_scope.inside or smallest_common_scope.scope):start() }
+    local smallest_common_scope_end = { (smallest_common_scope.inside or smallest_common_scope.scope):end_() }
+    ---@type refactor.Scope|nil
+    local highest_nested_containing_scope = iter(scopes)
+      :filter(
+        ---@param s refactor.Scope
+        function(s)
+          if s.scope:equal(smallest_common_scope.scope) then return false end
+
+          local scope = s.outside or s.scope
+          local scope_start = { (scope):start() }
+          local scope_end = { (scope):end_() }
+          local scope_range = { (scope):range() }
+
+          return compare(smallest_common_scope_start, scope_start) ~= 1
+            and compare(smallest_common_scope_end, scope_end) ~= -1
+            and iter(matching_nodes):any(
+              ---@param n TSNode
+              function(n)
+                local node_start = { n:start() }
+                local node_end = { n:end_() }
+                return contains(scope_range, node_start) and contains(scope_range, node_end)
+              end
+            )
+        end
+      )
+      :fold(
+        nil,
+        ---@param acc refactor.Scope|nil
+        ---@param s refactor.Scope
+        function(acc, s)
+          if not acc then return s end
+
+          local s_start = { (s.outside or s.scope):start() }
+          local acc_start = { (acc.outside or acc.scope):start() }
+          if compare(s_start, acc_start) == -1 then return s end
+
+          return acc
+        end
+      )
+
+    ---@type TSNode?
+    local highest_matching_node = iter(matching_nodes):fold(
+      nil,
+      ---@param acc TSNode|nil
+      ---@param n TSNode
+      function(acc, n)
+        if not acc then return n end
+
+        local n_start = { n:start() }
+        local acc_start = { acc:start() }
+        if compare(n_start, acc_start) == -1 then return n end
+
+        return acc
+      end
+    )
+    assert(highest_matching_node)
+    local highest_matching_node_start_row = highest_matching_node:start()
+    local highest_matching_node_start_line =
+      api.nvim_buf_get_lines(buf, highest_matching_node_start_row, highest_matching_node_start_row + 1, true)[1]
+    local _, highest_matching_node_start_first_non_blank = highest_matching_node_start_line:find "^%s+"
+
+    local output_range = { highest_matching_node_start_row, highest_matching_node_start_first_non_blank or 0 }
+    if
+      highest_nested_containing_scope
+      and compare(
+          { (highest_nested_containing_scope.outside or highest_nested_containing_scope.scope):start() },
+          output_range
+        )
+        == -1
+    then
+      output_range = { (highest_nested_containing_scope.outside or highest_nested_containing_scope.scope):start() }
+    end
 
     local variable_declaration = get_variable_declaration {
       name = var_name,
