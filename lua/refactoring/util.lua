@@ -98,6 +98,14 @@ end
 ---@field text string
 ---@field kind string?
 
+-- TODO: cache if inside of preview. The cache key must include the buffer and
+-- cursor location. Actually, the cursor position may change because of the
+-- preview, so I don't think I can do that. I may have to have a single,
+-- global, cache and invalidate it as soon as possible
+--
+-- How to invalidate the cache?
+-- - it can't be invalidated when no longer in preview, because preview may be canceled
+-- - it could be invalidated in a one time autocmd. What event should I use? CursorMove, CursorMoveI and ModeChange?
 ---@type async fun(): refactor.QfItem[]
 M.get_definitions = async.wrap(1, function(cb)
   lsp.buf.definition {

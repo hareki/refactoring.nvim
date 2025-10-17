@@ -1,4 +1,3 @@
--- TODO: preview is not working at all
 local async = require "async"
 local iter = vim.iter
 local ts = vim.treesitter
@@ -1498,15 +1497,18 @@ local function extract_func(opts)
 end
 
 ---@param range_type 'v' | 'V' | ''
-M.extract_func = function(range_type)
+---@param opts refactor.Opts?
+M.extract_func = function(range_type, opts)
   local get_extracted_range = require("refactoring.range").get_extracted_range
   local input = require("refactoring.util").input
+
+  opts = opts or {}
 
   local buf = api.nvim_get_current_buf()
   local extracted_range, lines = get_extracted_range(range_type)
 
   local task = async.run(function()
-    local fn_name = input { prompt = "Function name: " }
+    local fn_name = opts.input and table.remove(opts.input, 1) or input { prompt = "Function name: " }
     if not fn_name then return end
 
     extract_func {
@@ -1521,21 +1523,25 @@ M.extract_func = function(range_type)
 end
 
 ---@param range_type 'v' | 'V' | ''
-M.extract_func_to_file = function(range_type)
+---@param opts refactor.Opts?
+M.extract_func_to_file = function(range_type, opts)
   local get_extracted_range = require("refactoring.range").get_extracted_range
   local input = require("refactoring.util").input
+
+  opts = opts or {}
 
   local buf = api.nvim_get_current_buf()
   local extracted_range, lines = get_extracted_range(range_type)
 
   local task = async.run(function()
-    local file_name = input {
-      prompt = "New file name: ",
-      completion = "files",
-      default = vim.fn.expand "%:.:h" .. "/",
-    }
+    local file_name = opts.input and table.remove(opts.input)
+      or input {
+        prompt = "New file name: ",
+        completion = "files",
+        default = vim.fn.expand "%:.:h" .. "/",
+      }
     if not file_name then return end
-    local fn_name = input { prompt = "Function name: " }
+    local fn_name = opts.input and table.remove(opts.input) or input { prompt = "Function name: " }
     if not fn_name then return end
 
     local out_buf = vim.fn.bufadd(file_name)

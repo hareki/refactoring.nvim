@@ -1,5 +1,4 @@
 -- TODO: handle extra logic for extracting var into class scope
--- TODO: preview is not working at all
 local M = {}
 
 local async = require "async"
@@ -40,8 +39,6 @@ end
 ---@class refactor.extract_var.code_generation
 ---@field variable_declaration {[string]: nil|fun(opts: refactor.extract_var.code_generation.variable_declaration.Opts): string}
 ---@field variable {[string]: nil|fun(opts: refactor.extract_var.code_generation.variable.Opts): string}
-
--- TODO: maybe support an in-memory LSP server to provide refactoring's as code actions(?
 
 -- TODO: when rewriting `print_var` and `printf`, distinguish between
 -- `print_expression` operator to print everything inside the selected region
@@ -114,7 +111,8 @@ code_generation.variable_declaration.cpp = code_generation.variable_declaration.
 ---@field outside TSNode?
 
 ---@param range_type 'v' | 'V' | ''
-function M.extract_var(range_type)
+---@param opts refactor.Opts?
+function M.extract_var(range_type, opts)
   local get_extracted_range = require("refactoring.range").get_extracted_range
   local contains = require("refactoring.range").contains
   local compare = require("refactoring.range").compare
@@ -122,11 +120,13 @@ function M.extract_var(range_type)
   local input = require("refactoring.util").input
   local code_gen_error = require("refactoring.util").code_gen_error
 
+  opts = opts or {}
+
   local buf = api.nvim_get_current_buf()
   local extracted_range = get_extracted_range(range_type)
 
   local task = async.run(function()
-    local var_name = input { prompt = "Variable name: " }
+    local var_name = opts.input and table.remove(opts.input, 1) or input { prompt = "Variable name: " }
     if not var_name then return end
 
     local lang_tree, err1 = ts.get_parser(buf, nil, { error = false })
@@ -300,6 +300,11 @@ function M.extract_var(range_type)
       api.nvim_buf_get_lines(buf, highest_matching_node_start_row, highest_matching_node_start_row + 1, true)[1]
     local _, highest_matching_node_start_first_non_blank = highest_matching_node_start_line:find "^%s+"
 
+    -- TODO: I still need to compute where the declaration for all references
+    -- inside the extracte_text are and make sure that `output_range` is below
+    -- all of them (this may exclude possible candidates for `matching_nodes`),
+    -- so I'll need to use it to found the correct scope inside of which all of
+    -- `matching_nodes` should be
     local output_range = { highest_matching_node_start_row, highest_matching_node_start_first_non_blank or 0 }
     if
       highest_nested_containing_scope

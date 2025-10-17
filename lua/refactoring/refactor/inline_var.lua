@@ -110,10 +110,9 @@ end
 ---@field value_separator TSNode|nil
 ---@field declaration TSNode
 
--- TODO: preview highlight
--- TODO: preview is not working at all
 -- TODO: success message (can be disabled in config)
-function M.inline_var()
+---@param opts refactor.Opts
+function M.inline_var(_, opts)
   local contains = require("refactoring.range").contains
   local apply_text_edits = require("refactoring.util").apply_text_edits
   local is_unique = require("refactoring.util").is_unique

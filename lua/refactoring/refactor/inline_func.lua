@@ -242,7 +242,8 @@ end
 ---@field function_calls refactor.FunctionCallInfo[]
 ---@field returns refactor.ReturnInfo[]
 
-function M.inline_func()
+---@param opts refactor.Opts
+function M.inline_func(_, opts)
   local contains = require("refactoring.range").contains
   local apply_text_edits = require("refactoring.util").apply_text_edits
   local code_gen_error = require("refactoring.util").code_gen_error
