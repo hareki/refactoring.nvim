@@ -113,9 +113,8 @@ code_generation.variable_declaration.cpp = code_generation.variable_declaration.
 ---@field inside TSNode?
 ---@field outside TSNode?
 
--- TODO: remove first parameter (buf) after rewrite
 ---@param range_type 'v' | 'V' | ''
-function M.extract_var(_, range_type)
+function M.extract_var(range_type)
   local get_extracted_range = require("refactoring.range").get_extracted_range
   local contains = require("refactoring.range").contains
   local compare = require("refactoring.range").compare

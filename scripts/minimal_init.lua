@@ -54,14 +54,14 @@ vim.lsp.enable { "lua_ls", "clangd" }
 
 vim.g.mapleader = " "
 vim.keymap.set("n", "<leader>ai", function()
-  return require("refactoring").refactor "Inline Variable"
+  return require("refactoring").inline_var()
 end, { expr = true })
 vim.keymap.set("n", "<leader>ae", function()
-  return require("refactoring").refactor "Extract Function"
+  return require("refactoring").extract_func()
 end, { expr = true })
 vim.keymap.set("n", "<leader>av", function()
-  return require("refactoring").refactor "Extract Variable"
+  return require("refactoring").extract_var()
 end, { expr = true })
 vim.keymap.set("n", "<leader>aI", function()
-  return require("refactoring").refactor "Inline Function"
+  return require("refactoring").inline_func()
 end, { expr = true })

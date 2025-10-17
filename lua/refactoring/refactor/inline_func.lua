@@ -242,9 +242,7 @@ end
 ---@field function_calls refactor.FunctionCallInfo[]
 ---@field returns refactor.ReturnInfo[]
 
--- TODO: remove first param (buf) after rewrite
----@param _ integer
-function M.inline_func(_)
+function M.inline_func()
   local contains = require("refactoring.range").contains
   local apply_text_edits = require("refactoring.util").apply_text_edits
   local code_gen_error = require("refactoring.util").code_gen_error

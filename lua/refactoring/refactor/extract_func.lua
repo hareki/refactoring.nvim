@@ -1497,10 +1497,8 @@ local function extract_func(opts)
   -- navigate through type placeholders?
 end
 
--- TODO: remove `buf` (first var) from all calls after the rewrite is finished
----@param _ integer
 ---@param range_type 'v' | 'V' | ''
-M.extract_func = function(_, range_type)
+M.extract_func = function(range_type)
   local get_extracted_range = require("refactoring.range").get_extracted_range
   local input = require("refactoring.util").input
 
@@ -1522,10 +1520,8 @@ M.extract_func = function(_, range_type)
   task:raise_on_error()
 end
 
--- TODO: maybe also generate the import logic(?
----@param _ integer
 ---@param range_type 'v' | 'V' | ''
-M.extract_func_to_file = function(_, range_type)
+M.extract_func_to_file = function(range_type)
   local get_extracted_range = require("refactoring.range").get_extracted_range
   local input = require("refactoring.util").input
 

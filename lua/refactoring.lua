@@ -1,88 +1,80 @@
+local async = require "async"
 local api = vim.api
-local refactors = require "refactoring.refactor"
 
 local M = {}
 
-local dont_need_args = {
-  "Inline Variable",
-  "Inline Function",
-}
+---@alias refactor.RefactorFunc fun(type: 'v' | 'V' | '') | fun()
 
----@param config refactor.ConfigOpts
-function M.setup(config)
-  require("refactoring.config").setup(config)
-end
-
----@alias refactor.RefactorFunc fun(bufnr: integer, type: 'v' | 'V' | '' | nil, opts: refactor.Config)
-
-local last_refactor ---@type refactor.RefactorFunc
-local last_config ---@type refactor.Config
+local last_refactor ---@type refactor.RefactorFunc|nil
 
 ---@param type "line" | "char" | "block"
 function M.refactor_operatorfunc(type)
+  if not last_refactor then return end
+
   local region_type = type == "line" and "V" or type == "char" and "v" or ""
-  last_refactor(api.nvim_get_current_buf(), region_type, last_config)
+  last_refactor(region_type)
 end
 
-local default_motions = {
-  [refactors.inline_var] = "iw",
-  [refactors.inline_func] = "iw",
-}
-
----@param name string|number
----@param opts refactor.ConfigOpts|nil
-function M.refactor(name, opts)
-  if opts == nil then opts = {} end
-
-  local refactor = refactors.refactor_names[name] or refactors[name] and name
-  if not refactor then
-    error(
-      ('Could not find refactor %s.  You can get a list of all refactors from require("refactoring").get_refactors()'):format(
-        refactor
-      )
-    )
-  end
-
-  local Config = require "refactoring.config"
-  last_config = Config.get():merge(opts)
-  last_refactor = refactors[refactor]
-
+function M.extract_func()
   vim.o.operatorfunc = "v:lua.require'refactoring'.refactor_operatorfunc"
-
-  local mode = api.nvim_get_mode().mode
-  if mode ~= "n" then return "g@" end
-
-  local default_motion = default_motions[last_refactor]
-  if not default_motion then return "g@" end
-  return "g@" .. default_motion
+  last_refactor = require("refactoring.refactor.extract_func").extract_func
+  return "g@"
 end
 
----@return string[]
-function M.get_refactors()
-  return vim.tbl_keys(refactors.refactor_names --[[@as table<string, string>>]])
+function M.extract_func_to_file()
+  vim.o.operatorfunc = "v:lua.require'refactoring'.refactor_operatorfunc"
+  last_refactor = require("refactoring.refactor.extract_func").extract_func_to_file
+  return "g@"
 end
 
----@param opts refactor.ConfigOpts|{prefer_ex_cmd: boolean?}?
+function M.extract_var()
+  vim.o.operatorfunc = "v:lua.require'refactoring'.refactor_operatorfunc"
+  last_refactor = require("refactoring.refactor.extract_var").extract_var
+  return "g@"
+end
+
+function M.inline_var()
+  vim.o.operatorfunc = "v:lua.require'refactoring'.refactor_operatorfunc"
+  last_refactor = require("refactoring.refactor.inline_var").inline_var
+  return "g@l"
+end
+
+function M.inline_func()
+  vim.o.operatorfunc = "v:lua.require'refactoring'.refactor_operatorfunc"
+  last_refactor = require("refactoring.refactor.inline_func").inline_func
+  return "g@l"
+end
+
+-- TODO: add CONFIG here (and everywhere)
+---@param opts {prefer_ex_cmd: boolean?}?
 function M.select_refactor(opts)
+  -- TODO: use this setting to start typing the command after rewriting the
+  -- command interface
   local prefer_ex_cmd = opts and opts.prefer_ex_cmd or false
 
-  require("plenary.async").void(function()
-    local ui = require "refactoring.ui"
-    local selected_refactor = ui.select(M.get_refactors(), "Refactoring: select a refactor to apply:")
+  local mode = api.nvim_get_mode().mode
 
-    if not selected_refactor then return end
+  local task = async.run(function()
+    local select = require("refactoring.util").select
+    ---@type nil|{name: string, fn: fun(): string}
+    local selected = select({
+      { name = "Inline variable", fn = M.inline_var },
+      { name = "Extract variable", fn = M.extract_var },
+      { name = "Inline function", fn = M.inline_func },
+      { name = "Extract function", fn = M.extract_func },
+    }, {
+      prompt = "Select a refactor:",
+      format_item = function(item)
+        return item.name
+      end,
+    })
+    if not selected then return end
 
-    if prefer_ex_cmd and not vim.list_contains(dont_need_args, selected_refactor) then
-      local refactor_name = require("refactoring.refactor").refactor_names[selected_refactor]
-      api.nvim_input((":Refactor %s "):format(refactor_name))
-    else
-      local keys = M.refactor(selected_refactor, opts)
-      if keys == "g@" then keys = "gvg@" end
-      vim.cmd.normal(keys)
-    end
-  end)()
+    local keys = selected.fn()
+    if (mode == "v" or mode == "V" or mode == "\22") and keys == "g@" then keys = "gvg@" end
+    api.nvim_input(keys)
+  end)
+  task:raise_on_error()
 end
-
-M.debug = require "refactoring.debug"
 
 return M
