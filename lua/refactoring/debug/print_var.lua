@@ -1,135 +1,220 @@
-local Region = require "refactoring.region"
-local text_edits_utils = require "refactoring.text_edits_utils"
-local debug_utils = require "refactoring.debug.debug_utils"
-local indent = require "refactoring.indent"
-local notify = require "refactoring.notify"
-
 local api = vim.api
+local ts = vim.treesitter
+local iter = vim.iter
+local async = require "async"
 
 local M = {}
 
----@param opts refactor.c
----@param refactor refactor.Refactor
----@return string|nil
-function M.get_print_var_statement(opts, refactor)
-  local ui = require "refactoring.ui"
+---@class refactor.print_var.code_generation.Opts
+---@field identifier string
 
-  local default_print_var_statement = refactor.code.default_print_var_statement()
+---@class refactor.print_var.code_generation
+---@field print_var {[string]: nil|fun(opts: refactor.print_var.code_generation.Opts): string}
 
-  local custom_print_var_statements = opts.print_var_statements[refactor.filetype]
+---@type refactor.print_var.code_generation
+local code_generation = {
+  print_var = {
+    lua = function(opts)
+      return ("print([==[%s]==], vim.inspect(%s))"):format(opts.identifier, opts.identifier)
+    end,
+  },
+}
 
-  ---@type string|nil
-  local print_var_statement
+-- TODO: support geting the location (e.g if#for#some_variable)
+-- TODO: support for count of each occurrence (can I use treesitter with
+-- a query of any node (1 or more times) between two comment nodes that match
+-- the start and end pattern?). Or maybe don't support count at all and only
+-- support it in `printf`?
+---@param range_type 'v' | 'V' | ''
+---@param opts refactor.debug.Opts
+function M.print_var(range_type, opts)
+  local get_extracted_range = require("refactoring.range").get_extracted_range
+  local contains = require("refactoring.range").contains
+  local is_unique = require("refactoring.utils").is_unique
+  local code_gen_error = require("refactoring.utils").code_gen_error
+  local apply_text_edits = require("refactoring.utils").apply_text_edits
+  local get_declarations_by_scope = require("refactoring.utils").get_declarations_by_scope
+  local scopes_for_range = require("refactoring.utils").scopes_for_range
+  local get_declaration_scope = require("refactoring.utils").get_declaration_scope
+  local compare = require("refactoring.range").compare
 
-  if custom_print_var_statements then
-    if #custom_print_var_statements > 1 then
-      print_var_statement = ui.select(
-        custom_print_var_statements,
-        "print_var: Select a statement to insert:",
-        ---@param item string
-        ---@return string
-        function(item)
-          return item
+  opts = opts or {}
+  opts.output_location = opts.output_location or "below"
+
+  local buf = api.nvim_get_current_buf()
+  local extracted_range = get_extracted_range(range_type)
+
+  local task = async.run(function()
+    local lang_tree, err1 = ts.get_parser(buf, nil, { error = false })
+    if not lang_tree then
+      vim.notify(err1, vim.log.levels.ERROR)
+      return
+    end
+    -- TODO: use async parsing
+    lang_tree:parse(true)
+    local nested_lang_tree = lang_tree:language_for_range(extracted_range)
+    local lang = nested_lang_tree:lang()
+    local query = ts.query.get(lang, "refactor")
+    if not query then
+      vim.notify(("There is no `refactor` query file for language %s"):format(lang), vim.log.levels.ERROR)
+      return
+    end
+
+    local get_print_var = code_generation.print_var[lang]
+    if not get_print_var then return code_gen_error("print_var", lang) end
+
+    local references = {} ---@type refactor.Reference[]
+    local statements = {} ---@type TSNode[]
+    local scopes = {} ---@type TSNode[]
+    for _, tree in ipairs(nested_lang_tree:trees()) do
+      for _, match, metadata in query:iter_matches(tree:root(), buf) do
+        for capture_id, nodes in pairs(match) do
+          local name = query.captures[capture_id]
+          if name == "reference.identifier" then
+            for i, node in ipairs(nodes) do
+              table.insert(references, {
+                identifier = node,
+                reference_type = metadata.reference_type,
+                type = metadata.types and metadata.types[i],
+                declaration = metadata.declaration ~= nil,
+              })
+            end
+          end
+
+          if name == "statement" then table.insert(statements, nodes[1]) end
+          if name == "scope" then
+            for _, node in ipairs(nodes) do
+              table.insert(scopes, node)
+            end
+          end
+        end
+      end
+    end
+
+    local extracted_reference_point = opts.output_location == "below" and { extracted_range[3], extracted_range[4] }
+      or { extracted_range[1], extracted_range[2] }
+    ---@type TSNode|nil
+    local statement_for_range = iter(statements)
+      :filter(
+        ---@param s TSNode
+        function(s)
+          local s_range = { s:range() }
+          return contains(s_range, extracted_reference_point)
         end
       )
-    else
-      print_var_statement = custom_print_var_statements[1]
-    end
-  else
-    print_var_statement = default_print_var_statement[1]
-  end
-  return print_var_statement
-end
-
----@param bufnr integer
----@param region_type 'v' | 'V' | '' | nil
----@param config refactor.Config
-function M.print_debug(bufnr, region_type, config)
-  local Pipeline = require "refactoring.pipeline"
-  local tasks = require "refactoring.tasks"
-
-  local seed = tasks.refactor_seed(bufnr, region_type, config)
-  Pipeline:from_task(
-    ---@param refactor refactor.Refactor
-    function(refactor)
-      return tasks.ensure_code_gen(refactor, { "print_var", "comment" })
-    end
-  )
-    :add_task(
-      ---@param refactor refactor.Refactor
-      function(refactor)
-        local opts = refactor.config:get()
-
-        if opts.below == nil then opts.below = true end
-        opts._end = opts.below
-
-        local variable_region = Region:from_motion {
-          bufnr = refactor.bufnr,
-          include_end_of_line = refactor.ts.include_end_of_line,
-          type = refactor.region_type,
-        }
-        local variable = variable_region:get_text()[1]
-
-        -- use treesitter for languges like PHP
-        -- NOTE: remove in case of allowing more than simply iw as a motion
-        local node = vim.treesitter.get_node()
-        if node == nil then return false, "node is nil" end
-        local node_text = vim.treesitter.get_node_text(node, refactor.bufnr)
-        if node_text == variable then
-          local current = node ---@type TSNode?
-          while current and refactor.ts.should_check_parent_node_print_var(current) do
-            current = current:parent()
-          end
-          if current == nil then return false, "current is nil" end
-          variable = vim.treesitter.get_node_text(current, refactor.bufnr)
+      :fold(
+        nil,
+        ---@param acc nil|TSNode
+        ---@param s TSNode
+        function(acc, s)
+          if not acc then return s end
+          if s:byte_length() < acc:byte_length() then return s end
+          return acc
         end
+      )
+    if not statement_for_range then
+      return vim.notify("Couldn't find statement for extracted range using Treesitter", vim.log.levels.ERROR)
+    end
 
-        if variable == nil then return false, "variable is nil" end
+    local statement_range = { statement_for_range:range() }
+    local output_range = opts.output_location == "below"
+        and { statement_range[3], statement_range[4], statement_range[3], statement_range[4] }
+      or { statement_range[1], statement_range[2], statement_range[1], statement_range[2] }
+    local output_start = { output_range[1], output_range[2] }
 
-        local insert_pos, path_pos, current_statement = debug_utils.get_debug_points(refactor, opts)
-
-        assert(current_statement)
-        local start_row = current_statement:range()
-        local statement_row = start_row
-        local statement_line = api.nvim_buf_get_lines(refactor.bufnr, statement_row, statement_row + 1, true)[1]
-        local indent_amount = indent.line_indent_amount(statement_line, refactor.bufnr)
-        local indentation = indent.indent(indent_amount, refactor.bufnr)
-
-        local ok, debug_path = pcall(debug_utils.get_debug_path, refactor, path_pos)
-        if not ok then return ok, debug_path end
-        local prefix = ("%s %s:"):format(debug_path, variable)
-
-        local print_var_statement = M.get_print_var_statement(opts, refactor)
-
-        if print_var_statement == nil then return false, "print_var_statement is nill" end
-
-        local print_statement = refactor.code.print_var {
-          statement = print_var_statement,
-          prefix = prefix,
-          var = variable,
-        }
-        local start_comment = refactor.code.comment "__AUTO_GENERATED_PRINT_VAR_START__"
-        local end_comment = refactor.code.comment "__AUTO_GENERATED_PRINT_VAR_END__"
-
-        local text = table.concat({
-          indentation,
-          start_comment,
-          "\n",
-          indentation,
-          print_statement,
-          " ",
-          end_comment,
-        }, "")
-
-        refactor.text_edits = {
-          text_edits_utils.insert_new_line_text(Region:from_point(insert_pos), text, opts),
-        }
-
-        return true, refactor
+    -- TODO: I also compute `declarations_before_output_range` in
+    -- `extract_func`. Is there a cleaner wat to do all this in both places?
+    local declarations_by_scope = get_declarations_by_scope(references, scopes, buf)
+    local scopes_for_extracted_range = scopes_for_range(scopes, extracted_range)
+    local reference_to_text =
+      ---@param reference refactor.Reference
+      function(reference)
+        return ts.get_node_text(reference.identifier, buf)
       end
-    )
-    :after(tasks.post_refactor)
-    :run(nil, notify.error, seed)
+    local declarations_before_output_range = iter(references)
+      :filter(
+        ---@param r refactor.Reference
+        function(r)
+          return r.declaration
+        end
+      )
+      :filter(
+        ---@param r refactor.Reference
+        function(r)
+          local start_node = { r.identifier:start() }
+          local end_node = { r.identifier:end_() }
+
+          local declaration_scope = get_declaration_scope(declarations_by_scope, scopes, r, buf)
+
+          local is_in_scope = declaration_scope
+              and iter(scopes_for_extracted_range):any(
+                ---@param s TSNode
+                function(s)
+                  return s:equal(declaration_scope)
+                end
+              )
+            or false
+
+          return compare(start_node, output_start) ~= 1 and compare(end_node, output_start) ~= 1 and is_in_scope
+        end
+      )
+      :map(reference_to_text)
+      :totable()
+
+    -- TODO: should I generalize/unify how ranges and range transformations are
+    -- handled everywhere? Some ranges are having a 1-off error because of no standar
+    -- handling of ranges (e.g. `extract_func` for a single word)
+    local extracted_range_ts = { extracted_range[1], extracted_range[2], extracted_range[3], extracted_range[4] + 1 }
+    ---@type string[]
+    local print_lines = iter(references)
+      :filter(
+        ---@param r refactor.Reference
+        function(r)
+          local r_start = { r.identifier:start() }
+          local r_end = { r.identifier:end_() }
+          return contains(extracted_range_ts, r_start) and contains(extracted_range_ts, r_end)
+        end
+      )
+      :map(
+        ---@param r refactor.Reference
+        function(r)
+          return ts.get_node_text(r.identifier, buf)
+        end
+      )
+      :filter(is_unique())
+      :filter(
+        ---@param identifier string
+        function(identifier)
+          return vim.list_contains(declarations_before_output_range, identifier)
+        end
+      )
+      :map(
+        ---@param i string
+        function(i)
+          return get_print_var { identifier = i }
+        end
+      )
+      :totable()
+    if #print_lines == 0 then
+      return vim.notify(
+        "Couldn't found any reference inside of the extracted range with a declartion above output range using Treesitter",
+        vim.log.levels.ERROR
+      )
+    end
+    -- TODO: is there a cleaner way to do a cleanup later?
+    table.insert(print_lines, 1, vim.bo[buf].commentstring:format "__PRINT_VAR_START")
+    print_lines[#print_lines] = print_lines[#print_lines] .. vim.bo[buf].commentstring:format "__PRINT_VAR_END"
+    if opts.output_location == "below" then table.insert(print_lines, 1, "") end
+    if opts.output_location == "above" then table.insert(print_lines, "") end
+
+    ---@type {[integer]: refactor.TextEdit[]}
+    local text_edits_by_buf = {}
+    text_edits_by_buf[buf] = {}
+    table.insert(text_edits_by_buf[buf], { range = output_range, lines = print_lines })
+
+    apply_text_edits(text_edits_by_buf)
+  end)
+  task:raise_on_error()
 end
 
 return M

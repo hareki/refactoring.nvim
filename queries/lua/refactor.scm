@@ -234,3 +234,8 @@
           .
           (","
             (_) @function_call.arg)*)?) @function_call))) @function_call.outside
+
+[
+  (statement)
+  (return_statement)
+] @statement

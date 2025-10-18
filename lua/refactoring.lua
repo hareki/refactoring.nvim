@@ -7,23 +7,23 @@ local M = {}
 ---@field input string[]?
 ---@field preview_ns integer?
 
----@alias refactor.RefactorFunc fun(type: 'v' | 'V' | '', opts: refactor.Opts?)
+---@alias refactor.RefactorFunc fun(type: 'v' | 'V' | '', opts: refactor.debug.Opts?)
 
-local last_refactor ---@type refactor.RefactorFunc|nil
-local last_opts ---@type refactor.Opts|nil
+local last_debug ---@type refactor.RefactorFunc|nil
+local last_opts ---@type refactor.debug.Opts|nil
 
 ---@param type "line" | "char" | "block"
 function M.refactor_operatorfunc(type)
-  if not last_refactor then return end
+  if not last_debug then return end
 
-  local region_type = type == "line" and "V" or type == "char" and "v" or ""
-  last_refactor(region_type, last_opts)
+  local range_type = type == "line" and "V" or type == "char" and "v" or ""
+  last_debug(range_type, last_opts)
 end
 
----@param opts refactor.Opts?
+---@param opts refactor.debug.Opts?
 function M.extract_func(opts)
   vim.o.operatorfunc = "v:lua.require'refactoring'.refactor_operatorfunc"
-  last_refactor = require("refactoring.refactor.extract_func").extract_func
+  last_debug = require("refactoring.refactor.extract_func").extract_func
   last_opts = opts
   return "g@"
 end
@@ -31,7 +31,7 @@ end
 ---@param opts refactor.Opts?
 function M.extract_func_to_file(opts)
   vim.o.operatorfunc = "v:lua.require'refactoring'.refactor_operatorfunc"
-  last_refactor = require("refactoring.refactor.extract_func").extract_func_to_file
+  last_debug = require("refactoring.refactor.extract_func").extract_func_to_file
   last_opts = opts
   return "g@"
 end
@@ -39,7 +39,7 @@ end
 ---@param opts refactor.Opts?
 function M.extract_var(opts)
   vim.o.operatorfunc = "v:lua.require'refactoring'.refactor_operatorfunc"
-  last_refactor = require("refactoring.refactor.extract_var").extract_var
+  last_debug = require("refactoring.refactor.extract_var").extract_var
   last_opts = opts
   return "g@"
 end
@@ -47,7 +47,7 @@ end
 ---@param opts refactor.Opts?
 function M.inline_var(opts)
   vim.o.operatorfunc = "v:lua.require'refactoring'.refactor_operatorfunc"
-  last_refactor = require("refactoring.refactor.inline_var").inline_var
+  last_debug = require("refactoring.refactor.inline_var").inline_var
   last_opts = opts
   return "g@l"
 end
@@ -55,7 +55,7 @@ end
 ---@param opts refactor.Opts?
 function M.inline_func(opts)
   vim.o.operatorfunc = "v:lua.require'refactoring'.refactor_operatorfunc"
-  last_refactor = require("refactoring.refactor.inline_func").inline_func
+  last_debug = require("refactoring.refactor.inline_func").inline_func
   last_opts = opts
   return "g@l"
 end
@@ -67,7 +67,7 @@ function M.select_refactor(opts)
   local mode = api.nvim_get_mode().mode
 
   local task = async.run(function()
-    local select = require("refactoring.util").select
+    local select = require("refactoring.utils").select
     ---@type nil|{name: string, command: string, fn: fun(): string}
     local selected = select({
       { name = "Inline variable", fn = M.inline_var, command = "inline_var" },

@@ -116,9 +116,9 @@ function M.extract_var(range_type, opts)
   local get_extracted_range = require("refactoring.range").get_extracted_range
   local contains = require("refactoring.range").contains
   local compare = require("refactoring.range").compare
-  local apply_text_edits = require("refactoring.util").apply_text_edits
-  local input = require("refactoring.util").input
-  local code_gen_error = require("refactoring.util").code_gen_error
+  local apply_text_edits = require("refactoring.utils").apply_text_edits
+  local input = require("refactoring.utils").input
+  local code_gen_error = require("refactoring.utils").code_gen_error
 
   opts = opts or {}
 

@@ -1,49 +1,27 @@
-local Config = require "refactoring.config"
-local printf = require("refactoring.debug.printf").printDebug
-local print_var = require("refactoring.debug.print_var").print_debug
-local cleanup = require "refactoring.debug.cleanup"
-
-local api = vim.api
-
 local M = {}
 
----@type refactor.Config
-local last_config
+---@class refactor.debug.Opts
+---@field output_location 'above'|'below'
 
-function M.printf_operatorfunc()
-  printf(api.nvim_get_current_buf(), last_config)
-end
+---@alias refactor.DebugFunc fun(type: 'v' | 'V' | '', opts: refactor.debug.Opts?)
 
----@param opts refactor.ConfigOpts
-function M.printf(opts)
-  last_config = Config.get():merge(opts)
-  vim.o.operatorfunc = "v:lua.require'refactoring'.debug.printf_operatorfunc"
-  vim.cmd [[normal! g@iw]]
-end
+local last_debug ---@type refactor.DebugFunc|nil
+local last_opts ---@type refactor.debug.Opts|nil
 
 ---@param type "line" | "char" | "block"
-function M.print_var_operatorfunc(type)
-  local region_type = type == "line" and "V" or type == "char" and "v" or type == "block" and "" or nil
-  print_var(api.nvim_get_current_buf(), region_type, last_config)
+function M.debug_operatorfunc(type)
+  if not last_debug then return end
+
+  local range_type = type == "line" and "V" or type == "char" and "v" or ""
+  last_debug(range_type, last_opts)
 end
 
----@param opts refactor.ConfigOpts
+---@param opts refactor.debug.Opts?
 function M.print_var(opts)
-  last_config = Config.get():merge(opts)
-  vim.o.operatorfunc = "v:lua.require'refactoring'.debug.print_var_operatorfunc"
-  local mode = api.nvim_get_mode().mode
-  if mode == "v" or mode == "V" or mode == "\22" then -- 
-    vim.cmd [[normal! g@]]
-  else
-    --TODO (TheLeoP): allow more than simply iw? maybe as a config option
-    vim.cmd [[normal! g@iw]]
-  end
-end
-
----@param opts refactor.ConfigOpts
-function M.cleanup(opts)
-  local config = Config.get():merge(opts)
-  cleanup(api.nvim_get_current_buf(), config)
+  vim.o.operatorfunc = "v:lua.require'refactoring.debug'.debug_operatorfunc"
+  last_debug = require("refactoring.debug.print_var").print_var
+  last_opts = opts
+  return "g@"
 end
 
 return M

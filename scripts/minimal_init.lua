@@ -65,3 +65,10 @@ end, { expr = true })
 vim.keymap.set("n", "<leader>aI", function()
   return require("refactoring").inline_func()
 end, { expr = true })
+
+vim.keymap.set("n", "<leader>pv", function()
+  return require("refactoring.debug").print_var { output_location = "below" }
+end, { expr = true })
+vim.keymap.set("n", "<leader>pV", function()
+  return require("refactoring.debug").print_var { output_location = "above" }
+end, { expr = true })

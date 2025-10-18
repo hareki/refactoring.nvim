@@ -43,7 +43,7 @@ local code_generation = {
 ---@return nil|{[integer]: refactor.inline_func.ProcessedMatchInfo}
 local function get_processed_match_info(definitions, references, lang)
   local contains = require("refactoring.range").contains
-  local is_unique = require("refactoring.util").is_unique
+  local is_unique = require("refactoring.utils").is_unique
 
   local query = ts.query.get(lang, "refactor")
   if not query then
@@ -245,12 +245,12 @@ end
 ---@param opts refactor.Opts
 function M.inline_func(_, opts)
   local contains = require("refactoring.range").contains
-  local apply_text_edits = require("refactoring.util").apply_text_edits
-  local code_gen_error = require("refactoring.util").code_gen_error
-  local select = require("refactoring.util").select
-  local indent = require("refactoring.util").indent
-  local get_definitions = require("refactoring.util").get_definitions
-  local get_references = require("refactoring.util").get_references
+  local apply_text_edits = require("refactoring.utils").apply_text_edits
+  local code_gen_error = require("refactoring.utils").code_gen_error
+  local select = require("refactoring.utils").select
+  local indent = require("refactoring.utils").indent
+  local get_definitions = require("refactoring.utils").get_definitions
+  local get_references = require("refactoring.utils").get_references
 
   local lang_tree, err1 = ts.get_parser(nil, nil, { error = false })
   if not lang_tree then
