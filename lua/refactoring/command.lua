@@ -59,7 +59,12 @@ local function command_preview(opts, ns)
     if keys == "g@" then
         keys = "gvg@"
     end
-    vim.cmd.normal(keys)
+    api.nvim_cmd({
+        cmd = "normal",
+        args = { keys },
+        bang = true,
+        mods = { noautocmd = true },
+    }, {})
 
     return PREVIEW_IN_CURRENT_BUFFER
 end
@@ -85,7 +90,12 @@ local function command(opts)
     if keys == "g@" then
         keys = "gvg@"
     end
-    vim.cmd.normal(keys)
+    api.nvim_cmd({
+        cmd = "normal",
+        args = { keys },
+        bang = true,
+        mods = { noautocmd = true },
+    }, {})
 end
 
 ---@param arg_lead string
