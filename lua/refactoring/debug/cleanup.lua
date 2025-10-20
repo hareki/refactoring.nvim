@@ -3,6 +3,11 @@ local iter = vim.iter
 local async = require "async"
 local ts = vim.treesitter
 
+-- TODO: Search inside strings (using treesitter) on `printf` (and
+-- maybe also `print_var`) when updating the count. That would mean
+-- decoupling the `code_generation` for the content of the string and
+-- the whole print statement
+
 local M = {}
 
 ---@param a TSNode
@@ -19,10 +24,22 @@ end
 -- TODO: add some kind of success message of how many statements where cleared
 -- like in inline_var/extract_var
 ---@param range_type 'v' | 'V' | ''
-function M.cleanup(range_type)
+---@param opts refactor.debug.cleanup.Opts
+function M.cleanup(range_type, opts)
   local get_extracted_range = require("refactoring.range").get_extracted_range
   local apply_text_edits = require("refactoring.utils").apply_text_edits
   local contains_range = require("refactoring.range").contains_range
+
+  -- TODO: generalize setting default opts and use `vim.tbl_deep_extend` to
+  -- extend the default options with the provided ones (everywhere)
+  opts = opts or {}
+  opts.types = opts.types or { "print_var", "print_loc", "print_exp" }
+  opts.markers = opts.markers
+    or {
+      print_var = { start = "__PRINT_VAR_START", ["end"] = "__PRINT_VAR_END" },
+      print_exp = { start = "__PRINT_EXP_START", ["end"] = "__PRINT_EXP_END" },
+      print_loc = { start = "__PRINT_LOC_START", ["end"] = "__PRINT_LOC_END" },
+    }
 
   local buf = api.nvim_get_current_buf()
   local last_line = vim.fn.line "$"
@@ -68,21 +85,26 @@ function M.cleanup(range_type)
       :map(
         ---@param comment TSNode
         function(comment)
-          -- TODO: get this pattern and the one from `print_var`/`printf` from the same place/config
-          -- TODO: use `opts` to clean different kind of patterns (by feature?)
           local text = ts.get_node_text(comment, buf)
 
-          -- TODO: If I'm gonna search only inside comments using treesitter,
-          -- I could also search inside strings on `printf` (and maybe also
-          -- `print_var`) when updating the count. That would mean decoupling the
-          -- `code_generation` for the content of the string and the whole print
-          -- statement
-          if text:match "__PRINT_VAR_START" then return "start", { comment:start() } end
+          local is_start = iter(opts.types):any(
+            ---@param name 'print_var'|'print_loc'|'print_exp'
+            function(name)
+              return text:find(opts.markers[name].start) ~= nil
+            end
+          )
+          if is_start then return "start", { comment:start() } end
           local comment_end = { comment:end_() }
           if comment_end[1] ~= last_line - 1 then
             comment_end[1], comment_end[2] = comment_end[1] + 1, 0
           end
-          if text:match "__PRINT_VAR_END" then return "end", comment_end end
+          local is_end = iter(opts.types):any(
+            ---@param name 'print_var'|'print_loc'|'print_exp'
+            function(name)
+              return text:find(opts.markers[name]["end"]) ~= nil
+            end
+          )
+          if is_end then return "end", comment_end end
           -- TODO: I'll need to generalize the handling of 0-based/1-based
           -- end-exclusive/end-inclusive/end_row-inclusive_col-exclusive/end_row_exclusive-_col-0
           -- ranges everywhere x2

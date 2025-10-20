@@ -7,10 +7,10 @@ local M = {}
 ---@field input string[]?
 ---@field preview_ns integer?
 
----@alias refactor.RefactorFunc fun(type: 'v' | 'V' | '', opts: refactor.debug.Opts?)
+---@alias refactor.RefactorFunc fun(type: 'v' | 'V' | '', opts: refactor.debug.print_var.Opts?)
 
 local last_debug ---@type refactor.RefactorFunc|nil
-local last_opts ---@type refactor.debug.Opts|nil
+local last_opts ---@type refactor.debug.print_var.Opts|nil
 
 ---@param type "line" | "char" | "block"
 function M.refactor_operatorfunc(type)
@@ -20,7 +20,7 @@ function M.refactor_operatorfunc(type)
   last_debug(range_type, last_opts)
 end
 
----@param opts refactor.debug.Opts?
+---@param opts refactor.debug.print_var.Opts?
 function M.extract_func(opts)
   vim.o.operatorfunc = "v:lua.require'refactoring'.refactor_operatorfunc"
   last_debug = require("refactoring.refactor.extract_func").extract_func

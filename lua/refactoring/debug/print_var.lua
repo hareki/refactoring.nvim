@@ -13,8 +13,6 @@ local M = {}
 -- declaration of the variables]
 -- TODO: add some way to list/search/travel across all inserted statements
 
--- TODO: correctly handle `foo.bar` for `print_var` (and also for `inline_var`?). How?
-
 ---@class refactor.print_var.code_generation.Opts
 ---@field identifier string
 
@@ -37,7 +35,7 @@ local code_generation = {
 -- the start and end pattern?). Or maybe don't support count at all and only
 -- support it in `printf`?
 ---@param range_type 'v' | 'V' | ''
----@param opts refactor.debug.Opts
+---@param opts refactor.debug.print_var.Opts
 function M.print_var(range_type, opts)
   local get_extracted_range = require("refactoring.range").get_extracted_range
   local contains = require("refactoring.range").contains
@@ -50,8 +48,16 @@ function M.print_var(range_type, opts)
   local compare = require("refactoring.range").compare
   local comp_non_overlaping_ranges_asc = require("refactoring.range").comp_non_overlaping_ranges_asc
 
+  -- TODO: generalize setting default opts and use `vim.tbl_deep_extend` to
+  -- extend the default options with the provided ones (everywhere)
   opts = opts or {}
   opts.output_location = opts.output_location or "below"
+  opts.markers = opts.markers
+    or {
+      print_var = { start = "__PRINT_VAR_START", ["end"] = "__PRINT_VAR_END" },
+      print_exp = { start = "__PRINT_EXP_START", ["end"] = "__PRINT_EXP_END" },
+      print_loc = { start = "__PRINT_LOC_START", ["end"] = "__PRINT_LOC_END" },
+    }
 
   local buf = api.nvim_get_current_buf()
   local extracted_range = get_extracted_range(range_type)
@@ -253,9 +259,10 @@ function M.print_var(range_type, opts)
         vim.log.levels.ERROR
       )
     end
-    -- TODO: is there a cleaner way to do a cleanup later?
-    table.insert(print_lines, 1, vim.bo[buf].commentstring:format "__PRINT_VAR_START")
-    print_lines[#print_lines] = print_lines[#print_lines] .. vim.bo[buf].commentstring:format "__PRINT_VAR_END"
+    local start_marker = opts.markers.print_var.start
+    local end_marker = opts.markers.print_var["end"]
+    table.insert(print_lines, 1, vim.bo[buf].commentstring:format(start_marker))
+    print_lines[#print_lines] = print_lines[#print_lines] .. vim.bo[buf].commentstring:format(end_marker)
     if opts.output_location == "below" then table.insert(print_lines, 1, "") end
     if opts.output_location == "above" then table.insert(print_lines, "") end
 

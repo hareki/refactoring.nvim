@@ -72,3 +72,7 @@ end, { expr = true })
 vim.keymap.set("n", "<leader>pV", function()
   return require("refactoring.debug").print_var { output_location = "above" }
 end, { expr = true })
+
+vim.keymap.set({ "x", "n" }, "<leader>pc", function()
+  return require("refactoring.debug").cleanup()
+end, { expr = true })
