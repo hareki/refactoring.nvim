@@ -1,7 +1,5 @@
 local M = {}
 
--- TODO: user_opts everywhere will optional types
-
 ---@class refactor.debug.Marker
 ---@field start string
 ---@field end string
@@ -11,40 +9,59 @@ local M = {}
 ---@field print_loc refactor.debug.Marker
 ---@field print_exp refactor.debug.Marker
 
+---@class refactor.debug.UserMarkers
+---@field print_var? refactor.debug.Marker
+---@field print_loc? refactor.debug.Marker
+---@field print_exp? refactor.debug.Marker
+
 ---@class refactor.debug.cleanup.Opts
 ---@field markers refactor.debug.Markers
 ---@field types ('print_var'|'print_loc'|'print_exp')[]
 
+---@class refactor.debug.cleanup.UserOpts
+---@field markers? refactor.debug.Markers
+---@field types? ('print_var'|'print_loc'|'print_exp')[]
+
 ---@class refactor.debug.print_var.Opts
 ---@field markers refactor.debug.Markers
 ---@field output_location 'above'|'below'
+---@field code_generation refactor.print_var.CodeGeneration
 
----@alias refactor.DebugFunc fun(type: 'v' | 'V' | '', opts: refactor.debug.print_var.Opts|refactor.debug.cleanup.Opts|nil)
+---@class refactor.debug.print_var.UserOpts
+---@field markers? refactor.debug.UserMarkers
+---@field output_location? 'above'|'below'
+---@field code_generation? refactor.print_var.UserCodeGeneration
+
+---@alias refactor.DebugFunc fun(type: 'v' | 'V' | '', opts: refactor.Config|nil)
 
 local last_debug ---@type refactor.DebugFunc|nil
-local last_opts ---@type refactor.debug.print_var.Opts|refactor.debug.cleanup.Opts|nil
+local last_config ---@type refactor.Config|nil
 
 ---@param type "line" | "char" | "block"
 function M.debug_operatorfunc(type)
   if not last_debug then return end
 
   local range_type = type == "line" and "V" or type == "char" and "v" or ""
-  last_debug(range_type, last_opts)
+  last_debug(range_type, last_config)
 end
 
----@param opts refactor.debug.print_var.Opts?
+---@param opts refactor.debug.print_var.UserOpts?
 function M.print_var(opts)
+  local config = require("refactoring.config").get_config(0, { debug = { print_var = opts } })
+
   vim.o.operatorfunc = "v:lua.require'refactoring.debug'.debug_operatorfunc"
   last_debug = require("refactoring.debug.print_var").print_var
-  last_opts = opts
+  last_config = config
   return "g@"
 end
 
----@param opts refactor.debug.cleanup.Opts?
+---@param opts refactor.debug.cleanup.UserOpts?
 function M.cleanup(opts)
+  local config = require("refactoring.config").get_config(0, { debug = { cleanup = opts } })
+
   vim.o.operatorfunc = "v:lua.require'refactoring.debug'.debug_operatorfunc"
   last_debug = require("refactoring.debug.cleanup").cleanup
-  last_opts = opts
+  last_config = config
   return "g@"
 end
 

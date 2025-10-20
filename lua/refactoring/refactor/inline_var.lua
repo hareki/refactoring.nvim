@@ -115,14 +115,16 @@ end
 ---@field declaration TSNode
 
 -- TODO: success message (can be disabled in config)
----@param opts refactor.Opts
-function M.inline_var(_, opts)
+---@param config refactor.Config
+function M.inline_var(_, config)
   local contains = require("refactoring.range").contains
   local apply_text_edits = require("refactoring.utils").apply_text_edits
   local is_unique = require("refactoring.utils").is_unique
   local select = require("refactoring.utils").select
   local get_definitions = require("refactoring.utils").get_definitions
   local get_references = require("refactoring.utils").get_references
+
+  local opts = config.refactor.inline_var
 
   local lang_tree, err1 = ts.get_parser(nil, nil, { error = false })
   if not lang_tree then

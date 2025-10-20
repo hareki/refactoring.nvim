@@ -24,22 +24,13 @@ end
 -- TODO: add some kind of success message of how many statements where cleared
 -- like in inline_var/extract_var
 ---@param range_type 'v' | 'V' | ''
----@param opts refactor.debug.cleanup.Opts
-function M.cleanup(range_type, opts)
+---@param config refactor.Config
+function M.cleanup(range_type, config)
   local get_extracted_range = require("refactoring.range").get_extracted_range
   local apply_text_edits = require("refactoring.utils").apply_text_edits
   local contains_range = require("refactoring.range").contains_range
 
-  -- TODO: generalize setting default opts and use `vim.tbl_deep_extend` to
-  -- extend the default options with the provided ones (everywhere)
-  opts = opts or {}
-  opts.types = opts.types or { "print_var", "print_loc", "print_exp" }
-  opts.markers = opts.markers
-    or {
-      print_var = { start = "__PRINT_VAR_START", ["end"] = "__PRINT_VAR_END" },
-      print_exp = { start = "__PRINT_EXP_START", ["end"] = "__PRINT_EXP_END" },
-      print_loc = { start = "__PRINT_LOC_START", ["end"] = "__PRINT_LOC_END" },
-    }
+  local opts = config.debug.cleanup
 
   local buf = api.nvim_get_current_buf()
   local last_line = vim.fn.line "$"

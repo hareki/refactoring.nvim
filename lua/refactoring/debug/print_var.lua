@@ -16,17 +16,11 @@ local M = {}
 ---@class refactor.print_var.code_generation.Opts
 ---@field identifier string
 
----@class refactor.print_var.code_generation
+---@class refactor.print_var.CodeGeneration
 ---@field print_var {[string]: nil|fun(opts: refactor.print_var.code_generation.Opts): string}
 
----@type refactor.print_var.code_generation
-local code_generation = {
-  print_var = {
-    lua = function(opts)
-      return ("print([==[%s]==], vim.inspect(%s))"):format(opts.identifier, opts.identifier)
-    end,
-  },
-}
+---@class refactor.print_var.UserCodeGeneration
+---@field print_var? {[string]: nil|fun(opts: refactor.print_var.code_generation.Opts): string}
 
 -- TODO: support indenting the line correctly
 -- TODO: support geting the location (e.g if#for#some_variable)
@@ -35,8 +29,8 @@ local code_generation = {
 -- the start and end pattern?). Or maybe don't support count at all and only
 -- support it in `printf`?
 ---@param range_type 'v' | 'V' | ''
----@param opts refactor.debug.print_var.Opts
-function M.print_var(range_type, opts)
+---@param config refactor.Config
+function M.print_var(range_type, config)
   local get_extracted_range = require("refactoring.range").get_extracted_range
   local contains = require("refactoring.range").contains
   local is_unique = require("refactoring.utils").is_unique
@@ -48,16 +42,8 @@ function M.print_var(range_type, opts)
   local compare = require("refactoring.range").compare
   local comp_non_overlaping_ranges_asc = require("refactoring.range").comp_non_overlaping_ranges_asc
 
-  -- TODO: generalize setting default opts and use `vim.tbl_deep_extend` to
-  -- extend the default options with the provided ones (everywhere)
-  opts = opts or {}
-  opts.output_location = opts.output_location or "below"
-  opts.markers = opts.markers
-    or {
-      print_var = { start = "__PRINT_VAR_START", ["end"] = "__PRINT_VAR_END" },
-      print_exp = { start = "__PRINT_EXP_START", ["end"] = "__PRINT_EXP_END" },
-      print_loc = { start = "__PRINT_LOC_START", ["end"] = "__PRINT_LOC_END" },
-    }
+  local opts = config.debug.print_var
+  local code_generation = opts.code_generation
 
   local buf = api.nvim_get_current_buf()
   local extracted_range = get_extracted_range(range_type)

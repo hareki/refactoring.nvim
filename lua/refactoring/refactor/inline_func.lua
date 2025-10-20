@@ -10,31 +10,11 @@ local M = {}
 ---@field left string[]
 ---@field right string[]
 
----@class refactor.inline_func.code_generation
+---@class refactor.inline_func.CodeGeneration
 ---@field assignment {[string]: nil|fun(opts: refactor.inline_func.code_generation.assignment.Opts): string}
 
----@type refactor.inline_func.code_generation
-local code_generation = {
-  assignment = {
-    lua = function(opts)
-      if #opts.left == 0 then return "" end
-
-      if #opts.left < #opts.right then
-        for _ = #opts.left + 1, #opts.right do
-          table.remove(opts.right)
-        end
-      elseif #opts.right < #opts.left then
-        for _ = #opts.right + 1, #opts.left do
-          table.insert(opts.right, "nil")
-        end
-      end
-
-      local left = table.concat(opts.left, ", ")
-      local right = table.concat(opts.right, ", ")
-      return ("local %s = %s"):format(left, right)
-    end,
-  },
-}
+---@class refactor.inline_func.UserCodeGeneration
+---@field assignment? {[string]: nil|fun(opts: refactor.inline_func.code_generation.assignment.Opts): string}
 
 --As a side effect, loads all the buffers for all of the definitions and references
 ---@param definitions refactor.QfItem[]
@@ -242,8 +222,8 @@ end
 ---@field function_calls refactor.FunctionCallInfo[]
 ---@field returns refactor.ReturnInfo[]
 
----@param opts refactor.Opts
-function M.inline_func(_, opts)
+---@param config refactor.Config
+function M.inline_func(_, config)
   local contains = require("refactoring.range").contains
   local apply_text_edits = require("refactoring.utils").apply_text_edits
   local code_gen_error = require("refactoring.utils").code_gen_error
@@ -251,6 +231,9 @@ function M.inline_func(_, opts)
   local indent = require("refactoring.utils").indent
   local get_definitions = require("refactoring.utils").get_definitions
   local get_references = require("refactoring.utils").get_references
+
+  local opts = config.refactor.inline_func
+  local code_generation = opts.code_generation
 
   local lang_tree, err1 = ts.get_parser(nil, nil, { error = false })
   if not lang_tree then

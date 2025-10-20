@@ -36,67 +36,15 @@ end
 ---@class refactor.extract_var.code_generation.variable.Opts
 ---@field name string
 
----@class refactor.extract_var.code_generation
+---@class refactor.extract_var.CodeGeneration
 ---@field variable_declaration {[string]: nil|fun(opts: refactor.extract_var.code_generation.variable_declaration.Opts): string}
 ---@field variable {[string]: nil|fun(opts: refactor.extract_var.code_generation.variable.Opts): string}
 
--- TODO: extract inline "before" code examples from tests to files under the `test/` directory
+---@class refactor.extract_var.UserCodeGeneration
+---@field variable_declaration? {[string]: nil|fun(opts: refactor.extract_var.code_generation.variable_declaration.Opts): string}
+---@field variable? {[string]: nil|fun(opts: refactor.extract_var.code_generation.variable.Opts): string}
 
--- TODO: add per-feature configuration in `require'refactoring'.setup` that
--- includes overrides for code_generation (and all of the language-dependant
--- fields?) that could also allow users to define their own features
--- per-language (they would also need to define their own queries)
----@type refactor.extract_var.code_generation
-local code_generation = {
-  variable_declaration = {
-    lua = function(opts)
-      return ("local %s = %s"):format(opts.name, opts.value)
-    end,
-    javascript = function(opts)
-      return ("const %s = %s;"):format(opts.name, opts.value)
-    end,
-    c = function(opts)
-      return ("P %s = %s;"):format(opts.name, opts.value)
-    end,
-    c_sharp = function(opts)
-      return ("var %s = %s;"):format(opts.name, opts.value)
-    end,
-    go = function(opts)
-      return ("%s := %s"):format(opts.name, opts.value)
-    end,
-    java = function(opts)
-      return ("var %s = %s;"):format(opts.name, opts.value)
-    end,
-    php = function(opts)
-      return ("$%s = %s;"):format(opts.name, opts.value)
-    end,
-    python = function(opts)
-      return ("%s = %s"):format(opts.name, opts.value)
-    end,
-    ruby = function(opts)
-      return ("%s = %s"):format(opts.name, opts.value)
-    end,
-    vim = function(opts)
-      return ("let l:%s = %s"):format(opts.name, opts.value)
-    end,
-    powershell = function(opts)
-      return ("$%s = %s"):format(opts.name, opts.value)
-    end,
-  },
-  variable = {
-    php = function(opts)
-      return ("$%s"):format(opts.name)
-    end,
-    vim = function(opts)
-      return ("l:%s"):format(opts.name)
-    end,
-    powershell = function(opts)
-      return ("$%s"):format(opts.name)
-    end,
-  },
-}
-code_generation.variable_declaration.typescript = code_generation.variable_declaration.javascript
-code_generation.variable_declaration.cpp = code_generation.variable_declaration.c
+-- TODO: extract inline "before" code examples from tests to files under the `test/` directory
 
 ---@class refactor.Scope
 ---@field scope TSNode
@@ -104,8 +52,8 @@ code_generation.variable_declaration.cpp = code_generation.variable_declaration.
 ---@field outside TSNode?
 
 ---@param range_type 'v' | 'V' | ''
----@param opts refactor.Opts?
-function M.extract_var(range_type, opts)
+---@param config refactor.Config
+function M.extract_var(range_type, config)
   local get_extracted_range = require("refactoring.range").get_extracted_range
   local contains = require("refactoring.range").contains
   local compare = require("refactoring.range").compare
@@ -113,7 +61,8 @@ function M.extract_var(range_type, opts)
   local input = require("refactoring.utils").input
   local code_gen_error = require("refactoring.utils").code_gen_error
 
-  opts = opts or {}
+  local opts = config.refactor.extract_var
+  local code_generation = opts.code_generation
 
   local buf = api.nvim_get_current_buf()
   local extracted_range = get_extracted_range(range_type)
