@@ -20,6 +20,18 @@ function M.contains(range, point)
   return true
 end
 
+-- TODO: refactor code to use this everywhere `contains() and contains()` is used
+---@param surrounding_range Range4
+---@param contained_range Range4
+function M.contains_range(surrounding_range, contained_range)
+  return M.contains(surrounding_range, { contained_range[1], contained_range[2] })
+    and M.contains(surrounding_range, { contained_range[3], contained_range[4] })
+end
+
+-- TODO: rename this everywhere (and the resulting var) to a more general name.
+-- `extracted_range` comes from the `extratc_func` refactor, but it's now used
+-- in multiple (all?) refactors
+-- TODO: maybe split into `get_extracted_range` and `get_extracted_range_lines` or something
 ---@param range_type 'v'|'V'|''
 ---@return Range4, string[]
 function M.get_extracted_range(range_type)
@@ -27,11 +39,12 @@ function M.get_extracted_range(range_type)
   local range_end = vim.fn.getpos "']"
   local range_last_line_length = #vim.fn.getline "']"
 
+  -- NOTE: this range is start-inclusive and end_row-inclusive_col-exclusive
   local extracted_range = {
     range_start[2] - 1,
     range_type ~= "V" and range_start[3] - 1 or 0,
     range_end[2] - 1,
-    range_type ~= "V" and range_end[3] - 1 or range_last_line_length,
+    range_type ~= "V" and range_end[3] or range_last_line_length,
   }
   local lines = vim.fn.getregion(range_start, range_end, { type = range_type })
 
@@ -47,6 +60,17 @@ function M.comp_non_overlaping_ranges_desc(a, b)
 
   local compare_end = M.compare({ a[3], a[4] }, { b[3], b[4] })
   return compare_end == 1
+end
+
+---@param a Range4
+---@param b Range4
+function M.comp_non_overlaping_ranges_asc(a, b)
+  local compare_start = M.compare({ a[1], a[2] }, { b[1], b[2] })
+  if compare_start == -1 then return true end
+  if compare_start == 1 then return false end
+
+  local compare_end = M.compare({ a[3], a[4] }, { b[3], b[4] })
+  return compare_end == -1
 end
 
 return M

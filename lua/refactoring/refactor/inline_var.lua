@@ -5,6 +5,10 @@ local async = require "async"
 
 local M = {}
 
+-- TODO: using `inline_var` in something like `local f = vim.bo.filetype` will
+-- block the editor (because it tried to parse the buffer with each reference
+-- to `vim.bo.filetype`? Look into it)
+
 ---@param definition refactor.QfItem
 ---@param query vim.treesitter.Query
 ---@return nil|refactor.VariableInfo
@@ -223,6 +227,11 @@ function M.inline_var(_, opts)
         table.insert(text_edits_by_buf[buf], {
           range = {
             reference.lnum - 1,
+            -- TODO: this fails for lua_ls because for the definition
+            -- `foo.bar`, the reference `foo['bar']` is given, and won't have
+            -- the same lenght. Maybe I could use treesitter (since I already
+            -- identify `foo['bar']` as a reference) to get the correct range
+            -- to replace
             -- NOTE: references of `bar` on `foo.bar` won't include
             -- `foo.`. So, account for all of the identifier length
             reference.end_col
@@ -236,6 +245,8 @@ function M.inline_var(_, opts)
       end
     )
 
+    -- TODO: these `text_edit`s only clean the line, they don't remove it.
+    -- Remove it instead. Do the same thing in `inline_func`
     if definition_info.value_separator or definition_info.identifier_separator then
       iter({
           definition_info.value_separator,

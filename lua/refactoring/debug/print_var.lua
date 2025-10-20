@@ -5,6 +5,16 @@ local async = require "async"
 
 local M = {}
 
+-- TODO: when rewriting `print_var` and `printf`, distinguish between
+-- `print_expression` operator to print everything inside the selected region
+-- and `print_var` operator to print ever variable inside the selected region
+-- in the [some scope, I haven't think it through. Try to avoid loops and
+-- things like that unless necessary. Maybe as close as possible to the last
+-- declaration of the variables]
+-- TODO: add some way to list/search/travel across all inserted statements
+
+-- TODO: correctly handle `foo.bar` for `print_var` (and also for `inline_var`?). How?
+
 ---@class refactor.print_var.code_generation.Opts
 ---@field identifier string
 
@@ -20,6 +30,7 @@ local code_generation = {
   },
 }
 
+-- TODO: support indenting the line correctly
 -- TODO: support geting the location (e.g if#for#some_variable)
 -- TODO: support for count of each occurrence (can I use treesitter with
 -- a query of any node (1 or more times) between two comment nodes that match
@@ -37,6 +48,7 @@ function M.print_var(range_type, opts)
   local scopes_for_range = require("refactoring.utils").scopes_for_range
   local get_declaration_scope = require("refactoring.utils").get_declaration_scope
   local compare = require("refactoring.range").compare
+  local comp_non_overlaping_ranges_asc = require("refactoring.range").comp_non_overlaping_ranges_asc
 
   opts = opts or {}
   opts.output_location = opts.output_location or "below"
@@ -91,8 +103,12 @@ function M.print_var(range_type, opts)
       end
     end
 
+    -- NOTE: treesitter nodes usualy do not include leading whitespace
+    local extracted_range_start_line = api.nvim_buf_get_lines(buf, extracted_range[1], extracted_range[1] + 1, true)[1]
+    local _, extracted_range_start_line_first_non_white = extracted_range_start_line:find "^%s*"
+    extracted_range_start_line_first_non_white = extracted_range_start_line_first_non_white or 0
     local extracted_reference_point = opts.output_location == "below" and { extracted_range[3], extracted_range[4] }
-      or { extracted_range[1], extracted_range[2] }
+      or { extracted_range[1], extracted_range_start_line_first_non_white }
     ---@type TSNode|nil
     local statement_for_range = iter(statements)
       :filter(
@@ -165,8 +181,44 @@ function M.print_var(range_type, opts)
     -- handled everywhere? Some ranges are having a 1-off error because of no standar
     -- handling of ranges (e.g. `extract_func` for a single word)
     local extracted_range_ts = { extracted_range[1], extracted_range[2], extracted_range[3], extracted_range[4] + 1 }
+    ---@type {[string]: refactor.Reference}
+    local selected_references_by_start = iter(references)
+      :filter(
+        ---@param r refactor.Reference
+        function(r)
+          local r_start = { r.identifier:start() }
+          local r_end = { r.identifier:end_() }
+          return contains(extracted_range_ts, r_start) and contains(extracted_range_ts, r_end)
+        end
+      )
+      :fold(
+        {},
+        ---@param acc {[string]: refactor.Reference}
+        ---@param r refactor.Reference
+        function(acc, r)
+          local start_row, start_col = r.identifier:start()
+          local key = ("%s%s"):format(start_row, start_col)
+          local previous = acc[key]
+          if not previous then acc[key] = r end
+          if previous and r.identifier:byte_length() > previous.identifier:byte_length() then acc[key] = r end
+
+          return acc
+        end
+      )
+    ---@type refactor.Reference[]
+    local selected_references = iter(selected_references_by_start)
+      :map(function(_, r)
+        return r
+      end)
+      :totable()
+    table.sort(selected_references, function(a, b)
+      local a_range = { a.identifier:range() }
+      local b_range = { b.identifier:range() }
+
+      return comp_non_overlaping_ranges_asc(a_range, b_range)
+    end)
     ---@type string[]
-    local print_lines = iter(references)
+    local print_lines = iter(selected_references)
       :filter(
         ---@param r refactor.Reference
         function(r)

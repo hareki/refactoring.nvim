@@ -1,6 +1,8 @@
 local M = {}
 
----@class refactor.debug.Opts
+---@class refactor.debug.cleanup.Opts
+
+---@class refactor.debug.Opts: refactor.debug.cleanup.Opts
 ---@field output_location 'above'|'below'
 
 ---@alias refactor.DebugFunc fun(type: 'v' | 'V' | '', opts: refactor.debug.Opts?)
@@ -21,6 +23,14 @@ function M.print_var(opts)
   vim.o.operatorfunc = "v:lua.require'refactoring.debug'.debug_operatorfunc"
   last_debug = require("refactoring.debug.print_var").print_var
   last_opts = opts
+  return "g@"
+end
+
+---@param opts refactor.debug.cleanup.Opts?
+function M.cleanup(opts)
+  vim.o.operatorfunc = "v:lua.require'refactoring.debug'.debug_operatorfunc"
+  last_debug = require("refactoring.debug.cleanup").cleanup
+  last_opts = opts --[[@as refactor.debug.Opts]]
   return "g@"
 end
 

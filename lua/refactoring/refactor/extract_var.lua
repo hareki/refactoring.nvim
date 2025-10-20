@@ -40,13 +40,6 @@ end
 ---@field variable_declaration {[string]: nil|fun(opts: refactor.extract_var.code_generation.variable_declaration.Opts): string}
 ---@field variable {[string]: nil|fun(opts: refactor.extract_var.code_generation.variable.Opts): string}
 
--- TODO: when rewriting `print_var` and `printf`, distinguish between
--- `print_expression` operator to print everything inside the selected region
--- and `print_var` operator to print ever variable inside the selected region
--- in the [some scope, I haven't think it through. Try to avoid loops and
--- things like that unless necesary. Maybe as close as possible to the last
--- declaration of the variables]
-
 -- TODO: extract inline "before" code examples from tests to files under the `test/` directory
 
 -- TODO: add per-feature configuration in `require'refactoring'.setup` that
