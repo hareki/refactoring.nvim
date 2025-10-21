@@ -54,19 +54,30 @@
   object: (identifier) @reference.identifier
   (#set! reference_type read))
 
-((comment)* @output.comment
-  .
-  (function_declaration) @output.function)
+; function a() {}
+(program
+  ((comment)* @output.comment
+    (function_declaration) @output.function))
 
-((comment)* @output.comment
-  .
-  (lexical_declaration
-    (variable_declarator
-      (arrow_function))) @output.function)
+; const a = ()=>{}
+(program
+  ((comment)* @output.comment
+    (lexical_declaration
+      (variable_declarator
+        (arrow_function))) @output.function))
 
-((comment)* @output.comment
-  .
-  (method_definition) @output.method)
+; a = ()=>{}
+(program
+  ((comment)* @output.comment
+    (expression_statement
+      (assignment_expression
+        (arrow_function))) @output.function))
+
+(program
+  (class_declaration
+    (class_body
+      ((comment)* @output.comment
+        (method_definition) @output.method))))
 
 (do_statement
   body: (statement_block

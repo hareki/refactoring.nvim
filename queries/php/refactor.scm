@@ -126,13 +126,15 @@
   function: (variable_name) @reference.identifier
   (#set! reference_type read))
 
-((comment)* @output.comment
-  .
-  (method_declaration) @output.method)
+(program
+  (class_declaration
+    (declaration_list
+      ((comment)* @output.comment
+        (method_declaration) @output.method))))
 
-((comment)* @output.comment
-  .
-  (function_definition) @output.function)
+(program
+  ((comment)* @output.comment
+    (function_definition) @output.function))
 
 (program
   (php_tag)

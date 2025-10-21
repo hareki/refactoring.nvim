@@ -119,21 +119,21 @@
   function: (identifier) @reference.identifier
   (#set! reference_type read))
 
-((comment)* @output.comment
-  .
-  (function_definition) @output.function)
+(module
+  ((comment)* @output.comment
+    [
+      (function_definition)
+      (decorated_definition)
+    ] @output.function))
 
-((comment)* @output.comment
-  .
-  (decorated_definition) @output.function)
-
-((comment)* @output.comment
-  .
-  (decorated_definition) @output.method)
-
-((comment)* @output.comment
-  .
-  (function_definition) @output.method)
+(module
+  (class_definition
+    (block
+      ((comment)* @output.comment
+        [
+          (function_definition)
+          (decorated_definition)
+        ] @output.method))))
 
 (module) @scope
 

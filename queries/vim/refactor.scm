@@ -131,7 +131,9 @@
   ] @reference.identifier
   (#set! reference_type read))
 
-(function_definition) @output.function
+(script_file
+  ((comment)* @output.comment
+    (function_definition) @output.function))
 
 (script_file) @scope
 

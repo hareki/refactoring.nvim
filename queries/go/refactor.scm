@@ -96,16 +96,18 @@
   function: (identifier) @reference.identifier
   (#set! reference_type read))
 
-((comment)* @output.comment
-  (function_declaration) @output.function)
+(source_file
+  ((comment)* @output.comment
+    (function_declaration) @output.function))
 
-((comment)* @output.comment
-  (method_declaration
-    receiver: (parameter_list
-      (parameter_declaration
-        name: (identifier) @output.struct_var_name
-        type: (pointer_type
-          (type_identifier) @output.struct_name)))) @output.function)
+(source_file
+  ((comment)* @output.comment
+    (method_declaration
+      receiver: (parameter_list
+        (parameter_declaration
+          name: (identifier) @output.struct_var_name
+          type: (pointer_type
+            (type_identifier) @output.struct_name)))) @output.function))
 
 (func_literal
   body: (block

@@ -75,12 +75,14 @@
   (#set-type! java @_type @reference.identifier)
   (#set! declaration true))
 
-([
-  (line_comment)
-  (block_comment)
-]* @output.comment
-  .
-  (method_declaration) @output.method)
+(program
+  (class_declaration
+    (class_body
+      ([
+        (line_comment)
+        (block_comment)
+      ]* @output.comment
+        (method_declaration) @output.method))))
 
 (_
   (block

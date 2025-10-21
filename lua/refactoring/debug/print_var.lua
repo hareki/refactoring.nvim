@@ -171,7 +171,8 @@ function M.print_var(range_type, config)
 
     -- TODO: should I generalize/unify how ranges and range transformations are
     -- handled everywhere? Some ranges are having a 1-off error because of no standar
-    -- handling of ranges (e.g. `extract_func` for a single word)
+    -- handling of ranges (e.g. `extract_func` for a single word). Take a look
+    -- at how `vim.treesitter.get_node_text` handles treesitter ranges when doing this
     local extracted_range_ts = { extracted_range[1], extracted_range[2], extracted_range[3], extracted_range[4] + 1 }
     ---@type {[string]: refactor.Reference}
     local selected_references_by_start = iter(references)

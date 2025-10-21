@@ -190,15 +190,25 @@
   ] @reference.identifier
   (#set! reference_type read))
 
-((comment)* @output.comment
-  .
-  (assignment_statement
-    (expression_list
-      (function_definition))) @output.function)
+; local a = function() end
+(chunk
+  ((comment)* @output.comment
+    (variable_declaration
+      (assignment_statement
+        (expression_list
+          (function_definition)))) @output.function))
 
-((comment)* @output.comment
-  .
-  (function_declaration) @output.function)
+; a = function() end
+(chunk
+  ((comment)* @output.comment
+    (assignment_statement
+      (expression_list
+        (function_definition))) @output.function))
+
+; function a() end
+(chunk
+  ((comment)* @output.comment
+    (function_declaration) @output.function))
 
 ; table.sort(function() end)
 ((function_definition

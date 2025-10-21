@@ -52,17 +52,19 @@
   (identifier) @reference.identifier
   (#set! reference_type read))
 
-((comment)* @output.comment
-  .
-  (_
-    (local_function_statement)) @output.function)
+(compilation_unit
+  ((comment)* @output.comment
+    (global_statement
+      (local_function_statement) @output.function)))
 
-((comment)* @output.comment
-  .
-  [
-    (method_declaration)
-    (constructor_declaration)
-  ] @output.method)
+(compilation_unit
+  (class_declaration
+    (declaration_list
+      ((comment)* @output.comment
+        [
+          (method_declaration)
+          (constructor_declaration)
+        ] @output.method))))
 
 (_
   (block

@@ -113,14 +113,16 @@
     (variable) @reference.identifier)
   (#set! reference_type read))
 
-((comment)* @output.comment
-  .
-  (statement_list
-    (function_statement) @output.function))
+(program
+  ((comment)* @output.comment
+    (statement_list
+      (function_statement) @output.function)))
 
-((comment)* @output.comment
-  .
-  (class_method_definition) @output.method)
+(program
+  (statement_list
+    (class_statement
+      ((comment)* @output.comment
+        (class_method_definition) @output.method))))
 
 (class_statement
   (class_method_definition) @scope.inside) @scope

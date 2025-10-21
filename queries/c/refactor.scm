@@ -72,9 +72,9 @@
   (identifier) @reference.identifier
   (#set! reference_type read))
 
-((comment)* @output.comment
-  .
-  (function_definition) @output.function)
+(translation_unit
+  ((comment)* @output.comment
+    (function_definition) @output.function))
 
 (struct_specifier) @scope
 

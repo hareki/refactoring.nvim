@@ -35,52 +35,6 @@ local M = {}
 ---@field function_call? {[string]: nil|fun(opts: refactor.extract_func.code_generation.function_call.Opts): string}
 ---@field return_statement? {[string]: nil|fun(opts: refactor.extract_func.code_generation.return_statement.Opts): string}
 
--- TODO: check if I can replace this with the has-parent treesitter predicate
----@type {[string]: {fn: integer, method?: integer}}
-local parents_till_nil = {
-  lua = {
-    fn = 2,
-  },
-  c = {
-    fn = 2,
-  },
-  c_sharp = {
-    fn = 2,
-    method = 4,
-  },
-  javascript = {
-    fn = 2,
-    method = 4,
-  },
-  go = {
-    fn = 2,
-  },
-  java = {
-    method = 4,
-  },
-  php = {
-    fn = 2,
-    method = 4,
-  },
-  powershell = {
-    fn = 3,
-    method = 4,
-  },
-  python = {
-    fn = 2,
-    method = 4,
-  },
-  ruby = {
-    fn = 2,
-    method = 4,
-  },
-  vim = {
-    fn = 2,
-  },
-}
-parents_till_nil.cpp = parents_till_nil.c
-parents_till_nil.typescript = parents_till_nil.javascript
-
 ---@class refactor.Output
 ---@field comment TSNode[]?
 ---@field fn TSNode
@@ -143,24 +97,8 @@ local function get_output_node(nested_lang_tree, query, buf, extracted_range)
     end
   end
 
-  local lang = nested_lang_tree:lang()
   ---@type refactor.Output|nil
   local selected_output = iter(outputs)
-    :filter(
-      ---@param o refactor.Output
-      function(o)
-        local expected = o.method and parents_till_nil[lang].method or parents_till_nil[lang].fn
-
-        local current = o.fn ---@type TSNode|nil
-        local p_till_nil = 0
-        while current do
-          current = current:parent()
-          p_till_nil = p_till_nil + 1
-        end
-
-        return p_till_nil == expected
-      end
-    )
     :filter(
       ---@param o refactor.Output
       function(o)

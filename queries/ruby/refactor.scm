@@ -103,21 +103,21 @@
     (identifier) @reference.identifier)
   (#set! reference_type read))
 
-((comment)* @output.comment
-  .
-  (method) @output.method)
+(program
+  (class
+    (body_statement
+      ((comment)* @output.comment
+        [
+          (method)
+          (singleton_method)
+        ] @output.method))))
 
-((comment)* @output.comment
-  .
-  (singleton_method) @output.method.singleton)
-
-((comment)* @output.comment
-  .
-  (method) @output.function)
-
-((comment)* @output.comment
-  .
-  (singleton_method) @output.function.singleton)
+(program
+  ((comment)* @output.comment
+    [
+      (method)
+      (singleton_method)
+    ] @output.function))
 
 (program) @scope
 
