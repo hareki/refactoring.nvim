@@ -61,36 +61,25 @@ local function get_output_node(nested_lang_tree, query, buf, extracted_range)
 
   local outputs = {} ---@type refactor.Output[]
   for _, tree in ipairs(nested_lang_tree:trees()) do
-    for _, match in query:iter_matches(tree:root(), buf) do
+    for _, match, metadata in query:iter_matches(tree:root(), buf) do
       local output ---@type table|refactor.Output|nil
       for capture_id, nodes in pairs(match) do
         local name = query.captures[capture_id]
 
+        -- TODO: split input.info and output location
         if name == "output.comment" then
           output = output or {}
           output.comment = nodes
         elseif name == "output.function" then
           output = output or {}
           output.fn = nodes[1]
-        elseif name == "output.function.singleton" then
-          output = output or {}
-          output.fn = nodes[1]
-          output.singleton = true
-        elseif name == "output.method" then
-          output = output or {}
-          output.fn = nodes[1]
-          output.method = true
-        elseif name == "output.method.singleton" then
-          output = output or {}
-          output.fn = nodes[1]
-          output.method = true
-          output.singleton = true
-        elseif name == "output.struct_name" then
-          output = output or {}
-          output.struct_name = ts.get_node_text(nodes[1], buf)
-        elseif name == "output.struct_var_name" then
-          output = output or {}
-          output.struct_var_name = ts.get_node_text(nodes[1], buf)
+          output.method = metadata.method ~= nil
+          output.singleton = metadata.singleton ~= nil
+
+          local struct_name = metadata.struct_name
+          if struct_name then output.struct_name = ts.get_node_text(match[struct_name][1], buf) end
+          local struct_var_name = metadata.struct_var_name
+          if struct_var_name then output.struct_var_name = ts.get_node_text(match[struct_var_name][1], buf) end
         end
       end
       if output then table.insert(outputs, output) end

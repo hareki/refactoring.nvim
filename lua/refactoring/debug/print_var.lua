@@ -12,6 +12,10 @@ local M = {}
 -- things like that unless necessary. Maybe as close as possible to the last
 -- declaration of the variables]
 -- TODO: add some way to list/search/travel across all inserted statements
+-- TODO: allow to filter function_calls (and maybe some arbitraty mechanism for
+-- doing so)
+-- TODO: allow specifying in reference captures which references do not need an
+-- explicit declaration above (usually, object fields)
 
 ---@class refactor.print_var.code_generation.Opts
 ---@field identifier string

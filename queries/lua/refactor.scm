@@ -148,6 +148,12 @@
   ] @reference.identifier
   (#set! reference_type read))
 
+(for_generic_clause
+  (variable_list
+    name: (identifier) @reference.identifier)
+  (#set! reference_type write)
+  (#set! declaration true))
+
 (for_numeric_clause
   name: [
     (identifier)

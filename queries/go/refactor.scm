@@ -105,9 +105,11 @@
     (method_declaration
       receiver: (parameter_list
         (parameter_declaration
-          name: (identifier) @output.struct_var_name
+          name: (identifier) @_struct_var_name
           type: (pointer_type
-            (type_identifier) @output.struct_name)))) @output.function))
+            (type_identifier) @_struct_name)))) @output.function)
+  (#set! struct_name @_struct_name)
+  (#set! struct_var_name @_struct_var_name))
 
 (func_literal
   body: (block

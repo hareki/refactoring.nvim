@@ -122,7 +122,8 @@
   (statement_list
     (class_statement
       ((comment)* @output.comment
-        (class_method_definition) @output.method))))
+        (class_method_definition) @output.function)))
+  (#set! method true))
 
 (class_statement
   (class_method_definition) @scope.inside) @scope

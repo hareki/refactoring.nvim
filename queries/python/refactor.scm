@@ -133,7 +133,8 @@
         [
           (function_definition)
           (decorated_definition)
-        ] @output.method))))
+        ] @output.function)))
+  (#set! method true))
 
 (module) @scope
 

@@ -107,17 +107,25 @@
   (class
     (body_statement
       ((comment)* @output.comment
-        [
-          (method)
-          (singleton_method)
-        ] @output.method))))
+        (singleton_method) @output.function)))
+  (#set! method true)
+  (#set! singleton true))
+
+(program
+  (class
+    (body_statement
+      ((comment)* @output.comment
+        (method) @output.function)))
+  (#set! method true))
 
 (program
   ((comment)* @output.comment
-    [
-      (method)
-      (singleton_method)
-    ] @output.function))
+    (method) @output.function))
+
+(program
+  ((comment)* @output.comment
+    (singleton_method) @output.function)
+  (#set! singleton true))
 
 (program) @scope
 

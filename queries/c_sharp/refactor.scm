@@ -64,7 +64,8 @@
         [
           (method_declaration)
           (constructor_declaration)
-        ] @output.method))))
+        ] @output.function)))
+  (#set! method true))
 
 (_
   (block

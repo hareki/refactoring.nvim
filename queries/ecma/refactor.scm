@@ -77,7 +77,8 @@
   (class_declaration
     (class_body
       ((comment)* @output.comment
-        (method_definition) @output.method))))
+        (method_definition) @output.function)))
+  (#set! method true))
 
 (do_statement
   body: (statement_block

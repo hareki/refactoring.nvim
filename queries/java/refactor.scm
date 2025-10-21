@@ -82,7 +82,8 @@
         (line_comment)
         (block_comment)
       ]* @output.comment
-        (method_declaration) @output.method))))
+        (method_declaration) @output.function)))
+  (#set! method true))
 
 (_
   (block
