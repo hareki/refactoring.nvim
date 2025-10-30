@@ -2,6 +2,8 @@ local iter = vim.iter
 local ts = vim.treesitter
 local api = vim.api
 local async = require "async"
+local pos = require "refactoring.pos"
+local range = require "refactoring.range"
 
 local M = {}
 
@@ -13,8 +15,6 @@ local M = {}
 ---@param query vim.treesitter.Query
 ---@return nil|refactor.VariableInfo
 local function get_definition_info(definition, query)
-  local contains = require("refactoring.range").contains
-
   local definition_buf = vim.fn.bufadd(definition.filename)
   if not api.nvim_buf_is_loaded(definition_buf) then vim.fn.bufload(definition_buf) end
   local definition_lang_tree, err2 = ts.get_parser(definition_buf, nil, { error = false })
@@ -54,6 +54,7 @@ local function get_definition_info(definition, query)
     end
   end
 
+  local definition_start = pos.vimscript(definition_buf, definition.lnum, definition.col)
   ---@type refactor.VariableInfo
   local variable_info = iter(definition_matches_info)
     :map(
@@ -64,8 +65,8 @@ local function get_definition_info(definition, query)
             ---@param _ integer
             ---@param identifier TSNode
             function(_, identifier)
-              local start_row, start_col, end_row, end_col = identifier:range()
-              return contains({ start_row, start_col, end_row, end_col }, { definition.lnum - 1, definition.col - 1 })
+              local identifier_range = range.treesitter(definition_buf, identifier:range())
+              return identifier_range:has_pos(definition_start)
             end
           )
           :map(
@@ -117,7 +118,6 @@ end
 -- TODO: success message (can be disabled in config)
 ---@param config refactor.Config
 function M.inline_var(_, config)
-  local contains = require("refactoring.range").contains
   local apply_text_edits = require("refactoring.utils").apply_text_edits
   local is_unique = require("refactoring.utils").is_unique
   local select = require("refactoring.utils").select
@@ -190,6 +190,7 @@ function M.inline_var(_, config)
       })
     local definition, definition_info = definition_with_match.definition, definition_with_match.match
     local definition_buf = vim.fn.bufadd(definition.filename)
+    local definition_start = pos.vimscript(definition_buf, definition.lnum, definition.col)
 
     ---@type refactor.QfItem[]
     references = iter(references)
@@ -202,10 +203,11 @@ function M.inline_var(_, config)
       :filter(
         ---@param r refactor.QfItem
         function(r)
-          return not contains(
-            { r.lnum - 1, r.col - 1, r.end_lnum - 1, r.end_col - 1 },
-            { definition.lnum - 1, definition.col - 1 }
-          )
+          local r_buf = vim.fn.bufadd(r.filename)
+          if r_buf ~= definition_buf then return true end
+
+          local r_range = range.vimscript(r_buf, r.lnum, r.col, r.end_lnum, r.end_col)
+          return not r_range:has_pos(definition_start)
         end
       )
       :totable()
@@ -227,7 +229,7 @@ function M.inline_var(_, config)
 
         text_edits_by_buf[buf] = text_edits_by_buf[buf] or {}
         table.insert(text_edits_by_buf[buf], {
-          range = {
+          range = range(
             reference.lnum - 1,
             -- TODO: this fails for lua_ls because for the definition
             -- `foo.bar`, the reference `foo['bar']` is given, and won't have
@@ -241,7 +243,8 @@ function M.inline_var(_, config)
               - #identifier_text,
             reference.end_lnum - 1,
             reference.end_col - 1,
-          },
+            { buf = buf }
+          ),
           lines = vim.split(value_text, "\n"),
         })
       end
@@ -262,24 +265,21 @@ function M.inline_var(_, config)
         :map(
           ---@param n TSNode
           function(n)
-            return { n:range() }
+            return range.treesitter(definition_buf, n:range())
           end
         )
         :each(
-          ---@param range Range4
-          function(range)
+          ---@param r vim.Range
+          function(r)
             text_edits_by_buf[definition_buf] = text_edits_by_buf[definition_buf] or {}
-            table.insert(text_edits_by_buf[definition_buf], { range = range, lines = {} })
+            table.insert(text_edits_by_buf[definition_buf], { range = r, lines = {} })
           end
         )
     else
-      local start_row, start_col, end_row, end_col = declaration_node:range()
+      local declaration_range = range.treesitter(definition_buf, declaration_node:range())
 
       text_edits_by_buf[definition_buf] = text_edits_by_buf[definition_buf] or {}
-      table.insert(
-        text_edits_by_buf[definition_buf],
-        { range = { start_row, start_col, end_row, end_col }, lines = {} }
-      )
+      table.insert(text_edits_by_buf[definition_buf], { range = declaration_range, lines = {} })
     end
 
     apply_text_edits(text_edits_by_buf)

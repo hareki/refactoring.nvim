@@ -1,4 +1,6 @@
 local async = require "async"
+local pos = require "refactoring.pos"
+local range = require "refactoring.range"
 local iter = vim.iter
 local ts = vim.treesitter
 local api = vim.api
@@ -52,11 +54,10 @@ end
 ---@param nested_lang_tree vim.treesitter.LanguageTree
 ---@param query vim.treesitter.Query
 ---@param buf integer
----@param extracted_range Range4
+---@param extracted_range vim.Range
 ---@return TSNode?
 ---@return {method: boolean?, singleton: boolean?, struct_name: string?, struct_var_name: string?}
 local function get_output_node(nested_lang_tree, query, buf, extracted_range)
-  local compare = require("refactoring.range").compare
   local is_first_closer = require("refactoring.utils").is_first_closer
 
   local outputs = {} ---@type refactor.Output[]
@@ -92,8 +93,8 @@ local function get_output_node(nested_lang_tree, query, buf, extracted_range)
       ---@param o refactor.Output
       function(o)
         local n = choose_output(o)
-        local start_row, start_col = n:start()
-        return compare({ start_row, start_col }, { extracted_range[1], extracted_range[2] }) == -1
+        local n_start = pos.treesitter(buf, "start", n:start())
+        return n_start < extracted_range.start
       end
     )
     :fold(
@@ -104,15 +105,11 @@ local function get_output_node(nested_lang_tree, query, buf, extracted_range)
         if not acc then return o end
 
         local n = choose_output(o)
-        local o_start_row, o_start_col = n:start()
+        local o_start = pos.treesitter(buf, "start", n:start())
         local acc_n = choose_output(acc)
-        local acc_start_row, acc_start_col = acc_n:start()
+        local acc_start = pos.treesitter(buf, "start", acc_n:start())
 
-        local is_o_closer = is_first_closer(
-          { o_start_row, o_start_col },
-          { acc_start_row, acc_start_col },
-          { extracted_range[1], extracted_range[2] }
-        )
+        local is_o_closer = is_first_closer(o_start, acc_start, extracted_range.start)
         if is_o_closer then return o end
         return acc
       end
@@ -162,7 +159,7 @@ end
 ---@field type string|nil
 
 ---@class refactor.extract_func.Opts
----@field extracted_range Range4
+---@field extracted_range vim.Range
 ---@field in_buf integer
 ---@field lines string[]
 ---@field out_buf integer
@@ -171,8 +168,6 @@ end
 
 ---@param opts refactor.extract_func.Opts
 local function extract_func(opts)
-  local contains = require("refactoring.range").contains
-  local compare = require("refactoring.range").compare
   local apply_text_edits = require("refactoring.utils").apply_text_edits
   local code_gen_error = require("refactoring.utils").code_gen_error
   local is_unique = require("refactoring.utils").is_unique
@@ -189,20 +184,34 @@ local function extract_func(opts)
   local out_buf = opts.out_buf
   local fn_name = opts.fn_name
 
-  local nested_lang_tree, in_query = ts_parse(in_buf, extracted_range)
+  local extracted_range_ts = { extracted_range:to_treesitter() }
+  local nested_lang_tree, in_query = ts_parse(in_buf, extracted_range_ts)
   if not nested_lang_tree or not in_query then return end
 
-  local out_nested_lang_tree, out_query = ts_parse(out_buf, extracted_range)
+  local out_nested_lang_tree, out_query = ts_parse(out_buf, extracted_range_ts)
   if not out_nested_lang_tree or not out_query then return end
   -- TODO: this doesn't work for `extract_func_to_file` (unless that, because
   -- of a coincidence, the information is available in that file). Instead,
   -- split `get_output_node` and `get_output/input_opts` to get it from
   -- `in_buf` (that will always have the information available instead)
   local output_node, output_opts = get_output_node(out_nested_lang_tree, out_query, out_buf, extracted_range)
-  local output_range = output_node and { output_node:range() }
-    or in_buf == out_buf and extracted_range
-    or { 0, 0, 0, 0 }
-  local output_start = { output_range[1], output_range[2] }
+  ---@type vim.Range
+  local output_range
+  if output_node then
+    local output_start = pos.treesitter(in_buf, "start", output_node:start())
+    local row, col = output_start:to_api()
+    output_range = range.api(out_buf, row, col, row, col)
+  elseif in_buf == out_buf then
+    output_range = range(
+      extracted_range.start.row,
+      extracted_range.start.col,
+      extracted_range.start.row,
+      extracted_range.start.col,
+      { buf = extracted_range.start.buf }
+    )
+  else
+    output_range = range.api(out_buf, 0, 0, 0, 0)
+  end
 
   local references = {} ---@type refactor.Reference[]
   local scopes = {} ---@type TSNode[]
@@ -229,7 +238,7 @@ local function extract_func(opts)
   end
   -- TODO: maybe check that all the treesitter captures are not empty(?
 
-  local scopes_for_extracted_range = scopes_for_range(scopes, extracted_range)
+  local scopes_for_extracted_range = scopes_for_range(in_buf, scopes, extracted_range)
 
   local declarations = iter(references)
     :filter(
@@ -256,36 +265,20 @@ local function extract_func(opts)
     ---@param a refactor.Reference
     ---@param b refactor.Reference
     function(a, b)
-      local compare_start = compare(
-        ---@diagnostic disable-next-line: missing-fields
-        { a.identifier:start() },
-        ---@diagnostic disable-next-line: missing-fields
-        { b.identifier:start() }
-      )
-      if compare_start == -1 then
-        return true
-      elseif compare_start == 1 then
-        return false
-      end
-      local compare_end = compare(
-        ---@diagnostic disable-next-line: missing-fields
-        { a.identifier:end_() },
-        ---@diagnostic disable-next-line: missing-fields
-        { b.identifier:end_() }
-      )
-      return compare_end == -1
+      -- TODO: don't I already have a function to sort nodes in utils?
+      local a_range = range.treesitter(in_buf, a.identifier:range())
+      local b_range = range.treesitter(in_buf, b.identifier:range())
+
+      return a_range < b_range
     end
   )
   ---@type {[TSNode]: {scope: TSNode, types: {[string]: string|{identifier: string}}}}
-  local types_by_scope_up_to_extracted_range = iter(typed_references)
+  local types_by_scope_up_to_extracted_range_end = iter(typed_references)
     :filter(
       ---@param r refactor.Reference
       function(r)
         -- TODO: maybe extract this filter into some function, there are
         -- similar ones for all the `before_` variables
-        local node_start = { r.identifier:start() }
-        local node_end = { r.identifier:end_() }
-
         local declaration_scope = get_declaration_scope(declarations_by_scope, scopes, r, in_buf)
 
         local is_in_scope = declaration_scope
@@ -297,10 +290,8 @@ local function extract_func(opts)
             )
           or false
 
-        local end_extract = { extracted_range[3], extracted_range[4] }
-        local compare_start = compare(node_start, end_extract)
-        local compare_end = compare(node_end, end_extract)
-        return compare_start ~= 1 and compare_end ~= 1 and is_in_scope
+        local node_range = range.treesitter(in_buf, r.identifier:range())
+        return node_range.start <= extracted_range.end_ and node_range.end_ <= extracted_range.end_ and is_in_scope
       end
     )
     :fold(
@@ -323,34 +314,16 @@ local function extract_func(opts)
     )
 
   ---@type {scope: TSNode, types: {[string]: string|{identifier: string}}}[]
-  local types_with_scope_up_to_extracted_range = vim.tbl_values(types_by_scope_up_to_extracted_range)
-  table.sort(
-    types_with_scope_up_to_extracted_range,
-    ---@param a {scope: TSNode, types: {[string]: string|{identifier: string}}}
-    ---@param b {scope: TSNode, types: {[string]: string|{identifier: string}}}
-    function(a, b)
-      local compare_start = compare(
-        ---@diagnostic disable-next-line: missing-fields
-        { a.scope:start() },
-        ---@diagnostic disable-next-line: missing-fields
-        { b.scope:start() }
-      )
-      if compare_start == -1 then
-        return false
-      elseif compare_start == 1 then
-        return true
-      end
-      local compare_end = compare(
-        ---@diagnostic disable-next-line: missing-fields
-        { a.scope:end_() },
-        ---@diagnostic disable-next-line: missing-fields
-        { b.scope:end_() }
-      )
-      return compare_end ~= -1
-    end
-  )
+  local types_with_scope_up_to_extracted_range_end = vim.tbl_values(types_by_scope_up_to_extracted_range_end)
+  table.sort(types_with_scope_up_to_extracted_range_end, function(a, b)
+    -- TODO: don't I already have a function to sort nodes in utils?
+    local a_range = range.treesitter(in_buf, a.scope:range())
+    local b_range = range.treesitter(in_buf, b.scope:range())
+
+    return a_range < b_range
+  end)
   ---@type {[string]: string|{identifier: string}}[]
-  local scoped_types_up_to_extracted_range = iter(types_with_scope_up_to_extracted_range)
+  local scoped_types_up_to_extracted_range_end = iter(types_with_scope_up_to_extracted_range_end)
     :map(
       ---@param a {scope: TSNode, types: {[string]: string}}
       function(a)
@@ -358,12 +331,12 @@ local function extract_func(opts)
       end
     )
     :totable()
-  iter(scoped_types_up_to_extracted_range):rev():each(
+  iter(scoped_types_up_to_extracted_range_end):rev():each(
     ---@param t {[string]: string|{identifier: string}}
     function(t)
       for identifier, identifier_type in pairs(t) do
         if type(identifier_type) == "table" then
-          local types = iter(scoped_types_up_to_extracted_range):find(
+          local types = iter(scoped_types_up_to_extracted_range_end):find(
             ---@param types {[string]: string}
             function(types)
               return types[identifier_type.identifier] ~= nil
@@ -377,7 +350,7 @@ local function extract_func(opts)
       end
     end
   )
-  ---@cast scoped_types_up_to_extracted_range{[string]: string}[]
+  ---@cast scoped_types_up_to_extracted_range_end{[string]: string}[]
 
   ---@type refactor.Reference[]
   local references_inside_extracted_range = iter(references)
@@ -385,11 +358,8 @@ local function extract_func(opts)
       ---@param r refactor.Reference
       function(r)
         local n = r.identifier
-        local node_start = { n:start() }
-        local end_node = { n:end_() }
-        local contains_start = contains(extracted_range, node_start)
-        local contains_end = contains(extracted_range, end_node)
-        return contains_start and contains_end
+        local node_range = range.treesitter(in_buf, n:range())
+        return extracted_range:has(node_range)
       end
     )
     :totable()
@@ -400,7 +370,7 @@ local function extract_func(opts)
       local identifier = ts.get_node_text(r.identifier, in_buf)
 
       ---@type {[string]: string}|nil
-      local types = iter(scoped_types_up_to_extracted_range):find(
+      local types = iter(scoped_types_up_to_extracted_range_end):find(
         ---@param types {[string]: string}
         function(types)
           return types[identifier] ~= nil
@@ -446,13 +416,8 @@ local function extract_func(opts)
     :filter(
       ---@param r refactor.Reference
       function(r)
-        local contains_start =
-          ---@diagnostic disable-next-line: missing-fields
-          contains(extracted_range, { r.identifier:start() })
-        local contains_end =
-          ---@diagnostic disable-next-line: missing-fields
-          contains(extracted_range, { r.identifier:end_() })
-        return contains_start and contains_end
+        local r_range = range.treesitter(in_buf, r.identifier:range())
+        return extracted_range:has(r_range)
       end
     )
     :map(reference_to_text)
@@ -463,9 +428,6 @@ local function extract_func(opts)
     :filter(
       ---@param r refactor.Reference
       function(r)
-        local node_start = { r.identifier:start() }
-        local node_end = { r.identifier:end_() }
-
         local declaration_scope = get_declaration_scope(declarations_by_scope, scopes, r, in_buf)
 
         local is_in_scope = declaration_scope
@@ -477,7 +439,8 @@ local function extract_func(opts)
             )
           or false
 
-        return compare(node_start, output_start) ~= 1 and compare(node_end, output_start) ~= 1 and is_in_scope
+        local node_range = range.treesitter(in_buf, r.identifier:range())
+        return node_range <= output_range and is_in_scope
       end
     )
     :map(reference_to_text)
@@ -487,9 +450,6 @@ local function extract_func(opts)
     :filter(
       ---@param r refactor.Reference
       function(r)
-        local node_start = { r.identifier:start() }
-        local node_end = { r.identifier:end_() }
-
         local declaration_scope = get_declaration_scope(declarations_by_scope, scopes, r, in_buf)
 
         local is_in_scope = declaration_scope
@@ -501,10 +461,8 @@ local function extract_func(opts)
             )
           or false
 
-        local extracted_start = { extracted_range[1], extracted_range[2] }
-        local compare_start = compare(node_start, extracted_start)
-        local compare_end = compare(node_end, extracted_start)
-        return compare_start ~= 1 and compare_end ~= 1 and is_in_scope
+        local node_range = range.treesitter(in_buf, r.identifier:range())
+        return node_range <= extracted_range and is_in_scope
       end
     )
     :map(reference_to_text)
@@ -530,10 +488,6 @@ local function extract_func(opts)
     :filter(
       ---@param r refactor.Reference
       function(r)
-        local n = r.identifier
-        local node_start = { n:start() }
-        local node_end = { n:end_() }
-
         local declaration_scope = get_declaration_scope(declarations_by_scope, scopes, r, in_buf)
         local is_in_scope = declaration_scope
             and iter(scopes_for_extracted_range):any(
@@ -544,10 +498,8 @@ local function extract_func(opts)
             )
           or false
 
-        local extract_end = { extracted_range[3], extracted_range[4] }
-        local compare_start = compare(node_start, extract_end)
-        local compare_end = compare(node_end, extract_end)
-        return compare_start == 1 and compare_end == 1 and is_in_scope
+        local node_range = range.treesitter(in_buf, r.identifier:range())
+        return node_range > extracted_range and is_in_scope
       end
     )
     :map(reference_to_variable)
@@ -632,7 +584,7 @@ local function extract_func(opts)
   end
   text_edits_by_buf[out_buf] = text_edits_by_buf[out_buf] or {}
   table.insert(text_edits_by_buf[out_buf], {
-    range = { output_range[1], output_range[2], output_range[1], output_range[2] },
+    range = output_range,
     lines = function_definition_lines,
   })
   apply_text_edits(text_edits_by_buf)
@@ -644,13 +596,15 @@ end
 ---@param range_type 'v' | 'V' | ''
 ---@param config refactor.Config
 M.extract_func = function(range_type, config)
-  local get_extracted_range = require("refactoring.range").get_extracted_range
+  local get_extracted_range = require("refactoring.utils").get_extracted_range
+  local get_extracted_lines = require("refactoring.utils").get_extracted_lines
   local input = require("refactoring.utils").input
 
   local opts = config.refactor.extract_func
 
   local buf = api.nvim_get_current_buf()
-  local extracted_range, lines = get_extracted_range(range_type)
+  local extracted_range = get_extracted_range(buf, range_type)
+  local lines = get_extracted_lines(range_type)
 
   local task = async.run(function()
     local fn_name = opts.input and table.remove(opts.input, 1) or input { prompt = "Function name: " }
@@ -671,13 +625,15 @@ end
 ---@param range_type 'v' | 'V' | ''
 ---@param config refactor.Config
 M.extract_func_to_file = function(range_type, config)
-  local get_extracted_range = require("refactoring.range").get_extracted_range
+  local get_extracted_range = require("refactoring.utils").get_extracted_range
+  local get_extracted_lines = require("refactoring.utils").get_extracted_lines
   local input = require("refactoring.utils").input
 
   local opts = config.refactor.extract_func
 
   local buf = api.nvim_get_current_buf()
-  local extracted_range, lines = get_extracted_range(range_type)
+  local extracted_range = get_extracted_range(buf, range_type)
+  local lines = get_extracted_lines(range_type)
 
   local task = async.run(function()
     local file_name = opts.input and table.remove(opts.input)

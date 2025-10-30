@@ -1,6 +1,8 @@
 local api = vim.api
 local iter = vim.iter
 local async = require "async"
+local range = require "refactoring.range"
+local pos = require "refactoring.pos"
 local ts = vim.treesitter
 
 -- TODO: Search inside strings (using treesitter) on `printf` (and
@@ -26,15 +28,14 @@ end
 ---@param range_type 'v' | 'V' | ''
 ---@param config refactor.Config
 function M.cleanup(range_type, config)
-  local get_extracted_range = require("refactoring.range").get_extracted_range
+  local get_extracted_range = require("refactoring.utils").get_extracted_range
   local apply_text_edits = require("refactoring.utils").apply_text_edits
-  local contains_range = require("refactoring.range").contains_range
 
   local opts = config.debug.cleanup
 
   local buf = api.nvim_get_current_buf()
   local last_line = vim.fn.line "$"
-  local extracted_range = get_extracted_range(range_type)
+  local extracted_range = get_extracted_range(buf, range_type)
 
   local task = async.run(function()
     local lang_tree, err1 = ts.get_parser(buf, nil, { error = false })
@@ -44,7 +45,7 @@ function M.cleanup(range_type, config)
     end
     -- TODO: use async parsing
     lang_tree:parse(true)
-    local nested_lang_tree = lang_tree:language_for_range(extracted_range)
+    local nested_lang_tree = lang_tree:language_for_range { extracted_range:to_treesitter() }
     local lang = nested_lang_tree:lang()
     local query = ts.query.get(lang, "refactor")
     if not query then
@@ -64,13 +65,13 @@ function M.cleanup(range_type, config)
     end
 
     table.sort(comments, node_comp_asc)
-    ---@type Range4[]
+    ---@type vim.Range[]
     local ranges_to_cleanup = iter(comments)
       :filter(
         ---@param comment TSNode
         function(comment)
-          local comment_range = { comment:range() }
-          return contains_range(extracted_range, comment_range)
+          local comment_range = range.treesitter(buf, comment:range())
+          return extracted_range:has(comment_range)
         end
       )
       :map(
@@ -84,21 +85,14 @@ function M.cleanup(range_type, config)
               return text:find(opts.markers[name].start) ~= nil
             end
           )
-          if is_start then return "start", { comment:start() } end
-          local comment_end = { comment:end_() }
-          if comment_end[1] ~= last_line - 1 then
-            comment_end[1], comment_end[2] = comment_end[1] + 1, 0
-          end
+          if is_start then return "start", pos.treesitter(buf, "start", comment:start()) end
           local is_end = iter(opts.types):any(
             ---@param name 'print_var'|'print_loc'|'print_exp'
             function(name)
               return text:find(opts.markers[name]["end"]) ~= nil
             end
           )
-          if is_end then return "end", comment_end end
-          -- TODO: I'll need to generalize the handling of 0-based/1-based
-          -- end-exclusive/end-inclusive/end_row-inclusive_col-exclusive/end_row_exclusive-_col-0
-          -- ranges everywhere x2
+          if is_end then return "end", pos.treesitter(buf, "end", comment:end_()) end
         end
       )
       :filter(
@@ -109,13 +103,13 @@ function M.cleanup(range_type, config)
       )
       :fold(
         {},
-        ---@param acc Range4[]|{current_start: Range2}
+        ---@param acc vim.Range|{current_start: vim.Pos}
         ---@param kind 'start'|'end'
-        ---@param range Range2
-        function(acc, kind, range)
-          if kind == "start" then acc.current_start = range end
+        ---@param position vim.Pos
+        function(acc, kind, position)
+          if kind == "start" then acc.current_start = position end
           if kind == "end" and acc.current_start ~= nil then
-            table.insert(acc, { acc.current_start[1], acc.current_start[2], range[1], range[2] })
+            table.insert(acc, range(acc.current_start, position))
             acc.current_start = nil
           end
 
@@ -127,9 +121,9 @@ function M.cleanup(range_type, config)
     local text_edits_by_buf = {}
     text_edits_by_buf[buf] = {}
     iter(ipairs(ranges_to_cleanup)):each(
-      ---@param range Range4
-      function(_, range)
-        table.insert(text_edits_by_buf[buf], { range = range, lines = {} })
+      ---@param r vim.Range
+      function(_, r)
+        table.insert(text_edits_by_buf[buf], { range = r, lines = {} })
       end
     )
 

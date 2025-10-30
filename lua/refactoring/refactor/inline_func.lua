@@ -1,4 +1,5 @@
 local async = require "async"
+local range = require "refactoring.range"
 local ts = vim.treesitter
 local api = vim.api
 local iter = vim.iter
@@ -22,7 +23,6 @@ local M = {}
 ---@param lang string
 ---@return nil|{[integer]: refactor.inline_func.ProcessedMatchInfo}
 local function get_processed_match_info(definitions, references, lang)
-  local contains = require("refactoring.range").contains
   local is_unique = require("refactoring.utils").is_unique
 
   local query = ts.query.get(lang, "refactor")
@@ -141,23 +141,21 @@ local function get_processed_match_info(definitions, references, lang)
     )
 
   iter(pairs(ts_info)):each(
+    ---@param buf integer
     ---@param match_info refactor.inline_func.MatchInfo
-    function(_, match_info)
+    function(buf, match_info)
       iter(match_info.returns):each(
         ---@param return_info refactor.ReturnInfo
         function(return_info)
-          local r_start_row, r_start_col, r_end_row, r_end_col = return_info["return"]:range()
-          local return_start = { r_start_row, r_start_col }
-          local return_end = { r_end_row, r_end_col }
+          local return_range = range.treesitter(buf, return_info["return"]:range())
 
           ---@type nil|refactor.ProcessedFunctionInfo
           local function_for_return = iter(match_info.functions)
             :filter(
               ---@param function_info refactor.FunctionInfo
               function(function_info)
-                local start_row, start_col, end_row, end_col = function_info["function"]:range()
-                local function_range = { start_row, start_col, end_row, end_col }
-                return contains(function_range, return_start) and contains(function_range, return_end)
+                local function_range = range.treesitter(buf, function_info["function"]:range())
+                return function_range:has(return_range)
               end
             )
             :fold(
@@ -224,7 +222,6 @@ end
 
 ---@param config refactor.Config
 function M.inline_func(_, config)
-  local contains = require("refactoring.range").contains
   local apply_text_edits = require("refactoring.utils").apply_text_edits
   local code_gen_error = require("refactoring.utils").code_gen_error
   local select = require("refactoring.utils").select
@@ -277,14 +274,12 @@ function M.inline_func(_, config)
           local buf = vim.fn.bufadd(d.filename)
 
           local match_info = ts_info[buf]
-          local d_start = { d.lnum - 1, d.col - 1 }
-          local d_end = { d.end_lnum - 1, d.end_col - 1 }
+          local d_range = range.vimscript(buf, d.lnum, d.col, d.end_lnum, d.end_col)
           local function_info = iter(match_info.functions):find(
             ---@param function_info refactor.FunctionInfo
             function(function_info)
-              local start_row, start_col, end_row, end_col = function_info["function"]:range()
-              local function_range = { start_row, start_col, end_row, end_col }
-              return contains(function_range, d_start) and contains(function_range, d_end)
+              local function_range = range.treesitter(buf, function_info["function"]:range())
+              return function_range:has(d_range)
             end
           )
 
@@ -333,14 +328,12 @@ function M.inline_func(_, config)
           local buf = vim.fn.bufadd(r.filename)
 
           local match_info = ts_info[buf]
-          local r_start = { r.lnum - 1, r.col - 1 }
-          local r_end = { r.end_lnum - 1, r.end_col - 1 }
+          local r_range = range.vimscript(buf, r.lnum, r.col, r.end_lnum, r.end_col)
           local function_call_info = iter(match_info.function_calls):find(
             ---@param function_call_info refactor.FunctionCallInfo
             function(function_call_info)
-              local start_row, start_col, end_row, end_col = function_call_info.function_call:range()
-              local function_call_range = { start_row, start_col, end_row, end_col }
-              return contains(function_call_range, r_start) and contains(function_call_range, r_end)
+              local function_call_range = range.treesitter(buf, function_call_info.function_call:range())
+              return function_call_range:has(r_range)
             end
           )
 
@@ -420,9 +413,9 @@ function M.inline_func(_, config)
           vim.list_extend(inlined_function_lines, vim.split(args_assignment, "\n"))
         end
 
-        local fc_start_row, fc_start_col, fc_end_row, fc_end_col = (
-          r.function_call_info.outside or r.function_call_info.function_call
-        ):range()
+        local fc_range =
+          range.treesitter(in_buf, (r.function_call_info.outside or r.function_call_info.function_call):range())
+        local fc_start_row, _, fc_end_row = fc_range:to_api()
         local function_call = table.concat(api.nvim_buf_get_lines(out_buf, fc_start_row, fc_end_row, true), "\n")
 
         local _, indent_amount = indent(vim.bo[out_buf].expandtab, 0, function_call)
@@ -448,22 +441,22 @@ function M.inline_func(_, config)
 
         text_edits_by_buf[out_buf] = text_edits_by_buf[out_buf] or {}
         table.insert(text_edits_by_buf[out_buf], {
-          range = { fc_start_row, fc_start_col, fc_end_row, fc_end_col },
+          range = fc_range,
           lines = inlined_function_lines,
         })
       end
     )
 
-    local function_start_row, function_start_col, function_end_row, function_end_col = (
-      function_info.outside or function_info["function"]
-    ):range()
+    local function_range = range.treesitter(in_buf, (function_info.outside or function_info["function"]):range())
     if function_info.comments then
-      function_start_row, function_start_col = function_info.comments[1]:range()
+      local highest_comment_range = range.treesitter(in_buf, function_info.comments[1]:range())
+      function_range.start.row, function_range.start.col =
+        highest_comment_range.start.row, highest_comment_range.start.col
     end
 
     text_edits_by_buf[in_buf] = text_edits_by_buf[in_buf] or {}
     table.insert(text_edits_by_buf[in_buf], {
-      range = { function_start_row, function_start_col, function_end_row, function_end_col },
+      range = function_range,
       lines = {},
     })
 

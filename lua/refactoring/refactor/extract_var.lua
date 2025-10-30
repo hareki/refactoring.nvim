@@ -2,6 +2,8 @@
 local M = {}
 
 local async = require "async"
+local range = require "refactoring.range"
+local pos = require "refactoring.pos"
 local ts = vim.treesitter
 local iter = vim.iter
 local api = vim.api
@@ -54,9 +56,7 @@ end
 ---@param range_type 'v' | 'V' | ''
 ---@param config refactor.Config
 function M.extract_var(range_type, config)
-  local get_extracted_range = require("refactoring.range").get_extracted_range
-  local contains = require("refactoring.range").contains
-  local compare = require("refactoring.range").compare
+  local get_extracted_range = require("refactoring.utils").get_extracted_range
   local apply_text_edits = require("refactoring.utils").apply_text_edits
   local input = require("refactoring.utils").input
   local code_gen_error = require("refactoring.utils").code_gen_error
@@ -65,7 +65,7 @@ function M.extract_var(range_type, config)
   local code_generation = opts.code_generation
 
   local buf = api.nvim_get_current_buf()
-  local extracted_range = get_extracted_range(range_type)
+  local extracted_range = get_extracted_range(buf, range_type)
 
   local task = async.run(function()
     local var_name = opts.input and table.remove(opts.input, 1) or input { prompt = "Variable name: " }
@@ -78,9 +78,10 @@ function M.extract_var(range_type, config)
     end
     -- TODO: use async parsing
     lang_tree:parse(true)
-    local nested_lang_tree = lang_tree:language_for_range(extracted_range)
+    local extracted_range_ts = { extracted_range:to_treesitter() }
+    local nested_lang_tree = lang_tree:language_for_range(extracted_range_ts)
     local lang = nested_lang_tree:lang()
-    local encompassing_node = nested_lang_tree:node_for_range(extracted_range)
+    local encompassing_node = nested_lang_tree:node_for_range(extracted_range_ts)
     if not encompassing_node then
       vim.notify("Couldn't find a Treesitter node that contains the selected range", vim.log.levels.WARN)
       return
@@ -141,9 +142,8 @@ function M.extract_var(range_type, config)
     iter(matching_nodes):each(
       ---@param n TSNode
       function(n)
-        -- TODO: I may need to handle end_row-exclusive, 0-col Treesitter ranges everywhere
-        local range = { n:range() }
-        table.insert(text_edits_by_buf[buf], { range = range, lines = { variable } })
+        local node_range = range.treesitter(buf, n:range())
+        table.insert(text_edits_by_buf[buf], { range = node_range, lines = { variable } })
       end
     )
 
@@ -152,13 +152,12 @@ function M.extract_var(range_type, config)
       :filter(
         ---@param s refactor.Scope
         function(s)
-          local scope_range = { s.scope:range() }
+          local scope_range = range.treesitter(buf, s.scope:range())
           return iter(matching_nodes):all(
             ---@param n TSNode
             function(n)
-              local node_start = { n:start() }
-              local node_end = { n:end_() }
-              return contains(scope_range, node_start) and contains(scope_range, node_end)
+              local node_range = range.treesitter(buf, n:range())
+              return scope_range:has(node_range)
             end
           )
         end
@@ -180,8 +179,8 @@ function M.extract_var(range_type, config)
       return
     end
 
-    local smallest_common_scope_start = { (smallest_common_scope.inside or smallest_common_scope.scope):start() }
-    local smallest_common_scope_end = { (smallest_common_scope.inside or smallest_common_scope.scope):end_() }
+    local smallest_common_scope_range =
+      range.treesitter(buf, (smallest_common_scope.inside or smallest_common_scope.scope):range())
     ---@type refactor.Scope|nil
     local highest_nested_containing_scope = iter(scopes)
       :filter(
@@ -190,18 +189,14 @@ function M.extract_var(range_type, config)
           if s.scope:equal(smallest_common_scope.scope) then return false end
 
           local scope = s.outside or s.scope
-          local scope_start = { (scope):start() }
-          local scope_end = { (scope):end_() }
-          local scope_range = { (scope):range() }
+          local scope_range = range.treesitter(buf, scope:range())
 
-          return compare(smallest_common_scope_start, scope_start) ~= 1
-            and compare(smallest_common_scope_end, scope_end) ~= -1
+          return smallest_common_scope_range:has(scope_range)
             and iter(matching_nodes):any(
               ---@param n TSNode
               function(n)
-                local node_start = { n:start() }
-                local node_end = { n:end_() }
-                return contains(scope_range, node_start) and contains(scope_range, node_end)
+                local node_range = range.treesitter(buf, n:range())
+                return scope_range:has(node_range)
               end
             )
         end
@@ -213,9 +208,9 @@ function M.extract_var(range_type, config)
         function(acc, s)
           if not acc then return s end
 
-          local s_start = { (s.outside or s.scope):start() }
-          local acc_start = { (acc.outside or acc.scope):start() }
-          if compare(s_start, acc_start) == -1 then return s end
+          local s_start = pos.treesitter(buf, "start", (s.outside or s.scope):start())
+          local acc_start = pos.treesitter(buf, "start", (acc.outside or acc.scope):start())
+          if s_start < acc_start then return s end
 
           return acc
         end
@@ -229,9 +224,9 @@ function M.extract_var(range_type, config)
       function(acc, n)
         if not acc then return n end
 
-        local n_start = { n:start() }
-        local acc_start = { acc:start() }
-        if compare(n_start, acc_start) == -1 then return n end
+        local n_start = pos.treesitter(buf, "start", n:start())
+        local acc_start = pos.treesitter(buf, "start", acc:start())
+        if n_start < acc_start then return n end
 
         return acc
       end
@@ -247,16 +242,28 @@ function M.extract_var(range_type, config)
     -- all of them (this may exclude possible candidates for `matching_nodes`),
     -- so I'll need to use it to found the correct scope inside of which all of
     -- `matching_nodes` should be
-    local output_range = { highest_matching_node_start_row, highest_matching_node_start_first_non_blank or 0 }
-    if
-      highest_nested_containing_scope
-      and compare(
-          { (highest_nested_containing_scope.outside or highest_nested_containing_scope.scope):start() },
-          output_range
+    local output_range = range.api(
+      buf,
+      highest_matching_node_start_row,
+      highest_matching_node_start_first_non_blank or 0,
+      highest_matching_node_start_row,
+      highest_matching_node_start_first_non_blank or 0
+    )
+    if highest_nested_containing_scope then
+      local highest_nested_containing_scope_start = pos.treesitter(
+        buf,
+        "start",
+        (highest_nested_containing_scope.outside or highest_nested_containing_scope.scope):start()
+      )
+      if highest_nested_containing_scope_start < output_range.start then
+        output_range = range.api(
+          buf,
+          highest_nested_containing_scope_start.row,
+          highest_nested_containing_scope_start.col,
+          highest_nested_containing_scope_start.row,
+          highest_nested_containing_scope_start.col
         )
-        == -1
-    then
-      output_range = { (highest_nested_containing_scope.outside or highest_nested_containing_scope.scope):start() }
+      end
     end
 
     local variable_declaration = get_variable_declaration {
@@ -264,16 +271,12 @@ function M.extract_var(range_type, config)
       value = extracted_text,
     }
     local variable_declaration_lines = vim.split(variable_declaration, "\n")
-    local output_start_line = api.nvim_buf_get_lines(buf, output_range[1], output_range[1] + 1, true)[1]
+    local output_srow = output_range:to_api()
+    local output_start_line = api.nvim_buf_get_lines(buf, output_srow, output_srow + 1, true)[1]
     local _, indent_amount = vim.text.indent(0, output_start_line)
     table.insert(variable_declaration_lines, (vim.bo[buf].expandtab and " " or "\t"):rep(indent_amount))
     table.insert(text_edits_by_buf[buf], {
-      range = {
-        output_range[1],
-        output_range[2],
-        output_range[1],
-        output_range[2],
-      },
+      range = output_range,
       lines = variable_declaration_lines,
     })
 

@@ -1,5 +1,7 @@
 local api = vim.api
 local async = require "async"
+local range = require "refactoring.range"
+local pos = require "refactoring.pos"
 local lsp = vim.lsp
 local iter = vim.iter
 local ts = vim.treesitter
@@ -7,31 +9,19 @@ local ts = vim.treesitter
 local M = {}
 
 ---@class refactor.TextEdit
----@field range Range4
+---@field range vim.Range
 ---@field lines string[]
-
----@param a refactor.TextEdit
----@param b refactor.TextEdit
-local function comp_non_overlaping_text_edits_desc(a, b)
-  local comp_non_overlaping_ranges_desc = require("refactoring.range").comp_non_overlaping_ranges_desc
-
-  return comp_non_overlaping_ranges_desc(a.range, b.range)
-end
 
 ---@param text_edits_by_buf {[integer]: refactor.TextEdit[]}
 function M.apply_text_edits(text_edits_by_buf)
   for buf, text_edits in pairs(text_edits_by_buf) do
-    table.sort(text_edits, comp_non_overlaping_text_edits_desc)
+    table.sort(text_edits, function(a, b)
+      return a.range > b.range
+    end)
 
     for _, text_edit in ipairs(text_edits) do
-      api.nvim_buf_set_text(
-        buf,
-        text_edit.range[1],
-        text_edit.range[2],
-        text_edit.range[3],
-        text_edit.range[4],
-        text_edit.lines
-      )
+      local srow, scol, erow, ecol = text_edit.range:to_api()
+      api.nvim_buf_set_text(buf, srow, scol, erow, ecol, text_edit.lines)
     end
   end
 end
@@ -130,19 +120,17 @@ end)
 
 -- TODO: maybe move all scope/reference related functions into a diferent file
 
+---@param buf integer
 ---@param scopes TSNode[]
----@param start Range2
----@param end_ Range2
+---@param inner_range vim.Range
 ---@return TSNode|nil
-local function smaller_containing_scope(scopes, start, end_)
-  local contains = require("refactoring.range").contains
-
+local function smaller_containing_scope(buf, scopes, inner_range)
   local declaration_scope = iter(scopes)
     :filter(
       ---@param s TSNode
       function(s)
-        local scope_range = { s:range() }
-        return contains(scope_range, start) and contains(scope_range, end_)
+        local scope_range = range.treesitter(buf, s:range())
+        return scope_range:has(inner_range)
       end
     )
     :fold(
@@ -178,8 +166,8 @@ function M.get_declarations_by_scope(references, scopes, buf)
       ---@param acc refactor.declarations_by_scope
       ---@param d refactor.Reference
       function(acc, d)
-        local start_row, start_col, end_row, end_col = d.identifier:range()
-        local scope = smaller_containing_scope(scopes, { start_row, start_col }, { end_row, end_col })
+        local d_range = range.treesitter(buf, d.identifier:range())
+        local scope = smaller_containing_scope(buf, scopes, d_range)
         local identifier = ts.get_node_text(d.identifier, buf)
         assert(scope)
         acc[scope] = acc[scope] or {}
@@ -210,15 +198,12 @@ end
 ---@param buf integer
 ---@return TSNode|nil
 function M.get_declaration_scope(declarations_by_scope, all_scopes, reference, buf)
-  local compare = require("refactoring.range").compare
-
-  local reference_range = { reference.identifier:range() }
-  local scopes_for_reference = M.scopes_for_range(all_scopes, reference_range)
+  local reference_range = range.treesitter(buf, reference.identifier:range())
+  local scopes_for_reference = M.scopes_for_range(buf, all_scopes, reference_range)
   table.sort(scopes_for_reference, node_comp_desc)
 
   local identifier = ts.get_node_text(reference.identifier, buf)
-  local reference_start_row, reference_start_col = reference.identifier:start()
-  local reference_start = { reference_start_row, reference_start_col }
+  local reference_start = pos.treesitter(buf, "start", reference.identifier:start())
   return iter(scopes_for_reference):find(
     ---@param s TSNode
     function(s)
@@ -231,8 +216,8 @@ function M.get_declaration_scope(declarations_by_scope, all_scopes, reference, b
         :filter(
           ---@param d refactor.Reference
           function(d)
-            local d_start_row, d_start_col = d.identifier:start()
-            return compare(reference_start, { d_start_row, d_start_col }) ~= -1
+            local d_start = pos.treesitter(buf, "start", d.identifier:start())
+            return reference_start >= d_start
           end
         )
         :fold(
@@ -242,14 +227,10 @@ function M.get_declaration_scope(declarations_by_scope, all_scopes, reference, b
           function(acc, d)
             if not acc then return d end
 
-            local d_start_row, d_start_col = d.identifier:start()
-            local acc_start_row, acc_start_col = acc.identifier:start()
+            local d_start = pos.treesitter(buf, "start", d.identifier:start())
+            local acc_start = pos.treesitter(buf, "start", acc.identifier:start())
 
-            local is_d_closer = M.is_first_closer(
-              { d_start_row, d_start_col },
-              { acc_start_row, acc_start_col },
-              reference_start
-            )
+            local is_d_closer = M.is_first_closer(d_start, acc_start, reference_start)
             if is_d_closer then return d end
             return acc
           end
@@ -258,36 +239,61 @@ function M.get_declaration_scope(declarations_by_scope, all_scopes, reference, b
   )
 end
 
----@param first Range2
----@param second Range2
----@param range Range2
+---@param first vim.Pos
+---@param second vim.Pos
+---@param position vim.Pos
 ---@return boolean
-function M.is_first_closer(first, second, range)
-  local first_row_distance = math.abs(first[1] - range[1])
-  local second_row_distance = math.abs(second[1] - range[1])
+function M.is_first_closer(first, second, position)
+  local first_row_distance = math.abs(first.row - position.row)
+  local second_row_distance = math.abs(second.row - position.row)
   if second_row_distance < first_row_distance then return false end
 
-  local first_col_distance = math.abs(first[2] - range[2])
-  local second_col_distance = math.abs(second[2] - range[2])
+  local first_col_distance = math.abs(first.col - position.col)
+  local second_col_distance = math.abs(second.col - position.col)
   if second_row_distance == first_row_distance and second_col_distance < first_col_distance then return false end
   return true
 end
 
+---@param buf integer
 ---@param all_scopes TSNode[]
----@param range Range4
+---@param contained_range vim.Range
 ---@return TSNode[]
-function M.scopes_for_range(all_scopes, range)
-  local contains = require("refactoring.range").contains
-
+function M.scopes_for_range(buf, all_scopes, contained_range)
   return iter(all_scopes)
     :filter(
       ---@param s TSNode
       function(s)
-        local scope_range = { s:range() }
-        return contains(scope_range, { range[1], range[2] }) and contains(scope_range, { range[3], range[4] })
+        local scope_range = range.treesitter(buf, s:range())
+        return scope_range:has(contained_range)
       end
     )
     :totable()
+end
+
+-- TODO: rename this everywhere (and the resulting var) to a more general name.
+-- `extracted_range` comes from the `extratc_func` refactor, but it's now used
+-- in multiple (all?) refactors
+---@param buf integer
+---@param range_type 'v' | 'V' | ''
+---@return vim.Range
+function M.get_extracted_range(buf, range_type)
+  local range_start = api.nvim_buf_get_mark(buf, "[")
+  local range_end = api.nvim_buf_get_mark(buf, "]")
+  if range_type == "V" then
+    range_start[2] = 0
+    range_end[2] = #api.nvim_buf_get_lines(buf, range_end[1] - 1, range_end[1], true)[1]
+  end
+
+  return range.mark(buf, range_start, range_end)
+end
+
+-- TODO: rename this everywhere (and the resulting var) to a more general name.
+-- `extracted_range` comes from the `extratc_func` refactor, but it's now used
+-- in multiple (all?) refactors
+-- TODO: inline this instead?
+---@param range_type 'v'|'V'|''
+function M.get_extracted_lines(range_type)
+  return vim.fn.getregion(vim.fn.getpos "'[", vim.fn.getpos "']", { type = range_type })
 end
 
 return M
