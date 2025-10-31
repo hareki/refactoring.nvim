@@ -361,8 +361,8 @@ function Range.vimscript(buf, lnum, col, end_lnum, end_col)
   validate("erow", end_lnum, "number")
   validate("ecol", end_col, "number")
 
-  local start = pos.vimscript(buf, lnum, col)
-  local end_ = pos.vimscript(buf, end_lnum, end_col)
+  local start = pos.vimscript(buf, "start", lnum, col)
+  local end_ = pos.vimscript(buf, "end", end_lnum, end_col)
 
   return Range.new(start, end_)
 end

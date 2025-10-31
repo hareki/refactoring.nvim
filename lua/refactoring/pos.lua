@@ -280,8 +280,9 @@ end
 ---@param buf integer
 ---@param lnum integer 1-based
 ---@param col integer 1-based
-function Pos.vimscript(buf, lnum, col)
+function Pos.vimscript(buf, type, lnum, col)
   validate("buf", buf, "number")
+  validate("type", type, "string")
   validate("lnum", lnum, "number")
   validate("col", col, "number")
 
@@ -292,8 +293,7 @@ function Pos.vimscript(buf, lnum, col)
     col = col - 1
   end
 
-  -- TODO(TheLeoP): handle multibyte characters
-  return Pos.new(lnum, col, { buf = buf })
+  return Pos.new(lnum, col, { buf = buf, type = type })
 end
 
 -- TODO(TheLeoP): should we have an optional parameter `range_type` (line, block, char) and modify

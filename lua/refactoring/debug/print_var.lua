@@ -73,7 +73,7 @@ function M.print_var(range_type, config)
     local get_print_var = code_generation.print_var[lang]
     if not get_print_var then return code_gen_error("print_var", lang) end
 
-    local references = {} ---@type refactor.Reference[]
+    local references = {} ---@type refactor.ReferenceInfo[]
     local statements = {} ---@type TSNode[]
     local scopes = {} ---@type TSNode[]
     for _, tree in ipairs(nested_lang_tree:trees()) do
@@ -143,19 +143,19 @@ function M.print_var(range_type, config)
     local declarations_by_scope = get_declarations_by_scope(references, scopes, buf)
     local scopes_for_extracted_range = scopes_for_range(buf, scopes, extracted_range)
     local reference_to_text =
-      ---@param reference refactor.Reference
+      ---@param reference refactor.ReferenceInfo
       function(reference)
         return ts.get_node_text(reference.identifier, buf)
       end
     local declarations_before_output_range = iter(references)
       :filter(
-        ---@param r refactor.Reference
+        ---@param r refactor.ReferenceInfo
         function(r)
           return r.declaration
         end
       )
       :filter(
-        ---@param r refactor.Reference
+        ---@param r refactor.ReferenceInfo
         function(r)
           local declaration_scope = get_declaration_scope(declarations_by_scope, scopes, r, buf)
 
@@ -179,10 +179,10 @@ function M.print_var(range_type, config)
     -- TODO: Some ranges are having a 1-off error because of no standar
     -- handling of ranges (e.g. `extract_func` for a single word).
 
-    ---@type {[string]: refactor.Reference}
+    ---@type {[string]: refactor.ReferenceInfo}
     local selected_references_by_start = iter(references)
       :filter(
-        ---@param r refactor.Reference
+        ---@param r refactor.ReferenceInfo
         function(r)
           local r_range = range.treesitter(buf, r.identifier:range())
           return extracted_range:has(r_range)
@@ -190,8 +190,8 @@ function M.print_var(range_type, config)
       )
       :fold(
         {},
-        ---@param acc {[string]: refactor.Reference}
-        ---@param r refactor.Reference
+        ---@param acc {[string]: refactor.ReferenceInfo}
+        ---@param r refactor.ReferenceInfo
         function(acc, r)
           local start_row, start_col = r.identifier:start()
           local key = ("%s%s"):format(start_row, start_col)
@@ -202,7 +202,7 @@ function M.print_var(range_type, config)
           return acc
         end
       )
-    ---@type refactor.Reference[]
+    ---@type refactor.ReferenceInfo[]
     local selected_references = iter(selected_references_by_start)
       :map(function(_, r)
         return r
@@ -217,14 +217,14 @@ function M.print_var(range_type, config)
     ---@type string[]
     local print_lines = iter(selected_references)
       :filter(
-        ---@param r refactor.Reference
+        ---@param r refactor.ReferenceInfo
         function(r)
           local r_range = range.treesitter(buf, r.identifier:range())
           return extracted_range:has(r_range)
         end
       )
       :map(
-        ---@param r refactor.Reference
+        ---@param r refactor.ReferenceInfo
         function(r)
           return ts.get_node_text(r.identifier, buf)
         end

@@ -147,16 +147,16 @@ local function smaller_containing_scope(buf, scopes, inner_range)
   return declaration_scope
 end
 
----@alias refactor.declarations_by_scope {[TSNode]: {[string]: refactor.Reference[]}}
+---@alias refactor.declarations_by_scope {[TSNode]: {[string]: refactor.ReferenceInfo[]}}
 
----@param references refactor.Reference[]
+---@param references refactor.ReferenceInfo[]
 ---@param scopes TSNode[]
 ---@param buf integer
 ---@return refactor.declarations_by_scope
 function M.get_declarations_by_scope(references, scopes, buf)
   local declarations_by_scope = iter(references)
     :filter(
-      ---@param r refactor.Reference
+      ---@param r refactor.ReferenceInfo
       function(r)
         return r.declaration
       end
@@ -164,7 +164,7 @@ function M.get_declarations_by_scope(references, scopes, buf)
     :fold(
       {},
       ---@param acc refactor.declarations_by_scope
-      ---@param d refactor.Reference
+      ---@param d refactor.ReferenceInfo
       function(acc, d)
         local d_range = range.treesitter(buf, d.identifier:range())
         local scope = smaller_containing_scope(buf, scopes, d_range)
@@ -194,7 +194,7 @@ end
 
 ---@param declarations_by_scope refactor.declarations_by_scope
 ---@param all_scopes refactor.Scope[]
----@param reference refactor.Reference
+---@param reference refactor.ReferenceInfo
 ---@param buf integer
 ---@return TSNode|nil
 function M.get_declaration_scope(declarations_by_scope, all_scopes, reference, buf)
@@ -214,7 +214,7 @@ function M.get_declaration_scope(declarations_by_scope, all_scopes, reference, b
 
       return iter(identifier_declarations)
         :filter(
-          ---@param d refactor.Reference
+          ---@param d refactor.ReferenceInfo
           function(d)
             local d_start = pos.treesitter(buf, "start", d.identifier:start())
             return reference_start >= d_start
@@ -222,8 +222,8 @@ function M.get_declaration_scope(declarations_by_scope, all_scopes, reference, b
         )
         :fold(
           nil,
-          ---@param acc refactor.Reference|nil
-          ---@param d refactor.Reference
+          ---@param acc refactor.ReferenceInfo|nil
+          ---@param d refactor.ReferenceInfo
           function(acc, d)
             if not acc then return d end
 

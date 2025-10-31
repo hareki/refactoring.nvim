@@ -7,19 +7,21 @@ local range = require "refactoring.range"
 
 local M = {}
 
+-- TODO: inlining `local ft = vim.bo.filetype` twice frozes the editor. Why?
+
 ---@param definition refactor.QfItem
 ---@param variables_info refactor.VariableInfo[]
 ---@return nil|refactor.ProcessedVariableInfo
 local function get_definition_info(definition, variables_info)
   local definition_buf = vim.fn.bufadd(definition.filename)
 
-  local definition_start = pos.vimscript(definition_buf, definition.lnum, definition.col)
+  local definition_start = pos.vimscript(definition_buf, "start", definition.lnum, definition.col)
   ---@type refactor.ProcessedVariableInfo
   local variable_info = iter(variables_info)
     :map(
-      ---@param match_info refactor.VariableInfo
-      function(match_info)
-        local variable_info = iter(ipairs(match_info.identifier))
+      ---@param info refactor.VariableInfo
+      function(info)
+        local variable_info = iter(ipairs(info.identifier))
           :filter(
             ---@param _ integer
             ---@param identifier TSNode
@@ -35,13 +37,12 @@ local function get_definition_info(definition, variables_info)
             function(i, identifier)
               return {
                 identifier = identifier,
-                identifier_separator = match_info.identifier_separator
-                  and (match_info.identifier_separator[i] or match_info.identifier_separator[i - 1]),
-                value = match_info.value[i],
-                value_separator = match_info.value_separator
-                  and (match_info.value_separator[i] or match_info.value_separator[i - 1]),
+                identifier_separator = info.identifier_separator
+                  and (info.identifier_separator[i] or info.identifier_separator[i - 1]),
+                value = info.value[i],
+                value_separator = info.value_separator and (info.value_separator[i] or info.value_separator[i - 1]),
                 -- NOTE: captures must only have one declaration
-                declaration = match_info.declaration[1],
+                declaration = info.declaration[1],
               }
             end
           )
@@ -62,6 +63,7 @@ end
 
 ---@class refactor.inline_var.MatchInfo
 ---@field variables refactor.VariableInfo[]
+---@field references refactor.ReferenceInfo[]
 
 --As a side effect, loads all the buffers for all of the definitions and references
 ---@param definitions refactor.QfItem[]
@@ -99,8 +101,9 @@ local function get_match_info(definitions, references, lang)
         end
 
         local variables_info = {} ---@type refactor.VariableInfo[]
+        local references_info = {} ---@type refactor.ReferenceInfo[]
         for _, tree in ipairs(lang_tree:trees()) do
-          for _, match in query:iter_matches(tree:root(), buf) do
+          for _, match, metadata in query:iter_matches(tree:root(), buf) do
             local variable_info ---@type refactor.VariableInfo|nil
             for capture_id, nodes in pairs(match) do
               local name = query.captures[capture_id]
@@ -121,12 +124,23 @@ local function get_match_info(definitions, references, lang)
                 variable_info = variable_info or {}
                 variable_info.declaration = nodes
               end
+
+              if name == "reference.identifier" then
+                for i, node in ipairs(nodes) do
+                  table.insert(references_info, {
+                    identifier = node,
+                    reference_type = metadata.reference_type,
+                    type = metadata.types and metadata.types[i],
+                    declaration = metadata.declaration ~= nil,
+                  })
+                end
+              end
             end
             if variable_info then table.insert(variables_info, variable_info) end
           end
         end
 
-        return buf, { variables = variables_info }
+        return buf, { variables = variables_info, references = references_info }
       end
     )
     :fold(
@@ -194,45 +208,45 @@ function M.inline_var(_, config)
     local ts_info = get_match_info(definitions, references, lang)
     if not ts_info then return end
 
-    ---@type {definition: refactor.QfItem, match: refactor.ProcessedVariableInfo}[]
-    local definitions_with_match = iter(definitions)
+    ---@type {definition: refactor.QfItem, info: refactor.ProcessedVariableInfo}[]
+    local definitions_with_info = iter(definitions)
       :map(
         ---@param d refactor.QfItem
         function(d)
           local definition_buf = vim.fn.bufadd(d.filename)
           local variables_info = ts_info[definition_buf].variables
-          local definition_match = get_definition_info(d, variables_info)
-          return { definition = d, match = definition_match }
+          local definition_info = get_definition_info(d, variables_info)
+          return { definition = d, info = definition_info }
         end
       )
       :filter(
-        ---@param dwm {definition: refactor.QfItem, match: refactor.ProcessedVariableInfo}
-        function(dwm)
-          return dwm.match ~= nil
+        ---@param dwi {definition: refactor.QfItem, info: refactor.ProcessedVariableInfo|nil}
+        function(dwi)
+          return dwi.info ~= nil
         end
       )
       :totable()
 
-    if #definitions_with_match == 0 then
+    if #definitions_with_info == 0 then
       vim.notify("Couldn't find the definition of the symbol under cursor using treesitter", vim.log.levels.ERROR)
       return
     end
-    local definition_with_match = #definitions_with_match == 1 and definitions_with_match[1]
-      or select(definitions_with_match, {
+    local definition_with_info = #definitions_with_info == 1 and definitions_with_info[1]
+      or select(definitions_with_info, {
         prompt = "Mutliple definitions found, select one",
         format_item =
-          ---@param item {definition: refactor.QfItem, match: refactor.ProcessedVariableInfo}
+          ---@param item {definition: refactor.QfItem, info: refactor.ProcessedVariableInfo}
           function(item)
             local buf = vim.fn.bufadd(item.definition.filename)
-            return ts.get_node_text(item.match.declaration, buf)
+            return ts.get_node_text(item.info.declaration, buf)
           end,
       })
-    local definition, definition_info = definition_with_match.definition, definition_with_match.match
+    local definition, definition_info = definition_with_info.definition, definition_with_info.info
     local definition_buf = vim.fn.bufadd(definition.filename)
-    local definition_start = pos.vimscript(definition_buf, definition.lnum, definition.col)
+    local definition_start = pos.vimscript(definition_buf, "start", definition.lnum, definition.col)
 
-    ---@type refactor.QfItem[]
-    references = iter(references)
+    ---@type {reference: refactor.QfItem, info: refactor.ReferenceInfo|nil}[]
+    local references_with_info = iter(references)
       :filter(is_unique(
         ---@param r refactor.QfItem
         function(r)
@@ -249,6 +263,30 @@ function M.inline_var(_, config)
           return not r_range:has_pos(definition_start)
         end
       )
+      :map(
+        ---@param r refactor.QfItem
+        function(r)
+          local reference_buf = vim.fn.bufadd(r.filename)
+          local reference_range = range.vimscript(reference_buf, r.lnum, r.col, r.end_lnum, r.end_col)
+
+          local references_info = ts_info[reference_buf].references
+          local reference_info = iter(references_info):find(
+            ---@param ri refactor.ReferenceInfo
+            function(ri)
+              local identifier_range = range.treesitter(reference_buf, ri.identifier:range())
+              return identifier_range:has(reference_range)
+            end
+          )
+
+          return { reference = r, info = reference_info }
+        end
+      )
+      :filter(
+        ---@param rwi {reference: refactor.QfItem, info: refactor.ReferenceInfo|nil}
+        function(rwi)
+          return rwi.info ~= nil
+        end
+      )
       :totable()
 
     local declaration_node = definition_info.declaration
@@ -256,34 +294,19 @@ function M.inline_var(_, config)
     local value_node = definition_info.value
 
     local value_text = ts.get_node_text(value_node, definition_buf)
-    local identifier_text = ts.get_node_text(identifier_node, definition_buf)
 
     ---@type {[integer]: refactor.TextEdit[]}
     local text_edits_by_buf = {}
-    iter(references):each(
-      ---@param reference refactor.QfItem
-      function(reference)
+    iter(references_with_info):each(
+      ---@param rwi {reference: refactor.QfItem, info: refactor.ReferenceInfo|nil}
+      function(rwi)
+        local reference = rwi.reference
         local buf = vim.fn.bufadd(reference.filename)
-        if not api.nvim_buf_is_loaded(buf) then vim.fn.bufload(buf) end
+        local identifier_range = range.treesitter(buf, rwi.info.identifier:range())
 
         text_edits_by_buf[buf] = text_edits_by_buf[buf] or {}
         table.insert(text_edits_by_buf[buf], {
-          range = range(
-            reference.lnum - 1,
-            -- TODO: this fails for lua_ls because for the definition
-            -- `foo.bar`, the reference `foo['bar']` is given, and won't have
-            -- the same lenght. Maybe I could use treesitter (since I already
-            -- identify `foo['bar']` as a reference) to get the correct range
-            -- to replace
-            -- NOTE: references of `bar` on `foo.bar` won't include
-            -- `foo.`. So, account for all of the identifier length
-            reference.end_col
-              - 1
-              - #identifier_text,
-            reference.end_lnum - 1,
-            reference.end_col - 1,
-            { buf = buf }
-          ),
+          range = identifier_range,
           lines = vim.split(value_text, "\n"),
         })
       end

@@ -148,7 +148,7 @@ local function ts_parse(buf, extracted_range)
   return nested_lang_tree, query
 end
 
----@class refactor.Reference
+---@class refactor.ReferenceInfo
 ---@field identifier TSNode
 ---@field type string|{identifier: string}|vim.NIL|nil
 ---@field reference_type 'read'|'write'
@@ -213,7 +213,7 @@ local function extract_func(opts)
     output_range = range.api(out_buf, 0, 0, 0, 0)
   end
 
-  local references = {} ---@type refactor.Reference[]
+  local references_info = {} ---@type refactor.ReferenceInfo[]
   local scopes = {} ---@type TSNode[]
   for _, tree in ipairs(nested_lang_tree:trees()) do
     for _, match, metadata in in_query:iter_matches(tree:root(), in_buf) do
@@ -221,7 +221,7 @@ local function extract_func(opts)
         local name = in_query.captures[capture_id]
         if name == "reference.identifier" then
           for i, node in ipairs(nodes) do
-            table.insert(references, {
+            table.insert(references_info, {
               identifier = node,
               reference_type = metadata.reference_type,
               type = metadata.types and metadata.types[i],
@@ -240,30 +240,30 @@ local function extract_func(opts)
 
   local scopes_for_extracted_range = scopes_for_range(in_buf, scopes, extracted_range)
 
-  local declarations = iter(references)
+  local declarations_info = iter(references_info)
     :filter(
-      ---@param r refactor.Reference
+      ---@param r refactor.ReferenceInfo
       function(r)
         return r.declaration
       end
     )
     :totable()
 
-  local declarations_by_scope = get_declarations_by_scope(references, scopes, in_buf)
+  local declarations_info_by_scope = get_declarations_by_scope(references_info, scopes, in_buf)
 
-  ---@type refactor.Reference[]
-  local typed_references = iter(references)
+  ---@type refactor.ReferenceInfo[]
+  local typed_references_info = iter(references_info)
     :filter(
-      ---@param r refactor.Reference
+      ---@param r refactor.ReferenceInfo
       function(r)
         return r.type ~= nil and r.type ~= vim.NIL
       end
     )
     :totable()
   table.sort(
-    typed_references,
-    ---@param a refactor.Reference
-    ---@param b refactor.Reference
+    typed_references_info,
+    ---@param a refactor.ReferenceInfo
+    ---@param b refactor.ReferenceInfo
     function(a, b)
       -- TODO: don't I already have a function to sort nodes in utils?
       local a_range = range.treesitter(in_buf, a.identifier:range())
@@ -273,13 +273,13 @@ local function extract_func(opts)
     end
   )
   ---@type {[TSNode]: {scope: TSNode, types: {[string]: string|{identifier: string}}}}
-  local types_by_scope_up_to_extracted_range_end = iter(typed_references)
+  local types_by_scope_up_to_extracted_range_end = iter(typed_references_info)
     :filter(
-      ---@param r refactor.Reference
+      ---@param r refactor.ReferenceInfo
       function(r)
         -- TODO: maybe extract this filter into some function, there are
         -- similar ones for all the `before_` variables
-        local declaration_scope = get_declaration_scope(declarations_by_scope, scopes, r, in_buf)
+        local declaration_scope = get_declaration_scope(declarations_info_by_scope, scopes, r, in_buf)
 
         local is_in_scope = declaration_scope
             and iter(scopes_for_extracted_range):any(
@@ -297,11 +297,11 @@ local function extract_func(opts)
     :fold(
       {},
       ---@param acc {[TSNode]: {scope: TSNode, types: {[string]: string|{identifier: string}}}}
-      ---@param r refactor.Reference
+      ---@param r refactor.ReferenceInfo
       function(acc, r)
         if r.type == nil or r.type == vim.NIL then return acc end
 
-        local scope = get_declaration_scope(declarations_by_scope, scopes, r, in_buf)
+        local scope = get_declaration_scope(declarations_info_by_scope, scopes, r, in_buf)
         if not scope then return acc end
 
         acc[scope] = acc[scope] or {}
@@ -352,10 +352,10 @@ local function extract_func(opts)
   )
   ---@cast scoped_types_up_to_extracted_range_end{[string]: string}[]
 
-  ---@type refactor.Reference[]
-  local references_inside_extracted_range = iter(references)
+  ---@type refactor.ReferenceInfo[]
+  local references_inside_extracted_range = iter(references_info)
     :filter(
-      ---@param r refactor.Reference
+      ---@param r refactor.ReferenceInfo
       function(r)
         local n = r.identifier
         local node_range = range.treesitter(in_buf, n:range())
@@ -365,7 +365,7 @@ local function extract_func(opts)
     :totable()
 
   local reference_to_variable =
-    ---@param r refactor.Reference
+    ---@param r refactor.ReferenceInfo
     function(r)
       local identifier = ts.get_node_text(r.identifier, in_buf)
 
@@ -395,14 +395,14 @@ local function extract_func(opts)
     :totable()
 
   local reference_to_text =
-    ---@param reference refactor.Reference
+    ---@param reference refactor.ReferenceInfo
     function(reference)
       return ts.get_node_text(reference.identifier, in_buf)
     end
   ---@type string[]
   local write_identifiers_inside_extracted_range = iter(references_inside_extracted_range)
     :filter(
-      ---@param r refactor.Reference
+      ---@param r refactor.ReferenceInfo
       function(r)
         return r.reference_type == "write"
       end
@@ -412,9 +412,9 @@ local function extract_func(opts)
     :totable()
 
   ---@type string[]
-  local declarations_inside_extracted_range = iter(declarations)
+  local declarations_inside_extracted_range = iter(declarations_info)
     :filter(
-      ---@param r refactor.Reference
+      ---@param r refactor.ReferenceInfo
       function(r)
         local r_range = range.treesitter(in_buf, r.identifier:range())
         return extracted_range:has(r_range)
@@ -424,11 +424,11 @@ local function extract_func(opts)
     :totable()
 
   ---@type string[]
-  local declarations_before_output_range = iter(declarations)
+  local declarations_before_output_range = iter(declarations_info)
     :filter(
-      ---@param r refactor.Reference
+      ---@param r refactor.ReferenceInfo
       function(r)
-        local declaration_scope = get_declaration_scope(declarations_by_scope, scopes, r, in_buf)
+        local declaration_scope = get_declaration_scope(declarations_info_by_scope, scopes, r, in_buf)
 
         local is_in_scope = declaration_scope
             and iter(scopes_for_extracted_range):any(
@@ -446,11 +446,11 @@ local function extract_func(opts)
     :map(reference_to_text)
     :totable()
   ---@type string[]
-  local declarations_before_extracted_range = iter(declarations)
+  local declarations_before_extracted_range = iter(declarations_info)
     :filter(
-      ---@param r refactor.Reference
+      ---@param r refactor.ReferenceInfo
       function(r)
-        local declaration_scope = get_declaration_scope(declarations_by_scope, scopes, r, in_buf)
+        local declaration_scope = get_declaration_scope(declarations_info_by_scope, scopes, r, in_buf)
 
         local is_in_scope = declaration_scope
             and iter(scopes_for_extracted_range):any(
@@ -484,11 +484,11 @@ local function extract_func(opts)
     :totable()
 
   ---@type string[]
-  local variables_after_extracted_range = iter(references)
+  local variables_after_extracted_range = iter(references_info)
     :filter(
-      ---@param r refactor.Reference
+      ---@param r refactor.ReferenceInfo
       function(r)
-        local declaration_scope = get_declaration_scope(declarations_by_scope, scopes, r, in_buf)
+        local declaration_scope = get_declaration_scope(declarations_info_by_scope, scopes, r, in_buf)
         local is_in_scope = declaration_scope
             and iter(scopes_for_extracted_range):any(
               ---@param s TSNode
