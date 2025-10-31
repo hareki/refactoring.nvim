@@ -58,6 +58,9 @@ function M.print_var(range_type, config)
       return
     end
     -- TODO: use async parsing
+    -- TODO: check if using a range parses only when necessary (by peeking into
+    -- the implementation, it does use `LanguageTree:valid`, but it always
+    -- returns false when `range` is `true`)
     lang_tree:parse(true)
     local nested_lang_tree = lang_tree:language_for_range { extracted_range:to_treesitter() }
     local lang = nested_lang_tree:lang()

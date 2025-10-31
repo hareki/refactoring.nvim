@@ -7,58 +7,17 @@ local range = require "refactoring.range"
 
 local M = {}
 
--- TODO: using `inline_var` in something like `local f = vim.bo.filetype` will
--- block the editor (because it tried to parse the buffer with each reference
--- to `vim.bo.filetype`? Look into it)
-
 ---@param definition refactor.QfItem
----@param query vim.treesitter.Query
----@return nil|refactor.VariableInfo
-local function get_definition_info(definition, query)
+---@param variables_info refactor.VariableInfo[]
+---@return nil|refactor.ProcessedVariableInfo
+local function get_definition_info(definition, variables_info)
   local definition_buf = vim.fn.bufadd(definition.filename)
-  if not api.nvim_buf_is_loaded(definition_buf) then vim.fn.bufload(definition_buf) end
-  local definition_lang_tree, err2 = ts.get_parser(definition_buf, nil, { error = false })
-  if not definition_lang_tree then
-    vim.notify(err2, vim.log.levels.ERROR)
-    return
-  end
-  -- TODO: use async parsing
-  definition_lang_tree:parse(true)
-  local definition_nested_lang_tree = definition_lang_tree:language_for_range {
-    definition.lnum - 1,
-    definition.col - 1,
-    definition.end_lnum - 1,
-    definition.end_col - 1,
-  }
-
-  local definition_matches_info = {} ---@type refactor.VariableMatchInfo[]
-  for _, tree in ipairs(definition_nested_lang_tree:trees()) do
-    for _, match in query:iter_matches(tree:root(), definition_buf) do
-      local match_info = {} ---@type refactor.VariableMatchInfo|{}
-      for capture_id, nodes in pairs(match) do
-        local name = query.captures[capture_id]
-
-        if name == "variable.identifier" then
-          match_info.identifier = nodes
-        elseif name == "variable.identifier_separator" then
-          match_info.identifier_separator = nodes
-        elseif name == "variable.value_separator" then
-          match_info.value_separator = nodes
-        elseif name == "variable.value" then
-          match_info.value = nodes
-        elseif name == "variable.declaration" then
-          match_info.declaration = nodes
-        end
-      end
-      if not vim.tbl_isempty(match_info) then table.insert(definition_matches_info, match_info) end
-    end
-  end
 
   local definition_start = pos.vimscript(definition_buf, definition.lnum, definition.col)
-  ---@type refactor.VariableInfo
-  local variable_info = iter(definition_matches_info)
+  ---@type refactor.ProcessedVariableInfo
+  local variable_info = iter(variables_info)
     :map(
-      ---@param match_info refactor.VariableMatchInfo
+      ---@param match_info refactor.VariableInfo
       function(match_info)
         local variable_info = iter(ipairs(match_info.identifier))
           :filter(
@@ -72,7 +31,7 @@ local function get_definition_info(definition, query)
           :map(
             ---@param i integer
             ---@param identifier TSNode
-            ---@return refactor.VariableInfo
+            ---@return refactor.ProcessedVariableInfo
             function(i, identifier)
               return {
                 identifier = identifier,
@@ -91,7 +50,7 @@ local function get_definition_info(definition, query)
       end
     )
     :filter(
-      ---@param variable_info refactor.VariableInfo
+      ---@param variable_info refactor.ProcessedVariableInfo
       function(variable_info)
         return variable_info ~= nil
       end
@@ -101,14 +60,96 @@ local function get_definition_info(definition, query)
   return variable_info
 end
 
----@class refactor.VariableMatchInfo
+---@class refactor.inline_var.MatchInfo
+---@field variables refactor.VariableInfo[]
+
+--As a side effect, loads all the buffers for all of the definitions and references
+---@param definitions refactor.QfItem[]
+---@param references refactor.QfItem[]
+---@param lang string
+---@return nil|{[integer]: refactor.inline_var.MatchInfo}
+local function get_match_info(definitions, references, lang)
+  local is_unique = require("refactoring.utils").is_unique
+
+  local query = ts.query.get(lang, "refactor")
+  if not query then
+    vim.notify(("There is no `refactor` query file for language %s"):format(lang), vim.log.levels.ERROR)
+    return
+  end
+
+  ---@type {[integer]: refactor.inline_var.MatchInfo}
+  local ts_info = iter({ definitions, references })
+    :flatten(1)
+    :map(
+      ---@param item refactor.QfItem
+      function(item)
+        local buf = vim.fn.bufadd(item.filename)
+        if not api.nvim_buf_is_loaded(buf) then vim.fn.bufload(buf) end
+        return buf
+      end
+    )
+    :filter(is_unique())
+    :map(
+      ---@param buf integer
+      function(buf)
+        local lang_tree, err2 = ts.get_parser(buf, lang, { error = false })
+        if not lang_tree then
+          vim.notify(err2, vim.log.levels.ERROR)
+          return
+        end
+
+        local variables_info = {} ---@type refactor.VariableInfo[]
+        for _, tree in ipairs(lang_tree:trees()) do
+          for _, match in query:iter_matches(tree:root(), buf) do
+            local variable_info ---@type refactor.VariableInfo|nil
+            for capture_id, nodes in pairs(match) do
+              local name = query.captures[capture_id]
+
+              if name == "variable.identifier" then
+                variable_info = variable_info or {}
+                variable_info.identifier = nodes
+              elseif name == "variable.identifier_separator" then
+                variable_info = variable_info or {}
+                variable_info.identifier_separator = nodes
+              elseif name == "variable.value_separator" then
+                variable_info = variable_info or {}
+                variable_info.value_separator = nodes
+              elseif name == "variable.value" then
+                variable_info = variable_info or {}
+                variable_info.value = nodes
+              elseif name == "variable.declaration" then
+                variable_info = variable_info or {}
+                variable_info.declaration = nodes
+              end
+            end
+            if variable_info then table.insert(variables_info, variable_info) end
+          end
+        end
+
+        return buf, { variables = variables_info }
+      end
+    )
+    :fold(
+      {},
+      ---@param acc {[integer]: refactor.inline_var.MatchInfo}
+      ---@param k integer
+      ---@param v nil|refactor.inline_var.MatchInfo
+      function(acc, k, v)
+        acc[k] = v
+        return acc
+      end
+    )
+  return ts_info
+end
+
+---@class refactor.VariableInfo
 ---@field identifier TSNode[]
 ---@field identifier_separator TSNode[]|nil
 ---@field value TSNode[]
 ---@field value_separator TSNode[]|nil
 ---@field declaration TSNode[]
 
----@class refactor.VariableInfo
+---@class refactor.ProcessedVariableInfo
 ---@field identifier TSNode
 ---@field identifier_separator TSNode|nil
 ---@field value TSNode
@@ -150,24 +191,22 @@ function M.inline_var(_, config)
     local definitions = unpack(results[1]) ---@type refactor.QfItem[]
     local references = unpack(results[2]) ---@type refactor.QfItem[]
 
-    local query = ts.query.get(lang, "refactor")
-    if not query then
-      vim.notify(("There is no `refactor` query file for language %s"):format(lang), vim.log.levels.ERROR)
-      return
-    end
+    local ts_info = get_match_info(definitions, references, lang)
+    if not ts_info then return end
 
-    ---@type {definition: refactor.QfItem, match: refactor.VariableInfo}[]
+    ---@type {definition: refactor.QfItem, match: refactor.ProcessedVariableInfo}[]
     local definitions_with_match = iter(definitions)
       :map(
         ---@param d refactor.QfItem
         function(d)
-          -- TODO: parse once and reuse parsed info by buffer (like `inline_func`)
-          local definition_match = get_definition_info(d, query)
+          local definition_buf = vim.fn.bufadd(d.filename)
+          local variables_info = ts_info[definition_buf].variables
+          local definition_match = get_definition_info(d, variables_info)
           return { definition = d, match = definition_match }
         end
       )
       :filter(
-        ---@param dwm {definition: refactor.QfItem, match: refactor.VariableInfo}
+        ---@param dwm {definition: refactor.QfItem, match: refactor.ProcessedVariableInfo}
         function(dwm)
           return dwm.match ~= nil
         end
@@ -182,7 +221,7 @@ function M.inline_var(_, config)
       or select(definitions_with_match, {
         prompt = "Mutliple definitions found, select one",
         format_item =
-          ---@param item {definition: refactor.QfItem, match: refactor.VariableInfo}
+          ---@param item {definition: refactor.QfItem, match: refactor.ProcessedVariableInfo}
           function(item)
             local buf = vim.fn.bufadd(item.definition.filename)
             return ts.get_node_text(item.match.declaration, buf)

@@ -31,6 +31,7 @@ local function get_processed_match_info(definitions, references, lang)
     return
   end
 
+  ---@type {[integer]: refactor.inline_func.MatchInfo}
   local ts_info = iter({ definitions, references })
     :flatten(1)
     :map(
@@ -38,32 +39,23 @@ local function get_processed_match_info(definitions, references, lang)
       function(item)
         local buf = vim.fn.bufadd(item.filename)
         if not api.nvim_buf_is_loaded(buf) then vim.fn.bufload(buf) end
-        return buf, item
+        return buf
       end
     )
     :filter(is_unique())
     :map(
       ---@param buf integer
-      ---@param item refactor.QfItem
-      function(buf, item)
-        local item_lang_tree, err2 = ts.get_parser(buf, lang, { error = false })
-        if not item_lang_tree then
+      function(buf)
+        local lang_tree, err2 = ts.get_parser(buf, lang, { error = false })
+        if not lang_tree then
           vim.notify(err2, vim.log.levels.ERROR)
           return
         end
 
-        item_lang_tree:parse(true)
-        local item_nested_lang_tree = item_lang_tree:language_for_range {
-          item.lnum - 1,
-          item.col - 1,
-          item.end_lnum - 1,
-          item.end_col - 1,
-        }
-
         local functions_info = {} ---@type refactor.FunctionInfo[]
         local returns_info = {} ---@type refactor.ReturnInfo[]
         local function_calls_info = {} ---@type refactor.FunctionCallInfo[]
-        for _, tree in ipairs(item_nested_lang_tree:trees()) do
+        for _, tree in ipairs(lang_tree:trees()) do
           for _, match in query:iter_matches(tree:root(), buf) do
             local function_info ---@type nil|refactor.FunctionInfo
             local return_info ---@type nil|refactor.ReturnInfo
