@@ -7,8 +7,6 @@ local range = require "refactoring.range"
 
 local M = {}
 
--- TODO: inlining `local ft = vim.bo.filetype` twice frozes the editor. Why?
-
 ---@param definition refactor.QfItem
 ---@param variables_info refactor.VariableInfo[]
 ---@return nil|refactor.ProcessedVariableInfo
@@ -96,13 +94,19 @@ local function get_match_info(definitions, references, lang)
       function(buf)
         local lang_tree, err2 = ts.get_parser(buf, lang, { error = false })
         if not lang_tree then
+          ---@cast err2 -nil
           vim.notify(err2, vim.log.levels.ERROR)
           return
         end
+        lang_tree:parse(true)
 
         local variables_info = {} ---@type refactor.VariableInfo[]
         local references_info = {} ---@type refactor.ReferenceInfo[]
         for _, tree in ipairs(lang_tree:trees()) do
+          -- TODO: inlining `local ft = vim.bo.filetype` twice frozes the editor. Why?
+          -- TODO: this is the botleneck for the performance problem above.
+          -- Cache the resutls of buffers like on vim-matchup to reduce the
+          -- issue (?
           for _, match, metadata in query:iter_matches(tree:root(), buf) do
             local variable_info ---@type refactor.VariableInfo|nil
             for capture_id, nodes in pairs(match) do
@@ -183,6 +187,7 @@ function M.inline_var(_, config)
 
   local lang_tree, err1 = ts.get_parser(nil, nil, { error = false })
   if not lang_tree then
+    ---@cast err1 -nil
     vim.notify(err1, vim.log.levels.ERROR)
     return
   end
