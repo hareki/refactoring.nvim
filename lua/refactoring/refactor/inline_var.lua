@@ -241,6 +241,8 @@ function M.inline_var(_, config)
             return ts.get_node_text(item.info.declaration, buf)
           end,
       })
+    if not definition_with_info then return end
+
     local definition, definition_info = definition_with_info.definition, definition_with_info.info
     local definition_buf = vim.fn.bufadd(definition.filename)
     local definition_start = pos.vimscript(definition_buf, "start", definition.lnum, definition.col)

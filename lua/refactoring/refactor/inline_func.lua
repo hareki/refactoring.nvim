@@ -300,6 +300,8 @@ function M.inline_func(_, config)
             return ts.get_node_text(item.function_info["function"], buf)
           end,
       })
+    if not definition_with_function_info then return end
+
     local definition, function_info =
       definition_with_function_info.definition, definition_with_function_info.function_info
     local in_buf = vim.fn.bufadd(definition.filename)

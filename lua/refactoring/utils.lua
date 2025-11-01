@@ -26,7 +26,7 @@ function M.apply_text_edits(text_edits_by_buf)
   end
 end
 
----@type fun(opts: table): string
+---@type async fun(opts: table): string
 M.input = async.wrap(2, function(opts, cb)
   vim.ui.input(opts, cb)
 end)
