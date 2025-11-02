@@ -47,7 +47,7 @@ function M.cleanup(range_type, config)
     lang_tree:parse(true)
     local nested_lang_tree = lang_tree:language_for_range { extracted_range:to_treesitter() }
     local lang = nested_lang_tree:lang()
-    local query = ts.query.get(lang, "refactor")
+    local query = ts.query.get(lang, "cleanup")
     if not query then
       vim.notify(("There is no `refactor` query file for language %s"):format(lang), vim.log.levels.ERROR)
       return

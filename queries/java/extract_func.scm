@@ -1,19 +1,4 @@
 (local_variable_declaration
-  .
-  type: (_)
-  .
-  declarator: (variable_declarator
-    name: (identifier) @variable.identifier
-    "=" @variable.value_separator
-    value: (_) @variable.value)
-  .
-  ("," @variable.identifier_separator
-    declarator: (variable_declarator
-      name: (identifier) @variable.identifier
-      "=" @variable.value_separator
-      value: (_) @variable.value))) @variable.declaration
-
-(local_variable_declaration
   type: (_) @_type
   .
   declarator: (variable_declarator
@@ -75,16 +60,6 @@
   (#set-type! java @_type @reference.identifier)
   (#set! declaration true))
 
-(program
-  (class_declaration
-    (class_body
-      ([
-        (line_comment)
-        (block_comment)
-      ]* @output.comment
-        (method_declaration) @output.function)))
-  (#set! method true))
-
 (_
   (block
     .
@@ -98,3 +73,13 @@
 (class_declaration
   body: (class_body
     (_) @scope.inside)) @scope
+
+(program
+  (class_declaration
+    (class_body
+      ([
+        (line_comment)
+        (block_comment)
+      ]* @output.comment
+        (method_declaration) @output.function)))
+  (#set! method true))

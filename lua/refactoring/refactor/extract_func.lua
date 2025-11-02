@@ -139,7 +139,7 @@ local function ts_parse(buf, extracted_range)
   lang_tree:parse(true)
   local nested_lang_tree = lang_tree:language_for_range(extracted_range)
   local lang = nested_lang_tree:lang()
-  local query = ts.query.get(lang, "refactor")
+  local query = ts.query.get(lang, "extract_func")
   if not query then
     vim.notify(("There is no `refactor` query file for language %s"):format(lang), vim.log.levels.ERROR)
     return

@@ -1,8 +1,3 @@
-(assignment_expression
-  .
-  (_) @variable.identifier
-  value: (_) @variable.value) @variable.declaration
-
 (script_parameter
   (variable) @reference.identifier
   (#set! reference_type write)
@@ -113,18 +108,6 @@
     (variable) @reference.identifier)
   (#set! reference_type read))
 
-(program
-  ((comment)* @output.comment
-    (statement_list
-      (function_statement) @output.function)))
-
-(program
-  (statement_list
-    (class_statement
-      ((comment)* @output.comment
-        (class_method_definition) @output.function)))
-  (#set! method true))
-
 (class_statement
   (class_method_definition) @scope.inside) @scope
 
@@ -136,3 +119,15 @@
 
 (function_statement
   (script_block) @scope.inside) @scope
+
+(program
+  ((comment)* @output.comment
+    (statement_list
+      (function_statement) @output.function)))
+
+(program
+  (statement_list
+    (class_statement
+      ((comment)* @output.comment
+        (class_method_definition) @output.function)))
+  (#set! method true))

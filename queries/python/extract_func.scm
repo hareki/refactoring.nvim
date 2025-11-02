@@ -1,44 +1,3 @@
-(assignment
-  left: [
-    (identifier)
-    (attribute)
-  ] @variable.identifier
-  right: (_) @variable.value) @variable.declaration
-
-(assignment
-  left: [
-    (pattern_list
-      .
-      (identifier) @variable.identifier
-      .
-      ("," @variable.identifier_separator
-        .
-        (identifier) @variable.identifier)*)
-    (tuple_pattern
-      .
-      (identifier) @variable.identifier
-      .
-      ("," @variable.identifier_separator
-        .
-        (identifier) @variable.identifier))
-  ]
-  right: [
-    (expression_list
-      .
-      (_) @variable.value
-      .
-      ("," @variable.value_separator
-        .
-        (_) @variable.value))
-    (tuple
-      .
-      (_) @variable.value
-      .
-      ("," @variable.value_separator
-        .
-        (_) @variable.value)*)
-  ]) @variable.declaration
-
 (typed_parameter
   (identifier) @reference.identifier
   type: (_) @_type
@@ -119,6 +78,19 @@
   function: (identifier) @reference.identifier
   (#set! reference_type read))
 
+(module) @scope
+
+(class_definition) @scope
+
+(function_definition
+  body: (block) @scope.inside) @scope
+
+(dictionary_comprehension) @scope
+
+(list_comprehension) @scope
+
+(set_comprehension) @scope
+
 (module
   ((comment)* @output.comment
     [
@@ -135,16 +107,3 @@
           (decorated_definition)
         ] @output.function)))
   (#set! method true))
-
-(module) @scope
-
-(class_definition) @scope
-
-(function_definition
-  body: (block) @scope.inside) @scope
-
-(dictionary_comprehension) @scope
-
-(list_comprehension) @scope
-
-(set_comprehension) @scope

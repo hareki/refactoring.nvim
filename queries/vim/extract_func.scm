@@ -1,13 +1,3 @@
-(let_statement
-  (identifier) @variable.identifier
-  .
-  (_) @variable.value) @variable.declaration
-
-(let_statement
-  (scoped_identifier) @variable.identifier
-  .
-  (_) @variable.value) @variable.declaration
-
 (parameters
   [
     (identifier)
@@ -131,11 +121,11 @@
   ] @reference.identifier
   (#set! reference_type read))
 
-(script_file
-  ((comment)* @output.comment
-    (function_definition) @output.function))
-
 (script_file) @scope
 
 (function_definition
   (body) @scope.inside) @scope
+
+(script_file
+  ((comment)* @output.comment
+    (function_definition) @output.function))

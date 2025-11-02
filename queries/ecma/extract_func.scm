@@ -1,27 +1,3 @@
-; NOTE: we don't support the same for object destructuring because we rely on
-; the order of identifiers and values to match them together.
-; let [foo, bar] = ['foo', 'bar']
-(lexical_declaration
-  (variable_declarator
-    name: (array_pattern
-      .
-      (identifier) @variable.identifier
-      .
-      ("," @variable.identifier_separator
-        (identifier) @variable.identifier)*)
-    value: (array
-      .
-      (_) @variable.value
-      .
-      ("," @variable.value_separator
-        (_) @variable.value)*))) @variable.declaration
-
-; let foo = 'foo'
-(lexical_declaration
-  (variable_declarator
-    name: (identifier) @variable.identifier
-    value: (_) @variable.value)) @variable.declaration
-
 (assignment_expression
   left: (identifier) @reference.identifier
   (#set! reference_type write))
@@ -53,32 +29,6 @@
 (member_expression
   object: (identifier) @reference.identifier
   (#set! reference_type read))
-
-; function a() {}
-(program
-  ((comment)* @output.comment
-    (function_declaration) @output.function))
-
-; const a = ()=>{}
-(program
-  ((comment)* @output.comment
-    (lexical_declaration
-      (variable_declarator
-        (arrow_function))) @output.function))
-
-; a = ()=>{}
-(program
-  ((comment)* @output.comment
-    (expression_statement
-      (assignment_expression
-        (arrow_function))) @output.function))
-
-(program
-  (class_declaration
-    (class_body
-      ((comment)* @output.comment
-        (method_definition) @output.function)))
-  (#set! method true))
 
 (do_statement
   body: (statement_block
@@ -137,3 +87,29 @@
 (class_declaration
   body: (class_body
     (_) @scope.inside)) @scope
+
+; function a() {}
+(program
+  ((comment)* @output.comment
+    (function_declaration) @output.function))
+
+; const a = ()=>{}
+(program
+  ((comment)* @output.comment
+    (lexical_declaration
+      (variable_declarator
+        (arrow_function))) @output.function))
+
+; a = ()=>{}
+(program
+  ((comment)* @output.comment
+    (expression_statement
+      (assignment_expression
+        (arrow_function))) @output.function))
+
+(program
+  (class_declaration
+    (class_body
+      ((comment)* @output.comment
+        (method_definition) @output.function)))
+  (#set! method true))

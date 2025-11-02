@@ -103,7 +103,7 @@ function M.extract_var(range_type, config)
       return
     end
     local encompasing_query = maybe_encompasing_query
-    local query = ts.query.get(lang, "refactor")
+    local query = ts.query.get(lang, "extract_var")
     if not query then
       vim.notify(("There is no `refactor` query file for language %s"):format(lang), vim.log.levels.ERROR)
       return

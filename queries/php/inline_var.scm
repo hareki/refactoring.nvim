@@ -125,39 +125,3 @@
 (function_call_expression
   function: (variable_name) @reference.identifier
   (#set! reference_type read))
-
-(program
-  (class_declaration
-    (declaration_list
-      ((comment)* @output.comment
-        (method_declaration) @output.function)))
-  (#set! method true))
-
-(program
-  ((comment)* @output.comment
-    (function_definition) @output.function))
-
-(program
-  (php_tag)
-  .
-  (_) @scope.inside) @scope
-
-(class_declaration
-  body: (declaration_list
-    .
-    (_) @scope.inside)) @scope
-
-(method_declaration
-  body: (compound_statement
-    .
-    (_) @scope.inside)) @scope
-
-(function_definition
-  body: (compound_statement
-    .
-    (_) @scope.inside)) @scope
-
-(anonymous_function
-  body: (compound_statement
-    .
-    (_) @scope.inside)) @scope

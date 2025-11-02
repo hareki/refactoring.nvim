@@ -25,7 +25,7 @@ local M = {}
 local function get_processed_match_info(definitions, references, lang)
   local is_unique = require("refactoring.utils").is_unique
 
-  local query = ts.query.get(lang, "refactor")
+  local query = ts.query.get(lang, "inline_func")
   if not query then
     vim.notify(("There is no `refactor` query file for language %s"):format(lang), vim.log.levels.ERROR)
     return

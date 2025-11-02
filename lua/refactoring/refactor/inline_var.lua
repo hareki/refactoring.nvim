@@ -71,7 +71,7 @@ end
 local function get_match_info(definitions, references, lang)
   local is_unique = require("refactoring.utils").is_unique
 
-  local query = ts.query.get(lang, "refactor")
+  local query = ts.query.get(lang, "inline_var")
   if not query then
     vim.notify(("There is no `refactor` query file for language %s"):format(lang), vim.log.levels.ERROR)
     return
@@ -103,10 +103,8 @@ local function get_match_info(definitions, references, lang)
         local variables_info = {} ---@type refactor.VariableInfo[]
         local references_info = {} ---@type refactor.ReferenceInfo[]
         for _, tree in ipairs(lang_tree:trees()) do
-          -- TODO: inlining `local ft = vim.bo.filetype` twice frozes the editor. Why?
-          -- TODO: this is the botleneck for the performance problem above.
-          -- Cache the resutls of buffers like on vim-matchup to reduce the
-          -- issue (?
+          -- TODO: Cache the resutls like on vim-matchup (on all features) to
+          -- improve performance?
           for _, match, metadata in query:iter_matches(tree:root(), buf) do
             local variable_info ---@type refactor.VariableInfo|nil
             for capture_id, nodes in pairs(match) do

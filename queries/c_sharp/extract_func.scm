@@ -1,19 +1,3 @@
-(local_declaration_statement
-  (variable_declaration
-    .
-    type: (_)
-    .
-    (variable_declarator
-      name: (_) @variable.identifier
-      "=" @variable.value_separator
-      (_) @variable.value .)
-    .
-    ("," @variable.identifier_separator
-      (variable_declarator
-        name: (_) @variable.identifier
-        "=" @variable.value_separator
-        (_) @variable.value .))*)) @variable.declaration
-
 ((variable_declaration
   .
   type: (_) @_type
@@ -52,6 +36,15 @@
   (identifier) @reference.identifier
   (#set! reference_type read))
 
+(_
+  (block
+    .
+    (_) @scope.inside)) @scope
+
+(class_declaration
+  body: (declaration_list
+    (_) @scope.inside)) @scope
+
 (compilation_unit
   ((comment)* @output.comment
     (global_statement
@@ -66,12 +59,3 @@
           (constructor_declaration)
         ] @output.function)))
   (#set! method true))
-
-(_
-  (block
-    .
-    (_) @scope.inside)) @scope
-
-(class_declaration
-  body: (declaration_list
-    (_) @scope.inside)) @scope

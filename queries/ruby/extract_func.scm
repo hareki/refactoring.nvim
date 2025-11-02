@@ -1,7 +1,3 @@
-(assignment
-  left: (_) @variable.identifier
-  right: (_) @variable.value) @variable.declaration
-
 (method_parameters
   (identifier) @reference.identifier
   (#set! declaration true))
@@ -103,6 +99,14 @@
     (identifier) @reference.identifier)
   (#set! reference_type read))
 
+(program) @scope
+
+(method
+  body: (_) @scope.inside) @scope
+
+(class
+  body: (body_statement) @scope.inside) @scope
+
 (program
   (class
     (body_statement
@@ -126,11 +130,3 @@
   ((comment)* @output.comment
     (singleton_method) @output.function)
   (#set! singleton true))
-
-(program) @scope
-
-(method
-  body: (_) @scope.inside) @scope
-
-(class
-  body: (body_statement) @scope.inside) @scope
