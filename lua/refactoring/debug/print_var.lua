@@ -28,7 +28,6 @@ local M = {}
 ---@class refactor.print_var.UserCodeGeneration
 ---@field print_var? {[string]: nil|fun(opts: refactor.print_var.code_generation.Opts): string}
 
--- TODO: support indenting the line correctly
 -- TODO: support geting the location (e.g if#for#some_variable)
 -- TODO: support for count of each occurrence (can I use treesitter with
 -- a query of any node (1 or more times) between two comment nodes that match
@@ -44,6 +43,7 @@ function M.print_var(range_type, config)
   local get_declarations_by_scope = require("refactoring.utils").get_declarations_by_scope
   local scopes_for_range = require("refactoring.utils").scopes_for_range
   local get_declaration_scope = require("refactoring.utils").get_declaration_scope
+  local indent = require("refactoring.utils").indent
 
   local opts = config.debug.print_var
   local code_generation = opts.code_generation
@@ -255,6 +255,12 @@ function M.print_var(range_type, config)
     print_lines[#print_lines] = print_lines[#print_lines] .. vim.bo[buf].commentstring:format(end_marker)
     if opts.output_location == "below" then table.insert(print_lines, 1, "") end
     if opts.output_location == "above" then table.insert(print_lines, "") end
+
+    local srow = output_range:to_api()
+    local _, indent_amount = indent(vim.bo[buf].expandtab, 0, api.nvim_buf_get_lines(buf, srow, srow + 1, true)[1])
+    local print_text = table.concat(print_lines, "\n")
+    print_text = indent(vim.bo[buf].expandtab, indent_amount, print_text)
+    print_lines = vim.split(print_text, "\n")
 
     ---@type {[integer]: refactor.TextEdit[]}
     local text_edits_by_buf = {}
