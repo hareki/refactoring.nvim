@@ -123,4 +123,25 @@ int main() {
   validate(lines, { 2, 8 }, expected_lines, " pviw")
 end
 
+T["javascript"] = MiniTest.new_set()
+
+T["javascript"]["works"] = function()
+  local lines = [[
+function foo() {
+  const i = 3;
+  return i;
+}]]
+  local expected_lines = [[
+function foo() {
+  const i = 3;
+  // __PRINT_VAR_START
+  console.log("i:", i)// __PRINT_VAR_END
+  return i;
+}]]
+  child.cmd "edit tmp.js"
+  child.bo.expandtab = true
+  child.bo.shiftwidth = 2
+  validate(lines, { 2, 8 }, expected_lines, " pviw")
+end
+
 return T

@@ -1,1 +1,1 @@
-;inherits: ecma,typescript
+;inherits: typescript

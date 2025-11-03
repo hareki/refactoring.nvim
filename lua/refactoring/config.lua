@@ -773,8 +773,13 @@ local print_var_code_generation = {
     c = function(opts)
       return ([[printf("%s: %%s \n", %s);]]):format(opts.identifier, opts.identifier)
     end,
+    javascript = function(opts)
+      return ([[console.log("%s:", %s)]]):format(opts.identifier, opts.identifier)
+    end,
   },
 }
+print_var_code_generation.print_var.typescript = print_var_code_generation.print_var.javascript
+print_var_code_generation.print_var.tsx = print_var_code_generation.print_var.javascript
 
 ---@type refactor.Config
 local default_config = {
