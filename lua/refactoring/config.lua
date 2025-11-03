@@ -778,6 +778,7 @@ local print_var_code_generation = {
     end,
   },
 }
+print_var_code_generation.print_var.cpp = print_var_code_generation.print_var.c
 print_var_code_generation.print_var.typescript = print_var_code_generation.print_var.javascript
 print_var_code_generation.print_var.tsx = print_var_code_generation.print_var.javascript
 
