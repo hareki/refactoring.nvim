@@ -779,6 +779,9 @@ local print_var_code_generation = {
     powershell = function(opts)
       return ([[Write-Host '%s:' %s]]):format(opts.identifier, opts.identifier)
     end,
+    python = function(opts)
+      return ([[print(f"%s: {str(%s)}")]]):format(opts.identifier, opts.identifier)
+    end,
   },
 }
 print_var_code_generation.print_var.cpp = print_var_code_generation.print_var.c
