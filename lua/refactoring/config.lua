@@ -768,7 +768,10 @@ local inline_func_code_generation = {
 local print_var_code_generation = {
   print_var = {
     lua = function(opts)
-      return ("print([==[%s]==], vim.inspect(%s))"):format(opts.identifier, opts.identifier)
+      return ("print([==[%s:]==], vim.inspect(%s))"):format(opts.identifier, opts.identifier)
+    end,
+    c = function(opts)
+      return ([[printf("%s: %%s \n", %s);]]):format(opts.identifier, opts.identifier)
     end,
   },
 }
