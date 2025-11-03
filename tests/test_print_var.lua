@@ -184,4 +184,25 @@ def foo():
   validate(lines, { 2, 4 }, expected_lines, " pViw")
 end
 
+T["vimscript"] = MiniTest.new_set()
+
+T["vimscript"]["works"] = function()
+  local lines = [[
+function! Foo() abort
+    let i = 3
+    return i
+endfunction]]
+  local expected_lines = [[
+function! Foo() abort
+    let i = 3
+    "__PRINT_VAR_START
+    echom 'i' i|"__PRINT_VAR_END
+    return i
+endfunction]]
+  child.cmd "edit tmp.vim"
+  child.bo.expandtab = true
+  child.bo.shiftwidth = 4
+  validate(lines, { 2, 8 }, expected_lines, " pviw")
+end
+
 return T
