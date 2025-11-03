@@ -251,15 +251,18 @@ function M.print_var(range_type, config)
     end
     local start_marker = opts.markers.print_var.start
     local end_marker = opts.markers.print_var["end"]
-    table.insert(print_lines, 1, vim.bo[buf].commentstring:format(start_marker))
-    print_lines[#print_lines] = print_lines[#print_lines] .. vim.bo[buf].commentstring:format(end_marker)
+    -- TODO: commenstring isn't the correct one for injected languages
+    local commentstring = vim.bo[buf].commentstring
+    table.insert(print_lines, 1, commentstring:format(start_marker))
+    print_lines[#print_lines] = print_lines[#print_lines] .. commentstring:format(end_marker)
     if opts.output_location == "below" then table.insert(print_lines, 1, "") end
     if opts.output_location == "above" then table.insert(print_lines, "") end
 
     local srow = output_range:to_api()
-    local _, indent_amount = indent(vim.bo[buf].expandtab, 0, api.nvim_buf_get_lines(buf, srow, srow + 1, true)[1])
+    local expandtab = vim.bo[buf].expandtab
+    local _, indent_amount = indent(expandtab, 0, api.nvim_buf_get_lines(buf, srow, srow + 1, true)[1])
     local print_text = table.concat(print_lines, "\n")
-    print_text = indent(vim.bo[buf].expandtab, indent_amount, print_text)
+    print_text = indent(expandtab, indent_amount, print_text)
     print_lines = vim.split(print_text, "\n")
 
     ---@type {[integer]: refactor.TextEdit[]}

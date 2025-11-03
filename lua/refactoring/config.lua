@@ -776,6 +776,9 @@ local print_var_code_generation = {
     javascript = function(opts)
       return ([[console.log("%s:", %s)]]):format(opts.identifier, opts.identifier)
     end,
+    powershell = function(opts)
+      return ([[Write-Host '%s:' %s]]):format(opts.identifier, opts.identifier)
+    end,
   },
 }
 print_var_code_generation.print_var.cpp = print_var_code_generation.print_var.c

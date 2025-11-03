@@ -144,4 +144,25 @@ function foo() {
   validate(lines, { 2, 8 }, expected_lines, " pviw")
 end
 
+T["powershell"] = MiniTest.new_set()
+
+T["powershell"]["works"] = function()
+  local lines = [[
+function get-foo {
+    $i = 3
+    return $i
+}]]
+  local expected_lines = [[
+function get-foo {
+    $i = 3
+    # __PRINT_VAR_START
+    Write-Host '$i:' $i# __PRINT_VAR_END
+    return $i
+}]]
+  child.cmd "edit tmp.ps1"
+  child.bo.expandtab = true
+  child.bo.shiftwidth = 4
+  validate(lines, { 2, 4 }, expected_lines, " pviW")
+end
+
 return T
