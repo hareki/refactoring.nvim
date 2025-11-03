@@ -255,8 +255,6 @@ function M.print_var(range_type, config)
     local commentstring = vim.bo[buf].commentstring
     table.insert(print_lines, 1, commentstring:format(start_marker))
     print_lines[#print_lines] = print_lines[#print_lines] .. commentstring:format(end_marker)
-    if opts.output_location == "below" then table.insert(print_lines, 1, "") end
-    if opts.output_location == "above" then table.insert(print_lines, "") end
 
     local srow = output_range:to_api()
     local expandtab = vim.bo[buf].expandtab
@@ -264,6 +262,11 @@ function M.print_var(range_type, config)
     local print_text = table.concat(print_lines, "\n")
     print_text = indent(expandtab, indent_amount, print_text)
     print_lines = vim.split(print_text, "\n")
+    if opts.output_location == "below" then table.insert(print_lines, 1, "") end
+    if opts.output_location == "above" then
+      print_lines[1] = indent(expandtab, 0, print_lines[1])
+      table.insert(print_lines, (expandtab and " " or "\t"):rep(indent_amount))
+    end
 
     ---@type {[integer]: refactor.TextEdit[]}
     local text_edits_by_buf = {}
