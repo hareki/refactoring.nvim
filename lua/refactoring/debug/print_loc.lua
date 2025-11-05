@@ -162,6 +162,7 @@ function M.print_loc(range_type, config)
     -- {10, 6, 12, 9}. But, since {10, 6} is >= {10, 6} and {10, 6} is <= {12, 9},
     -- it's considered to be. Maybe upstream some check for this into `vim.Range`.
     -- The same thing shouldn' happen for {12, 9, 12, 9} and {10, 6, 12, 9}
+    -- TODO: this breaks when cursor is at last col on the inside of a `@output_statment`
     local output_reference_pos = pos(
       output_range.start.row,
       inserted_at == "start" and output_range.start.col - 1 or output_range.start.col + 1,

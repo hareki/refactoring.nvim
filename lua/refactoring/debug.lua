@@ -17,10 +17,12 @@ local M = {}
 ---@class refactor.debug.cleanup.Opts
 ---@field markers refactor.debug.Markers
 ---@field types ('print_var'|'print_loc'|'print_exp')[]
+---@field restore_view boolean Does not work with dot-repeat
 
 ---@class refactor.debug.cleanup.UserOpts
 ---@field markers? refactor.debug.Markers
 ---@field types? ('print_var'|'print_loc'|'print_exp')[]
+---@field restore_view? boolean
 
 ---@class refactor.debug.print_var.Opts
 ---@field markers refactor.debug.Markers
@@ -65,6 +67,8 @@ function M.print_var(opts)
   return "g@"
 end
 
+M._last_view = nil ---@type vim.fn.winsaveview.ret|nil
+
 ---@param opts refactor.debug.cleanup.UserOpts?
 function M.cleanup(opts)
   local config = require("refactoring.config").get_config(0, { debug = { cleanup = opts } })
@@ -72,6 +76,7 @@ function M.cleanup(opts)
   vim.o.operatorfunc = "v:lua.require'refactoring.debug'.debug_operatorfunc"
   last_debug = require("refactoring.debug.cleanup").cleanup
   last_config = config
+  if config.debug.cleanup.restore_view then M._last_view = vim.fn.winsaveview() end
   return "g@"
 end
 

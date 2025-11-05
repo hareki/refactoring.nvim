@@ -9,8 +9,6 @@ local ts = vim.treesitter
 -- maybe also `print_var`) when updating the count. That would mean
 -- decoupling the `code_generation` for the content of the string and
 -- the whole print statement
--- TODO: support going back to cursor location before operator, but document
--- that it doesn't work with dot-repeat
 
 local M = {}
 
@@ -36,12 +34,12 @@ function M.cleanup(range_type, config)
   local opts = config.debug.cleanup
 
   local buf = api.nvim_get_current_buf()
-  local last_line = vim.fn.line "$"
   local extracted_range = get_extracted_range(buf, range_type)
 
   local task = async.run(function()
     local lang_tree, err1 = ts.get_parser(buf, nil, { error = false })
     if not lang_tree then
+      ---@cast err1 -nil
       vim.notify(err1, vim.log.levels.ERROR)
       return
     end
@@ -130,6 +128,9 @@ function M.cleanup(range_type, config)
     )
 
     apply_text_edits(text_edits_by_buf)
+
+    local last_view = require("refactoring.debug")._last_view
+    if opts.restore_view and last_view then vim.fn.winrestview(last_view) end
   end)
   task:raise_on_error()
 end

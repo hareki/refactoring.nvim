@@ -825,6 +825,7 @@ local default_config = {
     cleanup = {
       markers = markers,
       types = { "print_var", "print_loc", "print_exp" },
+      restore_view = true,
     },
     print_loc = {
       markers = markers,
