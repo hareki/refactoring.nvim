@@ -32,6 +32,16 @@ local M = {}
 ---@field output_location? 'above'|'below'
 ---@field code_generation? refactor.print_var.UserCodeGeneration
 
+---@class refactor.debug.print_loc.Opts
+---@field markers refactor.debug.Markers
+---@field output_location 'above'|'below'
+---@field code_generation refactor.print_loc.CodeGeneration
+
+---@class refactor.debug.print_loc.UserOpts
+---@field markers? refactor.debug.UserMarkers
+---@field output_location? 'above'|'below'
+---@field code_generation? refactor.print_loc.UserCodeGeneration
+
 ---@alias refactor.DebugFunc fun(type: 'v' | 'V' | '', opts: refactor.Config|nil)
 
 local last_debug ---@type refactor.DebugFunc|nil
@@ -63,6 +73,16 @@ function M.cleanup(opts)
   last_debug = require("refactoring.debug.cleanup").cleanup
   last_config = config
   return "g@"
+end
+
+---@param opts refactor.debug.print_loc.UserOpts?
+function M.print_loc(opts)
+  local config = require("refactoring.config").get_config(0, { debug = { print_loc = opts } })
+
+  vim.o.operatorfunc = "v:lua.require'refactoring.debug'.debug_operatorfunc"
+  last_debug = require("refactoring.debug.print_loc").print_loc
+  last_config = config
+  return "g@l"
 end
 
 return M

@@ -17,10 +17,12 @@ local M = {}
 ---@class refactor.debug.Config
 ---@field cleanup refactor.debug.cleanup.Opts
 ---@field print_var refactor.debug.print_var.Opts
+---@field print_loc refactor.debug.print_loc.Opts
 
 ---@class refactor.debug.UserConfig
 ---@field cleanup? refactor.debug.cleanup.UserOpts
 ---@field print_var? refactor.debug.print_var.UserOpts
+---@field print_loc? refactor.debug.print_loc.UserOpts
 
 ---@class refactor.Config
 ---@field refactor refactor.refactor.Config
@@ -791,6 +793,15 @@ print_var_code_generation.print_var.cpp = print_var_code_generation.print_var.c
 print_var_code_generation.print_var.typescript = print_var_code_generation.print_var.javascript
 print_var_code_generation.print_var.tsx = print_var_code_generation.print_var.javascript
 
+---@type refactor.print_loc.CodeGeneration
+local print_loc_code_generation = {
+  print_loc = {
+    lua = function(opts)
+      return ([[print([==[%s]==])]]):format(opts.debug_path)
+    end,
+  },
+}
+
 ---@type refactor.Config
 local default_config = {
   refactor = {
@@ -814,6 +825,11 @@ local default_config = {
     cleanup = {
       markers = markers,
       types = { "print_var", "print_loc", "print_exp" },
+    },
+    print_loc = {
+      markers = markers,
+      output_location = "below",
+      code_generation = print_loc_code_generation,
     },
   },
 }

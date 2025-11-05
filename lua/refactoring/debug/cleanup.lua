@@ -9,6 +9,8 @@ local ts = vim.treesitter
 -- maybe also `print_var`) when updating the count. That would mean
 -- decoupling the `code_generation` for the content of the string and
 -- the whole print statement
+-- TODO: support going back to cursor location before operator, but document
+-- that it doesn't work with dot-repeat
 
 local M = {}
 
