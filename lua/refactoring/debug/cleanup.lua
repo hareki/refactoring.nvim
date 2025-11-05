@@ -49,7 +49,7 @@ function M.cleanup(range_type, config)
     local lang = nested_lang_tree:lang()
     local query = ts.query.get(lang, "cleanup")
     if not query then
-      vim.notify(("There is no `refactor` query file for language %s"):format(lang), vim.log.levels.ERROR)
+      vim.notify(("There is no `cleanup` query file for language %s"):format(lang), vim.log.levels.ERROR)
       return
     end
 

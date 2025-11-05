@@ -54,6 +54,7 @@ function M.print_var(range_type, config)
   local task = async.run(function()
     local lang_tree, err1 = ts.get_parser(buf, nil, { error = false })
     if not lang_tree then
+      ---@cast err1 -nil
       vim.notify(err1, vim.log.levels.ERROR)
       return
     end
@@ -66,7 +67,7 @@ function M.print_var(range_type, config)
     local lang = nested_lang_tree:lang()
     local query = ts.query.get(lang, "print_var")
     if not query then
-      vim.notify(("There is no `refactor` query file for language %s"):format(lang), vim.log.levels.ERROR)
+      vim.notify(("There is no `print_var` query file for language %s"):format(lang), vim.log.levels.ERROR)
       return
     end
 

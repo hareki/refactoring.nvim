@@ -73,7 +73,7 @@ local function get_match_info(definitions, references, lang)
 
   local query = ts.query.get(lang, "inline_var")
   if not query then
-    vim.notify(("There is no `refactor` query file for language %s"):format(lang), vim.log.levels.ERROR)
+    vim.notify(("There is no `inline_var` query file for language %s"):format(lang), vim.log.levels.ERROR)
     return
   end
 
