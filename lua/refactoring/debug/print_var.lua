@@ -63,7 +63,12 @@ function M.print_var(range_type, config)
     -- the implementation, it does use `LanguageTree:valid`, but it always
     -- returns false when `range` is `true`)
     lang_tree:parse(true)
-    local nested_lang_tree = lang_tree:language_for_range { extracted_range:to_treesitter() }
+    local nested_lang_tree = lang_tree:language_for_range {
+      extracted_range.start_row,
+      extracted_range.start_col,
+      extracted_range.end_row,
+      extracted_range.end_col,
+    }
     local lang = nested_lang_tree:lang()
     local query = ts.query.get(lang, "print_var")
     if not query then
@@ -102,21 +107,23 @@ function M.print_var(range_type, config)
       end
     end
 
-    local extracted_range_api = { extracted_range:to_api() }
+    local extracted_range_api = { extracted_range:to_extmark() }
     -- NOTE: treesitter nodes usualy do not include leading whitespace
     local extracted_range_start_line =
       api.nvim_buf_get_lines(buf, extracted_range_api[1], extracted_range_api[1] + 1, true)[1]
     local _, extracted_range_start_line_first_non_white = extracted_range_start_line:find "^%s*"
     extracted_range_start_line_first_non_white = extracted_range_start_line_first_non_white or 0
-    local extracted_reference_pos = opts.output_location == "below" and extracted_range.end_
-      or pos(extracted_range.start.row, extracted_range_start_line_first_non_white)
+    local extracted_reference_pos = opts.output_location == "below"
+        and pos(extracted_range.end_row, extracted_range.end_col)
+      or pos(extracted_range.start_row, extracted_range_start_line_first_non_white)
     ---@type TSNode|nil
     local statement_for_range = iter(statements)
       :filter(
         ---@param s TSNode
         function(s)
-          local s_range = range.treesitter(buf, s:range())
-          return s_range:has_pos(extracted_reference_pos)
+          local srow, scol, erow, ecol = s:range()
+          local s_range = range(srow, scol, erow, ecol, { buf = buf })
+          return s_range:has(extracted_reference_pos)
         end
       )
       :fold(
@@ -133,12 +140,14 @@ function M.print_var(range_type, config)
       return vim.notify("Couldn't find statement for extracted range using Treesitter", vim.log.levels.ERROR)
     end
 
-    local statement_range = range.treesitter(buf, statement_for_range:range())
-    local statement_srow, statement_scol, statement_erow, statement_ecol = statement_range:to_api()
+    local srow, scol, erow, ecol = statement_for_range:range()
+    local statement_range = range(srow, scol, erow, ecol, { buf = buf })
+    local statement_srow, statement_scol, statement_erow, statement_ecol = statement_range:to_extmark()
     local output_range = opts.output_location == "below"
-        and range.api(buf, statement_erow, statement_ecol, statement_erow, statement_ecol)
-      or range.api(buf, statement_srow, statement_scol, statement_srow, statement_scol)
+        and range.extmark(statement_erow, statement_ecol, statement_erow, statement_ecol, { buf = buf })
+      or range.extmark(statement_srow, statement_scol, statement_srow, statement_scol, { buf = buf })
 
+    local output_start_pos = pos(output_range.start_row, output_range.start_col, { buf = output_range.buf })
     -- TODO: I also compute `declarations_before_output_range` in
     -- `extract_func`. Is there a cleaner wat to do all this in both places?
     local declarations_by_scope = get_declarations_by_scope(references, scopes, buf)
@@ -169,23 +178,29 @@ function M.print_var(range_type, config)
               )
             or false
 
-          local node_start = pos.treesitter(buf, "start", r.identifier:start())
-          local node_end = pos.treesitter(buf, "end", r.identifier:end_())
-          return node_start <= output_range.start and node_end <= output_range.start and is_in_scope
+          local r_srow, r_scol, r_erow, r_ecol = r.identifier:range()
+          local node_start = pos(r_srow, r_scol, { buf = buf })
+          -- NOTE: I need to make end inclusive to be able to compare it with start
+          if r_ecol == 0 then
+            r_erow = r_erow - 1
+            r_ecol = #api.nvim_buf_get_lines(buf, r_erow, r_erow + 1, true)[1]
+          else
+            r_ecol = r_ecol - 1
+          end
+          local node_end = pos(r_erow, r_ecol, { buf = buf })
+          return node_start <= output_start_pos and node_end <= output_start_pos and is_in_scope
         end
       )
       :map(reference_to_text)
       :totable()
-
-    -- TODO: Some ranges are having a 1-off error because of no standar
-    -- handling of ranges (e.g. `extract_func` for a single word).
 
     ---@type {[string]: refactor.ReferenceInfo}
     local selected_references_by_start = iter(references)
       :filter(
         ---@param r refactor.ReferenceInfo
         function(r)
-          local r_range = range.treesitter(buf, r.identifier:range())
+          local r_srow, r_scol, r_erow, r_ecol = r.identifier:range()
+          local r_range = range(r_srow, r_scol, r_erow, r_ecol, { buf = buf })
           return extracted_range:has(r_range)
         end
       )
@@ -210,8 +225,10 @@ function M.print_var(range_type, config)
       end)
       :totable()
     table.sort(selected_references, function(a, b)
-      local a_range = range.treesitter(buf, a.identifier:range())
-      local b_range = range.treesitter(buf, b.identifier:range())
+      local a_srow, a_scol, a_erow, a_ecol = a.identifier:range()
+      local a_range = range(a_srow, a_scol, a_erow, a_ecol, { buf = buf })
+      local b_srow, b_scol, b_erow, b_ecol = b.identifier:range()
+      local b_range = range(b_srow, b_scol, b_erow, b_ecol, { buf = buf })
 
       return a_range < b_range
     end)
@@ -220,7 +237,8 @@ function M.print_var(range_type, config)
       :filter(
         ---@param r refactor.ReferenceInfo
         function(r)
-          local r_range = range.treesitter(buf, r.identifier:range())
+          local r_srow, r_scol, r_erow, r_ecol = r.identifier:range()
+          local r_range = range(r_srow, r_scol, r_erow, r_ecol, { buf = buf })
           return extracted_range:has(r_range)
         end
       )
@@ -257,9 +275,9 @@ function M.print_var(range_type, config)
     table.insert(print_lines, 1, commentstring:format(start_marker))
     print_lines[#print_lines] = print_lines[#print_lines] .. commentstring:format(end_marker)
 
-    local srow = output_range:to_api()
+    local output_srow = output_range:to_extmark()
     local expandtab = vim.bo[buf].expandtab
-    local _, indent_amount = indent(expandtab, 0, api.nvim_buf_get_lines(buf, srow, srow + 1, true)[1])
+    local _, indent_amount = indent(expandtab, 0, api.nvim_buf_get_lines(buf, output_srow, output_srow + 1, true)[1])
     local print_text = table.concat(print_lines, "\n")
     print_text = indent(expandtab, indent_amount, print_text)
     print_lines = vim.split(print_text, "\n")

@@ -87,14 +87,16 @@ local function get_output_node(nested_lang_tree, query, buf, extracted_range)
     end
   end
 
+  local extracted_start_pos = pos(extracted_range.start_row, extracted_range.start_col, { buf = extracted_range.buf })
   ---@type refactor.Output|nil
   local selected_output = iter(outputs)
     :filter(
       ---@param o refactor.Output
       function(o)
         local n = choose_output(o)
-        local n_start = pos.treesitter(buf, "start", n:start())
-        return n_start < extracted_range.start
+        local srow, scol = n:start()
+        local n_start = pos(srow, scol, { buf = buf })
+        return n_start < extracted_start_pos
       end
     )
     :fold(
@@ -105,11 +107,13 @@ local function get_output_node(nested_lang_tree, query, buf, extracted_range)
         if not acc then return o end
 
         local n = choose_output(o)
-        local o_start = pos.treesitter(buf, "start", n:start())
+        local n_srow, n_scol = n:start()
+        local o_start = pos(n_srow, n_scol, { buf = buf })
         local acc_n = choose_output(acc)
-        local acc_start = pos.treesitter(buf, "start", acc_n:start())
+        local acc_srow, acc_scol = acc_n:start()
+        local acc_start = pos(acc_srow, acc_scol, { buf = buf })
 
-        local is_o_closer = is_first_closer(o_start, acc_start, extracted_range.start)
+        local is_o_closer = is_first_closer(o_start, acc_start, extracted_start_pos)
         if is_o_closer then return o end
         return acc
       end
@@ -132,6 +136,7 @@ end
 local function ts_parse(buf, extracted_range)
   local lang_tree, err1 = ts.get_parser(buf, nil, { error = false })
   if not lang_tree then
+    ---@cast err1 -nil
     vim.notify(err1, vim.log.levels.ERROR)
     return
   end
@@ -184,7 +189,8 @@ local function extract_func(opts)
   local out_buf = opts.out_buf
   local fn_name = opts.fn_name
 
-  local extracted_range_ts = { extracted_range:to_treesitter() }
+  local extracted_range_ts =
+    { extracted_range.start_row, extracted_range.start_col, extracted_range.end_row, extracted_range.end_col }
   local nested_lang_tree, in_query = ts_parse(in_buf, extracted_range_ts)
   if not nested_lang_tree or not in_query then return end
 
@@ -198,19 +204,20 @@ local function extract_func(opts)
   ---@type vim.Range
   local output_range
   if output_node then
-    local output_start = pos.treesitter(in_buf, "start", output_node:start())
-    local row, col = output_start:to_api()
-    output_range = range.api(out_buf, row, col, row, col)
+    local srow, scol = output_node:start()
+    local output_start = pos(srow, scol, { buf = in_buf })
+    local row, col = output_start:to_extmark()
+    output_range = range.extmark(row, col, row, col, { buf = out_buf })
   elseif in_buf == out_buf then
     output_range = range(
-      extracted_range.start.row,
-      extracted_range.start.col,
-      extracted_range.start.row,
-      extracted_range.start.col,
-      { buf = extracted_range.start.buf }
+      extracted_range.start_row,
+      extracted_range.start_col,
+      extracted_range.start_row,
+      extracted_range.start_col,
+      { buf = extracted_range.buf }
     )
   else
-    output_range = range.api(out_buf, 0, 0, 0, 0)
+    output_range = range.extmark(0, 0, 0, 0, { buf = out_buf })
   end
 
   local references_info = {} ---@type refactor.ReferenceInfo[]
@@ -266,12 +273,15 @@ local function extract_func(opts)
     ---@param b refactor.ReferenceInfo
     function(a, b)
       -- TODO: don't I already have a function to sort nodes in utils?
-      local a_range = range.treesitter(in_buf, a.identifier:range())
-      local b_range = range.treesitter(in_buf, b.identifier:range())
+      local a_srow, a_scol, a_erow, a_ecol = a.identifier:range()
+      local a_range = range(a_srow, a_scol, a_erow, a_ecol, { buf = in_buf })
+      local b_srow, b_scol, b_erow, b_ecol = b.identifier:range()
+      local b_range = range(b_srow, b_scol, b_erow, b_ecol, { buf = in_buf })
 
       return a_range < b_range
     end
   )
+  local extracted_end_pos = pos(extracted_range.end_row, extracted_range.end_col, { buf = extracted_range.buf })
   ---@type {[TSNode]: {scope: TSNode, types: {[string]: string|{identifier: string}}}}
   local types_by_scope_up_to_extracted_range_end = iter(typed_references_info)
     :filter(
@@ -290,8 +300,10 @@ local function extract_func(opts)
             )
           or false
 
-        local node_range = range.treesitter(in_buf, r.identifier:range())
-        return node_range.start <= extracted_range.end_ and node_range.end_ <= extracted_range.end_ and is_in_scope
+        local srow, scol, erow, ecol = r.identifier:range()
+        local node_start_pos = pos(srow, scol, { buf = in_buf })
+        local node_end_pos = pos(erow, ecol, { buf = in_buf })
+        return node_start_pos <= extracted_end_pos and node_end_pos <= node_end_pos and is_in_scope
       end
     )
     :fold(
@@ -316,9 +328,10 @@ local function extract_func(opts)
   ---@type {scope: TSNode, types: {[string]: string|{identifier: string}}}[]
   local types_with_scope_up_to_extracted_range_end = vim.tbl_values(types_by_scope_up_to_extracted_range_end)
   table.sort(types_with_scope_up_to_extracted_range_end, function(a, b)
-    -- TODO: don't I already have a function to sort nodes in utils?
-    local a_range = range.treesitter(in_buf, a.scope:range())
-    local b_range = range.treesitter(in_buf, b.scope:range())
+    local a_srow, a_scol, a_erow, a_ecol = a.scope:range()
+    local a_range = range(a_srow, a_scol, a_erow, a_ecol, { buf = in_buf })
+    local b_srow, b_scol, b_erow, b_ecol = b.scope:range()
+    local b_range = range(b_srow, b_scol, b_erow, b_ecol, { buf = in_buf })
 
     return a_range < b_range
   end)
@@ -336,8 +349,9 @@ local function extract_func(opts)
     function(t)
       for identifier, identifier_type in pairs(t) do
         if type(identifier_type) == "table" then
+          ---@type {[string]: string|{identifier: string}}
           local types = iter(scoped_types_up_to_extracted_range_end):find(
-            ---@param types {[string]: string}
+            ---@param types {[string]: string|{identifier: string}}
             function(types)
               return types[identifier_type.identifier] ~= nil
             end
@@ -350,6 +364,7 @@ local function extract_func(opts)
       end
     end
   )
+  -- TODO: actually, not all types will be string at this point
   ---@cast scoped_types_up_to_extracted_range_end{[string]: string}[]
 
   ---@type refactor.ReferenceInfo[]
@@ -358,7 +373,8 @@ local function extract_func(opts)
       ---@param r refactor.ReferenceInfo
       function(r)
         local n = r.identifier
-        local node_range = range.treesitter(in_buf, n:range())
+        local srow, scol, erow, ecol = n:range()
+        local node_range = range(srow, scol, erow, ecol, { buf = in_buf })
         return extracted_range:has(node_range)
       end
     )
@@ -416,7 +432,8 @@ local function extract_func(opts)
     :filter(
       ---@param r refactor.ReferenceInfo
       function(r)
-        local r_range = range.treesitter(in_buf, r.identifier:range())
+        local srow, scol, erow, ecol = r.identifier:range()
+        local r_range = range(srow, scol, erow, ecol, { buf = in_buf })
         return extracted_range:has(r_range)
       end
     )
@@ -439,7 +456,8 @@ local function extract_func(opts)
             )
           or false
 
-        local node_range = range.treesitter(in_buf, r.identifier:range())
+        local srow, scol, erow, ecol = r.identifier:range()
+        local node_range = range(srow, scol, erow, ecol, { buf = in_buf })
         return node_range <= output_range and is_in_scope
       end
     )
@@ -461,7 +479,8 @@ local function extract_func(opts)
             )
           or false
 
-        local node_range = range.treesitter(in_buf, r.identifier:range())
+        local srow, scol, erow, ecol = r.identifier:range()
+        local node_range = range(srow, scol, erow, ecol, { buf = in_buf })
         return node_range <= extracted_range and is_in_scope
       end
     )
@@ -498,7 +517,8 @@ local function extract_func(opts)
             )
           or false
 
-        local node_range = range.treesitter(in_buf, r.identifier:range())
+        local srow, scol, erow, ecol = r.identifier:range()
+        local node_range = range(srow, scol, erow, ecol, { buf = in_buf })
         return node_range > extracted_range and is_in_scope
       end
     )

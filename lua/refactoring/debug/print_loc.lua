@@ -49,7 +49,12 @@ function M.print_loc(range_type, config)
 
     -- TODO: use async parsing
     lang_tree:parse(true)
-    local nested_lang_tree = lang_tree:language_for_range { extracted_range:to_treesitter() }
+    local nested_lang_tree = lang_tree:language_for_range {
+      extracted_range.start_row,
+      extracted_range.start_col,
+      extracted_range.end_row,
+      extracted_range.end_col,
+    }
     local lang = nested_lang_tree:lang()
     local query = ts.query.get(lang, "print_loc")
     if not query then
@@ -87,23 +92,23 @@ function M.print_loc(range_type, config)
       end
     end
 
-    local extracted_range_api = { extracted_range:to_api() }
+    local extracted_range_api = { extracted_range:to_extmark() }
     -- NOTE: treesitter nodes usualy do not include leading whitespace
     local extracted_range_start_line =
       api.nvim_buf_get_lines(buf, extracted_range_api[1], extracted_range_api[1] + 1, true)[1]
     local _, extracted_range_start_line_first_non_white = extracted_range_start_line:find "^%s*"
     extracted_range_start_line_first_non_white = extracted_range_start_line_first_non_white or 0
-    local extracted_reference_pos = pos(
-      opts.output_location == "below" and extracted_range.end_.row or extracted_range.start.row,
-      extracted_range_start_line_first_non_white
-    )
+    local extracted_reference_pos = opts.output_location == "below"
+        and pos(extracted_range.end_row, math.max(extracted_range_start_line_first_non_white, extracted_range.end_col))
+      or pos(extracted_range.start_row, extracted_range_start_line_first_non_white)
     ---@type refactor.OutputStatement|nil
     local statement_for_range = iter(output_statements)
       :filter(
         ---@param os refactor.OutputStatement
         function(os)
-          local os_range = range.treesitter(buf, os.output_statement:range())
-          return os_range:has_pos(extracted_reference_pos)
+          local srow, scol, erow, ecol = os.output_statement:range()
+          local os_range = range(srow, scol, erow, ecol, { buf = buf })
+          return os_range:has(extracted_reference_pos)
         end
       )
       :fold(
@@ -120,29 +125,32 @@ function M.print_loc(range_type, config)
       return vim.notify("Couldn't find statement for extracted range using Treesitter", vim.log.levels.ERROR)
     end
 
-    local statement_range = range.treesitter(buf, statement_for_range.output_statement:range())
-    local statement_srow, statement_scol, statement_erow, statement_ecol = statement_range:to_api()
-    local before_range = range.api(buf, statement_srow, statement_scol, statement_srow, statement_scol)
-    local after_range = range.api(buf, statement_erow, statement_ecol, statement_erow, statement_ecol)
+    local srow, scol, erow, ecol = statement_for_range.output_statement:range()
+    local statement_range = range(srow, scol, erow, ecol, { buf = buf })
+    local statement_srow, statement_scol, statement_erow, statement_ecol = statement_range:to_extmark()
+    local before_range = range.extmark(statement_srow, statement_scol, statement_srow, statement_scol, { buf = buf })
+    local after_range = range.extmark(statement_erow, statement_ecol, statement_erow, statement_ecol, { buf = buf })
     local output_range ---@type vim.Range
     local inserted_at ---@type 'start'|'end'
     if statement_for_range.inside and opts.output_location == "above" then
-      local inside_range = range.treesitter(buf, statement_for_range.inside:range())
+      local srow, scol, erow, ecol = statement_for_range.inside:range()
+      local inside_range = range(srow, scol, erow, ecol, { buf = buf })
 
       if extracted_range > inside_range then
-        local _, _, inside_erow, inside_ecol = inside_range:to_api()
-        output_range = range.api(buf, inside_erow, inside_ecol, inside_erow, inside_ecol)
+        local _, _, inside_erow, inside_ecol = inside_range:to_extmark()
+        output_range = range.extmark(inside_erow, inside_ecol, inside_erow, inside_ecol, { buf = buf })
         inserted_at = "end"
       else
         output_range = before_range
         inserted_at = "start"
       end
     elseif statement_for_range.inside and opts.output_location == "below" then
-      local inside_range = range.treesitter(buf, statement_for_range.inside:range())
+      local srow, scol, erow, ecol = statement_for_range.inside:range()
+      local inside_range = range(srow, scol, erow, ecol, { buf = buf })
 
       if extracted_range < inside_range then
-        local inside_srow, inside_scol = inside_range:to_api()
-        output_range = range.api(buf, inside_srow, inside_scol, inside_srow, inside_scol)
+        local inside_srow, inside_scol = inside_range:to_extmark()
+        output_range = range.extmark(inside_srow, inside_scol, inside_srow, inside_scol, { buf = buf })
         inserted_at = "start"
       else
         output_range = after_range
@@ -164,26 +172,29 @@ function M.print_loc(range_type, config)
     -- The same thing shouldn' happen for {12, 9, 12, 9} and {10, 6, 12, 9}
     -- TODO: this breaks when cursor is at last col on the inside of a `@output_statment`
     local output_reference_pos = pos(
-      output_range.start.row,
-      inserted_at == "start" and output_range.start.col - 1 or output_range.start.col + 1,
-      { buf = output_range.start.buf }
+      output_range.start_row,
+      inserted_at == "start" and output_range.start_col - 1 or output_range.start_col + 1,
+      { buf = output_range.buf }
     )
     ---@type refactor.DebugPath[]
     local debug_paths_for_range = iter(debug_paths)
       :filter(
         ---@param dp refactor.DebugPath
         function(dp)
-          local dp_range = range.treesitter(buf, dp.debug_path:range())
+          local srow, scol, erow, ecol = dp.debug_path:range()
+          local dp_range = range(srow, scol, erow, ecol, { buf = buf })
 
-          return dp_range:has_pos(output_reference_pos)
+          return dp_range:has(output_reference_pos)
         end
       )
       :totable()
 
     table.sort(debug_paths_for_range, function(a, b)
-      local a_range = range.treesitter(buf, a.debug_path:range())
-      local b_range = range.treesitter(buf, b.debug_path:range())
-      return a_range.start < b_range.start
+      local a_srow, a_scol = a.debug_path:range()
+      local a_start_pos = pos(a_srow, a_scol, { buf = buf })
+      local b_srow, b_scol = b.debug_path:range()
+      local b_start_pos = pos(b_srow, b_scol, { buf = buf })
+      return a_start_pos < b_start_pos
     end)
 
     local debug_path_for_range = iter(debug_paths_for_range)
@@ -204,7 +215,7 @@ function M.print_loc(range_type, config)
       get_print_loc { debug_path = debug_path_for_range } .. commentstring:format(end_marker),
     }
 
-    local srow = output_range:to_api()
+    local srow = output_range:to_extmark()
     local expandtab = vim.bo[buf].expandtab
     local _, indent_amount = indent(expandtab, 0, api.nvim_buf_get_lines(buf, srow, srow + 1, true)[1])
     local print_text = table.concat(print_loc_lines, "\n")

@@ -10,8 +10,6 @@
 local api = vim.api
 local validate = vim.validate
 
----@alias vim.Pos.Type 'start'|'end'
-
 --- Represents a well-defined position.
 ---
 --- A |vim.Pos| object contains the {row} and {col} coordinates of a position.
@@ -44,19 +42,29 @@ local validate = vim.validate
 --- When specified, it indicates that this position belongs to a specific buffer.
 --- This field is required when performing position conversions.
 ---@field buf? integer
----
---- Optional type.
----
---- When specified, it indicates the type of this position.
---- This field is required when performing position conversions and comparisons.
----@field type? vim.Pos.Type
+---@field private [1] integer underlying representation of row
+---@field private [2] integer underlying representation of col
+---@field private [3] integer underlying representation of buf
 local Pos = {}
-Pos.__index = Pos
+
+---@private
+---@param pos vim.Pos
+---@param key any
+function Pos.__index(pos, key)
+  if key == "row" then
+    return pos[1]
+  elseif key == "col" then
+    return pos[2]
+  elseif key == "buf" then
+    return pos[3]
+  end
+
+  return Pos[key]
+end
 
 ---@class vim.Pos.Optional
 ---@inlinedoc
 ---@field buf? integer
----@field type? vim.Pos.Type
 
 ---@package
 ---@param row integer
@@ -71,37 +79,49 @@ function Pos.new(row, col, opts)
 
   ---@type vim.Pos
   local self = setmetatable({
-    row = row,
-    col = col,
-    buf = opts.buf,
-    type = opts.type,
+    row,
+    col,
+    opts.buf,
   }, Pos)
 
   return self
 end
 
----@param p1_row integer Row of first position to compare.
----@param p1_col integer Col of first position to compare.
----@param p2_row integer Row of second position to compare.
----@param p2_col integer Col of second position to compare.
+---@param p1 vim.Pos First position to compare.
+---@param p2 vim.Pos Second position to compare.
 ---@return integer
 --- 1: a > b
 --- 0: a == b
 --- -1: a < b
-local function cmp_pos(p1_row, p1_col, p2_row, p2_col)
-  if p1_row == p2_row then
-    if p1_col > p2_col then
+local function cmp_pos(p1, p2)
+  if p1.row == p2.row then
+    if p1.col > p2.col then
       return 1
-    elseif p1_col < p2_col then
+    elseif p1.col < p2.col then
       return -1
     else
       return 0
     end
-  elseif p1_row > p2_row then
+  elseif p1.row > p2.row then
     return 1
   end
 
   return -1
+end
+
+---@private
+function Pos.__lt(...)
+  return cmp_pos(...) == -1
+end
+
+---@private
+function Pos.__le(...)
+  return cmp_pos(...) ~= 1
+end
+
+---@private
+function Pos.__eq(...)
+  return cmp_pos(...) == 0
 end
 
 --- TODO(ofseed): Make it work for unloaded buffers. Check get_line() in vim.lsp.util.
@@ -109,49 +129,6 @@ end
 ---@param row integer
 local function get_line(buf, row)
   return api.nvim_buf_get_lines(buf, row, row + 1, true)[1]
-end
-
----@private
----@param pos vim.Pos
----@return integer, integer
-local function to_inclusive_pos(pos)
-  local col = pos.col
-  local row = pos.row
-  if pos.type == "end" and pos.col > 0 then
-    col = col - 1
-  elseif pos.type == "end" and pos.col == 0 and pos.row > 0 then
-    row = row - 1
-    col = #get_line(pos.buf, row)
-  end
-
-  return row, col
-end
-
----@private
----@param p1 vim.Pos
----@param p2 vim.Pos
-function Pos.__lt(p1, p2)
-  local p1_row, p1_col = to_inclusive_pos(p1)
-  local p2_row, p2_col = to_inclusive_pos(p2)
-  return cmp_pos(p1_row, p1_col, p2_row, p2_col) == -1
-end
-
----@private
----@param p1 vim.Pos
----@param p2 vim.Pos
-function Pos.__le(p1, p2)
-  local p1_row, p1_col = to_inclusive_pos(p1)
-  local p2_row, p2_col = to_inclusive_pos(p2)
-  return cmp_pos(p1_row, p1_col, p2_row, p2_col) ~= 1
-end
-
----@private
----@param p1 vim.Pos
----@param p2 vim.Pos
-function Pos.__eq(p1, p2)
-  local p1_row, p1_col = to_inclusive_pos(p1)
-  local p2_row, p2_col = to_inclusive_pos(p2)
-  return cmp_pos(p1_row, p1_col, p2_row, p2_col) == 0
 end
 
 --- Converts |vim.Pos| to `lsp.Position`.
@@ -214,143 +191,42 @@ function Pos.lsp(buf, pos, position_encoding)
   return Pos.new(row, col, { buf = buf })
 end
 
---- Converts |vim.Pos| to cursor position.
+--- Converts |vim.Pos| to cursor position (see |api-indexing|).
 ---@param pos vim.Pos
----@return [integer, integer]
+---@return integer, integer
 function Pos.to_cursor(pos)
-  return { pos.row + 1, pos.col }
+  return pos.row + 1, pos.col
 end
 
---- Creates a new |vim.Pos| from cursor position.
+--- Creates a new |vim.Pos| from cursor position (see |api-indexing|).
 ---@param pos [integer, integer]
-function Pos.cursor(pos)
-  return Pos.new(pos[1] - 1, pos[2])
+---@param opts vim.Pos.Optional|nil
+function Pos.cursor(pos, opts)
+  return Pos.new(pos[1] - 1, pos[2], opts)
 end
 
---- Converts |vim.Pos| to extmark position.
+--- Converts |vim.Pos| to extmark position (see |api-indexing|).
 ---@param pos vim.Pos
----@return [integer, integer]
+---@return integer, integer
 function Pos.to_extmark(pos)
-  return { pos.row, pos.col }
-end
+  local line_num = #api.nvim_buf_get_lines(pos.buf, 0, -1, true)
 
---- Creates a new |vim.Pos| from extmark position.
----@param pos [integer, integer]
-function Pos.extmark(pos)
-  local row, col = unpack(pos)
-  return Pos.new(row, col)
-end
-
---- Converts |vim.Pos| to treesitter position.
----@param pos vim.Pos
----@return integer, integer
-function Pos.to_treesitter(pos)
-  local col = pos.col
   local row = pos.row
-  if pos.type == "end" and col == 0 then
+  local col = pos.col
+  if pos.col == 0 and pos.row == line_num then
     row = row - 1
     col = #get_line(pos.buf, row)
   end
+
   return row, col
 end
 
---- Creates a new |vim.Pos| from treesitter position.
----@param buf integer
----@param type vim.Pos.Type
+--- Creates a new |vim.Pos| from extmark position (see |api-indexing|).
 ---@param row integer
 ---@param col integer
-function Pos.treesitter(buf, type, row, col)
-  validate("buf", buf, "number")
-  validate("row", row, "number")
-  validate("col", col, "number")
-
-  -- TODO(TheLeoP): we are technically losing information here. Treesitter has
-  -- both kind of end indexing (row_incluvsive-col_exclusive and
-  -- row_exclusive-col_0). But, does it matter in practice?
-  if type == "end" and col > 0 and col == #get_line(buf, row) then
-    row = row + 1
-    col = 0
-  end
-
-  return Pos.new(row, col, { buf = buf, type = type })
-end
-
--- TODO(TheLeoP): does this one require a mandatory `buf`?
---- Creates a new |vim.Pos| from vimscript (|builtin-functions|) position.
----@param buf integer
----@param lnum integer 1-based
----@param col integer 1-based
-function Pos.vimscript(buf, type, lnum, col)
-  validate("buf", buf, "number")
-  validate("type", type, "string")
-  validate("lnum", lnum, "number")
-  validate("col", col, "number")
-
-  if col == vim.v.maxcol then
-    col = 0
-  else
-    lnum = lnum - 1
-    col = col - 1
-  end
-
-  return Pos.new(lnum, col, { buf = buf, type = type })
-end
-
--- TODO(TheLeoP): should we have an optional parameter `range_type` (line, block, char) and modify
--- the range depending on it?
---- Creates a new |vim.Pos| from mark-like position.
----@param buf integer
----@param type vim.Pos.Type
----@param range [integer, integer]
-function Pos.mark(buf, type, range)
-  validate("buf", buf, "number")
-  validate("range", range, "table")
-
-  local row, col = unpack(range)
-  if type == "start" then
-    row = row - 1
-  elseif type == "end" then
-    local row_length = #get_line(buf, row - 1)
-    col = math.min(row_length, col + 1)
-    if col == row_length then
-      col = 0
-    elseif col ~= 0 then
-      row = row - 1
-    end
-  end
-
-  return Pos.new(row, col, { buf = buf, type = type })
-end
-
---- Converts |vim.Pos| to |api-indexing| position.
----@param pos vim.Pos
----@return integer, integer
-function Pos.to_api(pos)
-  local col = pos.col
-  local row = pos.row
-  if pos.type == "end" and col == 0 then
-    row = row - 1
-    col = #get_line(pos.buf, row)
-  end
-  return row, col
-end
-
---- Creates a new |vim.Pos| from |api-indexing| position.
----@param buf integer
----@param type vim.Pos.Type
----@param row integer
----@param col integer
-function Pos.api(buf, type, row, col)
-  validate("buf", buf, "number")
-  validate("row", row, "number")
-  validate("col", col, "number")
-
-  if type == "end" and col == #get_line(buf, row) then
-    row = row + 1
-    col = 0
-  end
-
-  return Pos.new(row, col, { buf = buf, type = type })
+---@param opts vim.Pos.Optional|nil
+function Pos.extmark(row, col, opts)
+  return Pos.new(row, col, opts)
 end
 
 -- Overload `Range.new` to allow calling this module as a function.

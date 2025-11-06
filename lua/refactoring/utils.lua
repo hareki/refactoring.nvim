@@ -20,7 +20,7 @@ function M.apply_text_edits(text_edits_by_buf)
     end)
 
     for _, text_edit in ipairs(text_edits) do
-      local srow, scol, erow, ecol = text_edit.range:to_api()
+      local srow, scol, erow, ecol = text_edit.range:to_extmark()
       api.nvim_buf_set_text(buf, srow, scol, erow, ecol, text_edit.lines)
     end
   end
@@ -129,7 +129,8 @@ local function smaller_containing_scope(buf, scopes, inner_range)
     :filter(
       ---@param s TSNode
       function(s)
-        local scope_range = range.treesitter(buf, s:range())
+        local srow, scol, erow, ecol = s:range()
+        local scope_range = range(srow, scol, erow, ecol, { buf = buf })
         return scope_range:has(inner_range)
       end
     )
@@ -166,7 +167,8 @@ function M.get_declarations_by_scope(references, scopes, buf)
       ---@param acc refactor.declarations_by_scope
       ---@param d refactor.ReferenceInfo
       function(acc, d)
-        local d_range = range.treesitter(buf, d.identifier:range())
+        local srow, scol, erow, ecol = d.identifier:range()
+        local d_range = range(srow, scol, erow, ecol, { buf = buf })
         local scope = smaller_containing_scope(buf, scopes, d_range)
         local identifier = ts.get_node_text(d.identifier, buf)
         assert(scope)
@@ -198,12 +200,13 @@ end
 ---@param buf integer
 ---@return TSNode|nil
 function M.get_declaration_scope(declarations_by_scope, all_scopes, reference, buf)
-  local reference_range = range.treesitter(buf, reference.identifier:range())
+  local srow, scol, erow, ecol = reference.identifier:range()
+  local reference_range = range(srow, scol, erow, ecol, { buf = buf })
   local scopes_for_reference = M.scopes_for_range(buf, all_scopes, reference_range)
   table.sort(scopes_for_reference, node_comp_desc)
 
   local identifier = ts.get_node_text(reference.identifier, buf)
-  local reference_start = pos.treesitter(buf, "start", reference.identifier:start())
+  local reference_start = pos(srow, scol, { buf = buf })
   return iter(scopes_for_reference):find(
     ---@param s TSNode
     function(s)
@@ -216,7 +219,8 @@ function M.get_declaration_scope(declarations_by_scope, all_scopes, reference, b
         :filter(
           ---@param d refactor.ReferenceInfo
           function(d)
-            local d_start = pos.treesitter(buf, "start", d.identifier:start())
+            local d_srow, d_scol = d.identifier:start()
+            local d_start = pos(d_srow, d_scol, { buf = buf })
             return reference_start >= d_start
           end
         )
@@ -227,8 +231,10 @@ function M.get_declaration_scope(declarations_by_scope, all_scopes, reference, b
           function(acc, d)
             if not acc then return d end
 
-            local d_start = pos.treesitter(buf, "start", d.identifier:start())
-            local acc_start = pos.treesitter(buf, "start", acc.identifier:start())
+            local d_srow, d_scol = d.identifier:start()
+            local d_start = pos(d_srow, d_scol, { buf = buf })
+            local acc_srow, acc_scol = d.identifier:start()
+            local acc_start = pos(acc_srow, acc_scol, { buf = buf })
 
             local is_d_closer = M.is_first_closer(d_start, acc_start, reference_start)
             if is_d_closer then return d end
@@ -263,7 +269,8 @@ function M.scopes_for_range(buf, all_scopes, contained_range)
     :filter(
       ---@param s TSNode
       function(s)
-        local scope_range = range.treesitter(buf, s:range())
+        local srow, scol, erow, ecol = s:range()
+        local scope_range = range(srow, scol, erow, ecol, { buf = buf })
         return scope_range:has(contained_range)
       end
     )
@@ -278,13 +285,16 @@ end
 ---@return vim.Range
 function M.get_extracted_range(buf, range_type)
   local range_start = api.nvim_buf_get_mark(buf, "[")
+  range_start[1] = range_start[1] - 1
   local range_end = api.nvim_buf_get_mark(buf, "]")
+  range_end[1] = range_end[1] - 1
+  range_end[2] = range_end[2] + 1
   if range_type == "V" then
     range_start[2] = 0
-    range_end[2] = #api.nvim_buf_get_lines(buf, range_end[1] - 1, range_end[1], true)[1]
+    range_end[2] = #api.nvim_buf_get_lines(buf, range_end[1], range_end[1] + 1, true)[1]
   end
 
-  return range.mark(buf, range_start, range_end)
+  return range(range_start[1], range_start[2], range_end[1], range_end[2], { buf = buf })
 end
 
 -- TODO: rename this everywhere (and the resulting var) to a more general name.

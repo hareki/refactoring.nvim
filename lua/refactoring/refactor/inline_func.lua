@@ -48,6 +48,7 @@ local function get_processed_match_info(definitions, references, lang)
       function(buf)
         local lang_tree, err2 = ts.get_parser(buf, lang, { error = false })
         if not lang_tree then
+          ---@cast err2 -nil
           vim.notify(err2, vim.log.levels.ERROR)
           return
         end
@@ -139,14 +140,16 @@ local function get_processed_match_info(definitions, references, lang)
       iter(match_info.returns):each(
         ---@param return_info refactor.ReturnInfo
         function(return_info)
-          local return_range = range.treesitter(buf, return_info["return"]:range())
+          local srow, scol, erow, ecol = return_info["return"]:range()
+          local return_range = range(srow, scol, erow, ecol, { buf = buf })
 
           ---@type nil|refactor.ProcessedFunctionInfo
           local function_for_return = iter(match_info.functions)
             :filter(
               ---@param function_info refactor.FunctionInfo
               function(function_info)
-                local function_range = range.treesitter(buf, function_info["function"]:range())
+                local f_srow, f_scol, f_erow, f_ecol = function_info["function"]:range()
+                local function_range = range(f_srow, f_scol, f_erow, f_ecol, { buf = buf })
                 return function_range:has(return_range)
               end
             )
@@ -226,6 +229,7 @@ function M.inline_func(_, config)
 
   local lang_tree, err1 = ts.get_parser(nil, nil, { error = false })
   if not lang_tree then
+    ---@cast err1 -nil
     vim.notify(err1, vim.log.levels.ERROR)
     return
   end
@@ -266,11 +270,13 @@ function M.inline_func(_, config)
           local buf = vim.fn.bufadd(d.filename)
 
           local match_info = ts_info[buf]
-          local d_range = range.vimscript(buf, d.lnum, d.col, d.end_lnum, d.end_col)
+          -- TODO: add range.vimscript
+          local d_range = range(d.lnum - 1, d.col - 1, d.end_lnum - 1, d.end_col - 1, { buf = buf })
           local function_info = iter(match_info.functions):find(
             ---@param function_info refactor.FunctionInfo
             function(function_info)
-              local function_range = range.treesitter(buf, function_info["function"]:range())
+              local srow, scol, erow, ecol = function_info["function"]:range()
+              local function_range = range(srow, scol, erow, ecol, { buf = buf })
               return function_range:has(d_range)
             end
           )
@@ -322,11 +328,13 @@ function M.inline_func(_, config)
           local buf = vim.fn.bufadd(r.filename)
 
           local match_info = ts_info[buf]
-          local r_range = range.vimscript(buf, r.lnum, r.col, r.end_lnum, r.end_col)
+          -- TODO: add range.vimscript
+          local r_range = range(r.lnum - 1, r.col - 1, r.end_lnum - 1, r.end_col - 1, { buf = buf })
           local function_call_info = iter(match_info.function_calls):find(
             ---@param function_call_info refactor.FunctionCallInfo
             function(function_call_info)
-              local function_call_range = range.treesitter(buf, function_call_info.function_call:range())
+              local srow, scol, erow, ecol = function_call_info.function_call:range()
+              local function_call_range = range(srow, scol, erow, ecol, { buf = buf })
               return function_call_range:has(r_range)
             end
           )
@@ -407,9 +415,9 @@ function M.inline_func(_, config)
           vim.list_extend(inlined_function_lines, vim.split(args_assignment, "\n"))
         end
 
-        local fc_range =
-          range.treesitter(in_buf, (r.function_call_info.outside or r.function_call_info.function_call):range())
-        local fc_start_row, _, fc_end_row = fc_range:to_api()
+        local srow, scol, erow, ecol = (r.function_call_info.outside or r.function_call_info.function_call):range()
+        local fc_range = range(srow, scol, erow, ecol, { buf = in_buf })
+        local fc_start_row, _, fc_end_row = fc_range:to_extmark()
         local function_call = table.concat(api.nvim_buf_get_lines(out_buf, fc_start_row, fc_end_row, true), "\n")
 
         local _, indent_amount = indent(vim.bo[out_buf].expandtab, 0, function_call)
@@ -441,11 +449,13 @@ function M.inline_func(_, config)
       end
     )
 
-    local function_range = range.treesitter(in_buf, (function_info.outside or function_info["function"]):range())
+    local srow, scol, erow, ecol = (function_info.outside or function_info["function"]):range()
+    local function_range = range(srow, scol, erow, ecol, { buf = in_buf })
     if function_info.comments then
-      local highest_comment_range = range.treesitter(in_buf, function_info.comments[1]:range())
-      function_range.start.row, function_range.start.col =
-        highest_comment_range.start.row, highest_comment_range.start.col
+      local f_srow, f_scol, f_erow, f_ecol = function_info.comments[1]:range()
+      local highest_comment_range = range(f_srow, f_scol, f_erow, f_ecol, { buf = in_buf })
+      function_range.start_row, function_range.start_col =
+        highest_comment_range.start_row, highest_comment_range.start_col
     end
 
     text_edits_by_buf[in_buf] = text_edits_by_buf[in_buf] or {}

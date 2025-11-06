@@ -45,7 +45,12 @@ function M.cleanup(range_type, config)
     end
     -- TODO: use async parsing
     lang_tree:parse(true)
-    local nested_lang_tree = lang_tree:language_for_range { extracted_range:to_treesitter() }
+    local nested_lang_tree = lang_tree:language_for_range {
+      extracted_range.start_row,
+      extracted_range.start_col,
+      extracted_range.end_row,
+      extracted_range.end_col,
+    }
     local lang = nested_lang_tree:lang()
     local query = ts.query.get(lang, "cleanup")
     if not query then
@@ -70,7 +75,8 @@ function M.cleanup(range_type, config)
       :filter(
         ---@param comment TSNode
         function(comment)
-          local comment_range = range.treesitter(buf, comment:range())
+          local srow, scol, erow, ecol = comment:range()
+          local comment_range = range(srow, scol, erow, ecol, { buf = buf })
           return extracted_range:has(comment_range)
         end
       )
@@ -85,14 +91,18 @@ function M.cleanup(range_type, config)
               return text:find(opts.markers[name].start) ~= nil
             end
           )
-          if is_start then return "start", pos.treesitter(buf, "start", comment:start()) end
+          if is_start then
+            local srow, scol = comment:start()
+            return "start", pos(srow, scol, { buf = buf })
+          end
           local is_end = iter(opts.types):any(
             ---@param name 'print_var'|'print_loc'|'print_exp'
             function(name)
               return text:find(opts.markers[name]["end"]) ~= nil
             end
           )
-          if is_end then return "end", pos.treesitter(buf, "end", comment:end_()) end
+          local erow, ecol = comment:end_()
+          if is_end then return "end", pos(erow, ecol, { buf = buf }) end
         end
       )
       :filter(

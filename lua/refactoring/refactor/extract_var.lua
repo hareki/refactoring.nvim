@@ -1,6 +1,11 @@
 -- TODO: handle extra logic for extracting var into class scope
 local M = {}
 
+-- TODO: when extracting a varible from multiple table.sort({}, function() ...
+-- end), the range outside the first nested scope inside of the smallest
+-- common scope is not correct
+-- TODO: is the scope check working? I feel like it isn't in the above case
+
 local async = require "async"
 local range = require "refactoring.range"
 local pos = require "refactoring.pos"
@@ -73,12 +78,14 @@ function M.extract_var(range_type, config)
 
     local lang_tree, err1 = ts.get_parser(buf, nil, { error = false })
     if not lang_tree then
+      ---@cast err1 -nil
       vim.notify(err1, vim.log.levels.ERROR)
       return
     end
     -- TODO: use async parsing
     lang_tree:parse(true)
-    local extracted_range_ts = { extracted_range:to_treesitter() }
+    local extracted_range_ts =
+      { extracted_range.start_row, extracted_range.start_col, extracted_range.end_row, extracted_range.end_col }
     local nested_lang_tree = lang_tree:language_for_range(extracted_range_ts)
     local lang = nested_lang_tree:lang()
     local encompassing_node = nested_lang_tree:node_for_range(extracted_range_ts)
@@ -142,7 +149,8 @@ function M.extract_var(range_type, config)
     iter(matching_nodes):each(
       ---@param n TSNode
       function(n)
-        local node_range = range.treesitter(buf, n:range())
+        local srow, scol, erow, ecol = n:range()
+        local node_range = range(srow, scol, erow, ecol, { buf = buf })
         table.insert(text_edits_by_buf[buf], { range = node_range, lines = { variable } })
       end
     )
@@ -152,11 +160,13 @@ function M.extract_var(range_type, config)
       :filter(
         ---@param s refactor.Scope
         function(s)
-          local scope_range = range.treesitter(buf, s.scope:range())
+          local srow, scol, erow, ecol = s.scope:range()
+          local scope_range = range(srow, scol, erow, ecol, { buf = buf })
           return iter(matching_nodes):all(
             ---@param n TSNode
             function(n)
-              local node_range = range.treesitter(buf, n:range())
+              local n_srow, n_scol, n_erow, n_ecol = n:range()
+              local node_range = range(n_srow, n_scol, n_erow, n_ecol, { buf = buf })
               return scope_range:has(node_range)
             end
           )
@@ -179,8 +189,8 @@ function M.extract_var(range_type, config)
       return
     end
 
-    local smallest_common_scope_range =
-      range.treesitter(buf, (smallest_common_scope.inside or smallest_common_scope.scope):range())
+    local srow, scol, erow, ecol = (smallest_common_scope.inside or smallest_common_scope.scope):range()
+    local smallest_common_scope_range = range(srow, scol, erow, ecol, { buf = buf })
     ---@type refactor.Scope|nil
     local highest_nested_containing_scope = iter(scopes)
       :filter(
@@ -189,13 +199,15 @@ function M.extract_var(range_type, config)
           if s.scope:equal(smallest_common_scope.scope) then return false end
 
           local scope = s.outside or s.scope
-          local scope_range = range.treesitter(buf, scope:range())
+          local s_srow, s_scol, s_erow, s_ecol = scope:range()
+          local scope_range = range(s_srow, s_scol, s_erow, s_ecol, { buf = buf })
 
           return smallest_common_scope_range:has(scope_range)
             and iter(matching_nodes):any(
               ---@param n TSNode
               function(n)
-                local node_range = range.treesitter(buf, n:range())
+                local n_srow, n_scol, n_erow, n_ecol = n:range()
+                local node_range = range(n_srow, n_scol, n_erow, n_ecol, { buf = buf })
                 return scope_range:has(node_range)
               end
             )
@@ -208,8 +220,10 @@ function M.extract_var(range_type, config)
         function(acc, s)
           if not acc then return s end
 
-          local s_start = pos.treesitter(buf, "start", (s.outside or s.scope):start())
-          local acc_start = pos.treesitter(buf, "start", (acc.outside or acc.scope):start())
+          local s_srow, s_scol = (s.outside or s.scope):start()
+          local s_start = pos(s_srow, s_scol, { buf = buf })
+          local acc_srow, acc_scol = (acc.outside or acc.scope):start()
+          local acc_start = pos(acc_srow, acc_scol, { buf = buf })
           if s_start < acc_start then return s end
 
           return acc
@@ -224,8 +238,10 @@ function M.extract_var(range_type, config)
       function(acc, n)
         if not acc then return n end
 
-        local n_start = pos.treesitter(buf, "start", n:start())
-        local acc_start = pos.treesitter(buf, "start", acc:start())
+        local n_srow, n_scol = n:start()
+        local n_start = pos(n_srow, n_scol, { buf = buf })
+        local acc_srow, acc_scol = acc:start()
+        local acc_start = pos(acc_srow, acc_scol, { buf = buf })
         if n_start < acc_start then return n end
 
         return acc
@@ -242,27 +258,22 @@ function M.extract_var(range_type, config)
     -- all of them (this may exclude possible candidates for `matching_nodes`),
     -- so I'll need to use it to found the correct scope inside of which all of
     -- `matching_nodes` should be
-    local output_range = range.api(
-      buf,
+    local output_range = range.extmark(
       highest_matching_node_start_row,
       highest_matching_node_start_first_non_blank or 0,
       highest_matching_node_start_row,
-      highest_matching_node_start_first_non_blank or 0
+      highest_matching_node_start_first_non_blank or 0,
+      { buf = buf }
     )
     if highest_nested_containing_scope then
-      local highest_nested_containing_scope_start = pos.treesitter(
-        buf,
-        "start",
-        (highest_nested_containing_scope.outside or highest_nested_containing_scope.scope):start()
-      )
-      if highest_nested_containing_scope_start < output_range.start then
-        output_range = range.api(
-          buf,
-          highest_nested_containing_scope_start.row,
-          highest_nested_containing_scope_start.col,
-          highest_nested_containing_scope_start.row,
-          highest_nested_containing_scope_start.col
-        )
+      local cs_srow, cs_scol = (highest_nested_containing_scope.outside or highest_nested_containing_scope.scope):start()
+      local highest_nested_containing_scope_start = pos(cs_srow, cs_scol, { buf = buf })
+      if
+        highest_nested_containing_scope_start
+        < pos(output_range.start_row, output_range.start_col, { buf = output_range.buf })
+      then
+        local api_srow, api_scol = highest_nested_containing_scope_start:to_extmark()
+        output_range = range.extmark(api_srow, api_scol, api_srow, api_scol, { buf = buf })
       end
     end
 
@@ -271,7 +282,7 @@ function M.extract_var(range_type, config)
       value = extracted_text,
     }
     local variable_declaration_lines = vim.split(variable_declaration, "\n")
-    local output_srow = output_range:to_api()
+    local output_srow = output_range:to_extmark()
     local output_start_line = api.nvim_buf_get_lines(buf, output_srow, output_srow + 1, true)[1]
     local _, indent_amount = vim.text.indent(0, output_start_line)
     table.insert(variable_declaration_lines, (vim.bo[buf].expandtab and " " or "\t"):rep(indent_amount))
