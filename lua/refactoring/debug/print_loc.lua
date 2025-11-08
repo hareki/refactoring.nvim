@@ -106,8 +106,8 @@ function M.print_loc(range_type, config)
       :filter(
         ---@param os refactor.OutputStatement
         function(os)
-          local srow, scol, erow, ecol = os.output_statement:range()
-          local os_range = range(srow, scol, erow, ecol, { buf = buf })
+          local os_srow, os_scol, os_erow, os_ecol = os.output_statement:range()
+          local os_range = range(os_srow, os_scol, os_erow, os_ecol, { buf = buf })
           return os_range:has(extracted_reference_pos)
         end
       )
@@ -125,16 +125,16 @@ function M.print_loc(range_type, config)
       return vim.notify("Couldn't find statement for extracted range using Treesitter", vim.log.levels.ERROR)
     end
 
-    local srow, scol, erow, ecol = statement_for_range.output_statement:range()
-    local statement_range = range(srow, scol, erow, ecol, { buf = buf })
+    local o_srow, o_scol, o_erow, o_ecol = statement_for_range.output_statement:range()
+    local statement_range = range(o_srow, o_scol, o_erow, o_ecol, { buf = buf })
     local statement_srow, statement_scol, statement_erow, statement_ecol = statement_range:to_extmark()
     local before_range = range.extmark(statement_srow, statement_scol, statement_srow, statement_scol, { buf = buf })
     local after_range = range.extmark(statement_erow, statement_ecol, statement_erow, statement_ecol, { buf = buf })
     local output_range ---@type vim.Range
     local inserted_at ---@type 'start'|'end'
     if statement_for_range.inside and opts.output_location == "above" then
-      local srow, scol, erow, ecol = statement_for_range.inside:range()
-      local inside_range = range(srow, scol, erow, ecol, { buf = buf })
+      local i_srow, i_scol, i_erow, i_ecol = statement_for_range.inside:range()
+      local inside_range = range(i_srow, i_scol, i_erow, i_ecol, { buf = buf })
 
       if extracted_range > inside_range then
         local _, _, inside_erow, inside_ecol = inside_range:to_extmark()
@@ -145,8 +145,8 @@ function M.print_loc(range_type, config)
         inserted_at = "start"
       end
     elseif statement_for_range.inside and opts.output_location == "below" then
-      local srow, scol, erow, ecol = statement_for_range.inside:range()
-      local inside_range = range(srow, scol, erow, ecol, { buf = buf })
+      local i_srow, i_scol, i_erow, i_ecol = statement_for_range.inside:range()
+      local inside_range = range(i_srow, i_scol, i_erow, i_ecol, { buf = buf })
 
       if extracted_range < inside_range then
         local inside_srow, inside_scol = inside_range:to_extmark()
@@ -166,25 +166,15 @@ function M.print_loc(range_type, config)
       end
     end
 
-    -- TODO: range {10, 6, 10, 6} shouldn't be considered to be inside of range
-    -- {10, 6, 12, 9}. But, since {10, 6} is >= {10, 6} and {10, 6} is <= {12, 9},
-    -- it's considered to be. Maybe upstream some check for this into `vim.Range`.
-    -- The same thing shouldn' happen for {12, 9, 12, 9} and {10, 6, 12, 9}
-    -- TODO: this breaks when cursor is at last col on the inside of a `@output_statment`
-    local output_reference_pos = pos(
-      output_range.start_row,
-      inserted_at == "start" and output_range.start_col - 1 or output_range.start_col + 1,
-      { buf = output_range.buf }
-    )
     ---@type refactor.DebugPath[]
     local debug_paths_for_range = iter(debug_paths)
       :filter(
         ---@param dp refactor.DebugPath
         function(dp)
-          local srow, scol, erow, ecol = dp.debug_path:range()
-          local dp_range = range(srow, scol, erow, ecol, { buf = buf })
+          local dp_srow, dp_scol, dp_erow, dp_ecol = dp.debug_path:range()
+          local dp_range = range(dp_srow, dp_scol, dp_erow, dp_ecol, { buf = buf })
 
-          return dp_range:has(output_reference_pos)
+          return dp_range:has(output_range)
         end
       )
       :totable()
