@@ -52,6 +52,7 @@ local function get_processed_match_info(definitions, references, lang)
           vim.notify(err2, vim.log.levels.ERROR)
           return
         end
+        lang_tree:parse(true)
 
         local functions_info = {} ---@type refactor.FunctionInfo[]
         local returns_info = {} ---@type refactor.ReturnInfo[]
