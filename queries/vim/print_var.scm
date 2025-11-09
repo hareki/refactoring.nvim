@@ -189,7 +189,7 @@
   (eval_statement)
   (substitute_statement)
   (user_command)
-] @statement
+] @output_statement
 
 (script_file) @scope
 

@@ -61,7 +61,7 @@
   (statement)
   (function_definition)
   (declaration)
-] @statement
+] @output_statement
 
 (struct_specifier) @scope
 

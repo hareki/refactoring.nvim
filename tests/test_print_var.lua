@@ -171,17 +171,19 @@ T["python"]["works"] = function()
   local lines = [[
 def foo():
     i = 3
+    foo = i
     return i]]
   local expected_lines = [[
 def foo():
+    i = 3
     # __PRINT_VAR_START
     print(f"i: {str(i)}")# __PRINT_VAR_END
-    i = 3
+    foo = i
     return i]]
   child.cmd "edit tmp.py"
   child.bo.expandtab = true
   child.bo.shiftwidth = 4
-  validate(lines, { 2, 4 }, expected_lines, " pViw")
+  validate(lines, { 3, 4 }, expected_lines, " pV_")
 end
 
 T["vimscript"] = MiniTest.new_set()

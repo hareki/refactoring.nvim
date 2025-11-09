@@ -30,7 +30,7 @@
   object: (identifier) @reference.identifier
   (#set! reference_type read))
 
-(statement) @statement
+(statement) @output_statement
 
 (do_statement
   body: (statement_block

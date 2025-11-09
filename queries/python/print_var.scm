@@ -96,7 +96,7 @@
   (nonlocal_statement)
   (exec_statement)
   (type_alias_statement)
-] @statement
+] @output_statement
 
 ; _compund_statement
 [
@@ -109,7 +109,7 @@
   (class_definition)
   (decorated_definition)
   (match_statement)
-] @statement
+] @output_statement
 
 (module) @scope
 

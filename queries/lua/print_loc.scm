@@ -32,7 +32,6 @@
   (#not-has-parent? @debug_path expression_list)
   (#set! text "(anon)"))
 
-; TODO: move these statements (and the changes to how statements are processed) to the other implementations
 [
   (empty_statement)
   (assignment_statement)

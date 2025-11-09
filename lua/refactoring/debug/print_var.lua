@@ -80,10 +80,11 @@ function M.print_var(range_type, config)
     if not get_print_var then return code_gen_error("print_var", lang) end
 
     local references = {} ---@type refactor.ReferenceInfo[]
-    local statements = {} ---@type TSNode[]
+    local output_statements = {} ---@type refactor.OutputStatement[]
     local scopes = {} ---@type TSNode[]
     for _, tree in ipairs(nested_lang_tree:trees()) do
       for _, match, metadata in query:iter_matches(tree:root(), buf) do
+        local output_statement ---@type nil|refactor.OutputStatement
         for capture_id, nodes in pairs(match) do
           local name = query.captures[capture_id]
           if name == "reference.identifier" then
@@ -97,13 +98,20 @@ function M.print_var(range_type, config)
             end
           end
 
-          if name == "statement" then table.insert(statements, nodes[1]) end
+          if name == "output_statement" then
+            output_statement = output_statement or {}
+            output_statement.output_statement = nodes[1]
+          elseif name == "output_statement.inside" then
+            output_statement = output_statement or {}
+            output_statement.inside = nodes[1]
+          end
           if name == "scope" then
             for _, node in ipairs(nodes) do
               table.insert(scopes, node)
             end
           end
         end
+        if output_statement then table.insert(output_statements, output_statement) end
       end
     end
 
@@ -116,23 +124,23 @@ function M.print_var(range_type, config)
     local extracted_reference_pos = opts.output_location == "below"
         and pos(extracted_range.end_row, extracted_range.end_col)
       or pos(extracted_range.start_row, extracted_range_start_line_first_non_white)
-    ---@type TSNode|nil
-    local statement_for_range = iter(statements)
+    ---@type refactor.OutputStatement|nil
+    local statement_for_range = iter(output_statements)
       :filter(
-        ---@param s TSNode
-        function(s)
-          local srow, scol, erow, ecol = s:range()
-          local s_range = range(srow, scol, erow, ecol, { buf = buf })
-          return s_range:has(extracted_reference_pos)
+        ---@param os refactor.OutputStatement
+        function(os)
+          local os_srow, os_scol, os_erow, os_ecol = os.output_statement:range()
+          local os_range = range(os_srow, os_scol, os_erow, os_ecol, { buf = buf })
+          return os_range:has(extracted_reference_pos)
         end
       )
       :fold(
         nil,
-        ---@param acc nil|TSNode
-        ---@param s TSNode
-        function(acc, s)
-          if not acc then return s end
-          if s:byte_length() < acc:byte_length() then return s end
+        ---@param acc nil|refactor.OutputStatement
+        ---@param os refactor.OutputStatement
+        function(acc, os)
+          if not acc then return os end
+          if os.output_statement:byte_length() < acc.output_statement:byte_length() then return os end
           return acc
         end
       )
@@ -140,12 +148,44 @@ function M.print_var(range_type, config)
       return vim.notify("Couldn't find statement for extracted range using Treesitter", vim.log.levels.ERROR)
     end
 
-    local srow, scol, erow, ecol = statement_for_range:range()
-    local statement_range = range(srow, scol, erow, ecol, { buf = buf })
-    local statement_srow, statement_scol, statement_erow, statement_ecol = statement_range:to_extmark()
-    local output_range = opts.output_location == "below"
-        and range.extmark(statement_erow, statement_ecol, statement_erow, statement_ecol, { buf = buf })
-      or range.extmark(statement_srow, statement_scol, statement_srow, statement_scol, { buf = buf })
+    local o_srow, o_scol, o_erow, o_ecol = statement_for_range.output_statement:range()
+    local before_range = range(o_srow, o_scol, o_srow, o_scol, { buf = buf })
+    local after_range = range(o_erow, o_ecol, o_erow, o_ecol, { buf = buf })
+    local output_range ---@type vim.Range
+    local inserted_at ---@type 'start'|'end'
+    if statement_for_range.inside and opts.output_location == "above" then
+      local i_srow, i_scol, i_erow, i_ecol = statement_for_range.inside:range()
+      local inside_range = range(i_srow, i_scol, i_erow, i_ecol, { buf = buf })
+
+      if extracted_range > inside_range then
+        local _, _, inside_erow, inside_ecol = inside_range:to_extmark()
+        output_range = range.extmark(inside_erow, inside_ecol, inside_erow, inside_ecol, { buf = buf })
+        inserted_at = "end"
+      else
+        output_range = before_range
+        inserted_at = "start"
+      end
+    elseif statement_for_range.inside and opts.output_location == "below" then
+      local i_srow, i_scol, i_erow, i_ecol = statement_for_range.inside:range()
+      local inside_range = range(i_srow, i_scol, i_erow, i_ecol, { buf = buf })
+
+      if extracted_range < inside_range then
+        local inside_srow, inside_scol = inside_range:to_extmark()
+        output_range = range.extmark(inside_srow, inside_scol, inside_srow, inside_scol, { buf = buf })
+        inserted_at = "start"
+      else
+        output_range = after_range
+        inserted_at = "end"
+      end
+    else
+      if opts.output_location == "above" then
+        output_range = before_range
+        inserted_at = "start"
+      elseif opts.output_location == "below" then
+        output_range = after_range
+        inserted_at = "end"
+      end
+    end
 
     local output_start_pos = pos(output_range.start_row, output_range.start_col, { buf = output_range.buf })
     -- TODO: I also compute `declarations_before_output_range` in
@@ -179,16 +219,8 @@ function M.print_var(range_type, config)
             or false
 
           local r_srow, r_scol, r_erow, r_ecol = r.identifier:range()
-          local node_start = pos(r_srow, r_scol, { buf = buf })
-          -- NOTE: I need to make end inclusive to be able to compare it with start
-          if r_ecol == 0 then
-            r_erow = r_erow - 1
-            r_ecol = #api.nvim_buf_get_lines(buf, r_erow, r_erow + 1, true)[1]
-          else
-            r_ecol = r_ecol - 1
-          end
-          local node_end = pos(r_erow, r_ecol, { buf = buf })
-          return node_start <= output_start_pos and node_end <= output_start_pos and is_in_scope
+          local r_range = range(r_srow, r_scol, r_erow, r_ecol, { buf = buf })
+          return r_range < output_range and is_in_scope
         end
       )
       :map(reference_to_text)
@@ -281,8 +313,8 @@ function M.print_var(range_type, config)
     local print_text = table.concat(print_lines, "\n")
     print_text = indent(expandtab, indent_amount, print_text)
     print_lines = vim.split(print_text, "\n")
-    if opts.output_location == "below" then table.insert(print_lines, 1, "") end
-    if opts.output_location == "above" then
+    if inserted_at == "end" then table.insert(print_lines, 1, "") end
+    if inserted_at == "start" then
       print_lines[1] = indent(expandtab, 0, print_lines[1])
       table.insert(print_lines, (expandtab and " " or "\t"):rep(indent_amount))
     end

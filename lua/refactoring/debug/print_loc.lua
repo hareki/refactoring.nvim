@@ -114,10 +114,10 @@ function M.print_loc(range_type, config)
       :fold(
         nil,
         ---@param acc nil|refactor.OutputStatement
-        ---@param s refactor.OutputStatement
-        function(acc, s)
-          if not acc then return s end
-          if s.output_statement:byte_length() < acc.output_statement:byte_length() then return s end
+        ---@param os refactor.OutputStatement
+        function(acc, os)
+          if not acc then return os end
+          if os.output_statement:byte_length() < acc.output_statement:byte_length() then return os end
           return acc
         end
       )
@@ -126,10 +126,8 @@ function M.print_loc(range_type, config)
     end
 
     local o_srow, o_scol, o_erow, o_ecol = statement_for_range.output_statement:range()
-    local statement_range = range(o_srow, o_scol, o_erow, o_ecol, { buf = buf })
-    local statement_srow, statement_scol, statement_erow, statement_ecol = statement_range:to_extmark()
-    local before_range = range.extmark(statement_srow, statement_scol, statement_srow, statement_scol, { buf = buf })
-    local after_range = range.extmark(statement_erow, statement_ecol, statement_erow, statement_ecol, { buf = buf })
+    local before_range = range(o_srow, o_scol, o_srow, o_scol, { buf = buf })
+    local after_range = range(o_erow, o_ecol, o_erow, o_ecol, { buf = buf })
     local output_range ---@type vim.Range
     local inserted_at ---@type 'start'|'end'
     if statement_for_range.inside and opts.output_location == "above" then

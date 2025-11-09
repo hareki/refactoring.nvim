@@ -109,7 +109,7 @@
   (#set! reference_type read))
 
 (statement_list
-  (_) @statement)
+  (_) @output_statement)
 
 (class_statement
   (class_method_definition) @scope.inside) @scope
