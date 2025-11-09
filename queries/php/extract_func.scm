@@ -137,10 +137,14 @@
 (program
   (class_declaration
     (declaration_list
-      ((comment)* @output.comment
-        (method_declaration) @output.function)))
+      _*
+      (comment)* @output.comment
+      .
+      (method_declaration) @output.function))
   (#set! method true))
 
 (program
-  ((comment)* @output.comment
-    (function_definition) @output.function))
+  _*
+  (comment)* @output.comment
+  .
+  (function_definition) @output.function)

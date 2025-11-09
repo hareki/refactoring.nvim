@@ -297,15 +297,6 @@ function M.get_extracted_range(buf, range_type)
   return range(range_start[1], range_start[2], range_end[1], range_end[2], { buf = buf })
 end
 
--- TODO: rename this everywhere (and the resulting var) to a more general name.
--- `extracted_range` comes from the `extratc_func` refactor, but it's now used
--- in multiple (all?) refactors
--- TODO: inline this instead?
----@param range_type 'v'|'V'|''
-function M.get_extracted_lines(range_type)
-  return vim.fn.getregion(vim.fn.getpos "'[", vim.fn.getpos "']", { type = range_type })
-end
-
 -- TODO: maybe use Info sufix for all of these types
 ---@class refactor.TsInfo
 ---@field debug_paths refactor.DebugPath[]

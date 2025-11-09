@@ -92,18 +92,22 @@
 (set_comprehension) @scope
 
 (module
-  ((comment)* @output.comment
-    [
-      (function_definition)
-      (decorated_definition)
-    ] @output.function))
+  _*
+  (comment)* @output.comment
+  .
+  [
+    (function_definition)
+    (decorated_definition)
+  ] @output.function)
 
 (module
   (class_definition
     (block
-      ((comment)* @output.comment
-        [
-          (function_definition)
-          (decorated_definition)
-        ] @output.function)))
+      _*
+      (comment)* @output.comment
+      .
+      [
+        (function_definition)
+        (decorated_definition)
+      ] @output.function))
   (#set! method true))

@@ -46,16 +46,20 @@
     (_) @scope.inside)) @scope
 
 (compilation_unit
-  ((comment)* @output.comment
-    (global_statement
-      (local_function_statement) @output.function)))
+  _*
+  (comment)* @output.comment
+  .
+  (global_statement
+    (local_function_statement) @output.function))
 
 (compilation_unit
   (class_declaration
     (declaration_list
-      ((comment)* @output.comment
-        [
-          (method_declaration)
-          (constructor_declaration)
-        ] @output.function)))
+      _*
+      (comment)* @output.comment
+      .
+      [
+        (method_declaration)
+        (constructor_declaration)
+      ] @output.function))
   (#set! method true))

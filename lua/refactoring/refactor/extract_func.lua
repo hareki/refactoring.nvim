@@ -583,14 +583,13 @@ end
 ---@param config refactor.Config
 M.extract_func = function(range_type, config)
   local get_extracted_range = require("refactoring.utils").get_extracted_range
-  local get_extracted_lines = require("refactoring.utils").get_extracted_lines
   local input = require("refactoring.utils").input
 
   local opts = config.refactor.extract_func
 
   local buf = api.nvim_get_current_buf()
   local extracted_range = get_extracted_range(buf, range_type)
-  local lines = get_extracted_lines(range_type)
+  local lines = vim.fn.getregion(vim.fn.getpos "'[", vim.fn.getpos "']", { type = range_type })
 
   local task = async.run(function()
     local fn_name = opts.input and table.remove(opts.input, 1) or input { prompt = "Function name: " }
@@ -612,14 +611,13 @@ end
 ---@param config refactor.Config
 M.extract_func_to_file = function(range_type, config)
   local get_extracted_range = require("refactoring.utils").get_extracted_range
-  local get_extracted_lines = require("refactoring.utils").get_extracted_lines
   local input = require("refactoring.utils").input
 
   local opts = config.refactor.extract_func
 
   local buf = api.nvim_get_current_buf()
   local extracted_range = get_extracted_range(buf, range_type)
-  local lines = get_extracted_lines(range_type)
+  local lines = vim.fn.getregion(vim.fn.getpos "'[", vim.fn.getpos "']", { type = range_type })
 
   local task = async.run(function()
     local file_name = opts.input and table.remove(opts.input)

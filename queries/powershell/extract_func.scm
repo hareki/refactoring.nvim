@@ -121,13 +121,17 @@
   (script_block) @scope.inside) @scope
 
 (program
-  ((comment)* @output.comment
-    (statement_list
-      (function_statement) @output.function)))
+  _*
+  (comment)* @output.comment
+  .
+  (statement_list
+    (function_statement) @output.function))
 
 (program
   (statement_list
     (class_statement
-      ((comment)* @output.comment
-        (class_method_definition) @output.function)))
+      _*
+      (comment)* @output.comment
+      .
+      (class_method_definition) @output.function))
   (#set! method true))

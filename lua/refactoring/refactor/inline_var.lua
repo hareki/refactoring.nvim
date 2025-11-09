@@ -173,8 +173,8 @@ function M.inline_var(_, config)
     local definitions = unpack(results[1]) ---@type refactor.QfItem[]
     local references = unpack(results[2]) ---@type refactor.QfItem[]
 
-    local match_info = get_match_info(definitions, references, lang)
-    if not match_info then return end
+    local match_info_by_buf = get_match_info(definitions, references, lang)
+    if not match_info_by_buf then return end
 
     ---@type {definition: refactor.QfItem, info: refactor.ProcessedVariableInfo}[]
     local definitions_with_info = iter(definitions)
@@ -182,7 +182,7 @@ function M.inline_var(_, config)
         ---@param d refactor.QfItem
         function(d)
           local definition_buf = vim.fn.bufadd(d.filename)
-          local variables_info = match_info[definition_buf].variables
+          local variables_info = match_info_by_buf[definition_buf].variables
           local definition_info = get_definition_info(d, variables_info)
           return { definition = d, info = definition_info }
         end
@@ -242,7 +242,7 @@ function M.inline_var(_, config)
           -- TODO: add range.vimscript
           local reference_range = range(r.lnum - 1, r.col - 1, r.end_lnum - 1, r.end_col - 1, { buf = reference_buf })
 
-          local references_info = match_info[reference_buf].references
+          local references_info = match_info_by_buf[reference_buf].references
           local reference_info = iter(references_info):find(
             ---@param ri refactor.ReferenceInfo
             function(ri)

@@ -1,22 +1,27 @@
 ; local a = function() end
 (chunk
-  ((comment)* @output.comment
-    (variable_declaration
-      (assignment_statement
-        (expression_list
-          (function_definition)))) @output.function))
+  _*
+  (comment)* @output.comment
+  .
+  (variable_declaration
+    (assignment_statement
+      (expression_list
+        (function_definition)))) @output.function)
 
 ; a = function() end
 (chunk
-  ((comment)* @output.comment
-    (assignment_statement
-      (expression_list
-        (function_definition))) @output.function))
+  _*
+  (comment)* @output.comment
+  (assignment_statement
+    (expression_list
+      (function_definition))) @output.function)
 
 ; function a() end
 (chunk
-  ((comment)* @output.comment
-    (function_declaration) @output.function))
+  _*
+  (comment)* @output.comment
+  .
+  (function_declaration) @output.function)
 
 ; foo = bar
 (assignment_statement

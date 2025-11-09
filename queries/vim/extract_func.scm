@@ -127,5 +127,7 @@
   (body) @scope.inside) @scope
 
 (script_file
-  ((comment)* @output.comment
-    (function_definition) @output.function))
+  _*
+  (comment)* @output.comment
+  .
+  (function_definition) @output.function)

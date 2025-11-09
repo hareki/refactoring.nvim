@@ -84,5 +84,7 @@
     (_) @scope)) @scope.outside
 
 (translation_unit
-  ((comment)* @output.comment
-    (function_definition) @output.function))
+  _*
+  (comment)* @output.comment
+  .
+  (function_definition) @output.function)

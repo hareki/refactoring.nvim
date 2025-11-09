@@ -1,4 +1,5 @@
 ((comment)* @function.comment
+  .
   (function_declaration
     parameters: (parameters
       (identifier) @function.arg
@@ -7,6 +8,7 @@
     body: (block) @function.body) @function)
 
 ((comment)* @function.comment
+  .
   (variable_declaration
     (assignment_statement
       (expression_list
@@ -19,13 +21,13 @@
 
 (return_statement
   (expression_list
-    (identifier) @return.value
+    (_) @return.value
     (","
-      (identifier) @return.value)*)?) @return
+      (_) @return.value)*)?) @return
 
 ; b()
 ((function_call
-  name: (identifier) @function_call.name
+  name: (_) @function_call.name
   arguments: (arguments
     .
     (_) @function_call.arg
@@ -37,12 +39,12 @@
 ; a = b()
 ((assignment_statement
   (variable_list
-    name: (identifier) @function_call.return_value
+    name: (_) @function_call.return_value
     (","
-      name: (identifier) @function_call.return_value)*)
+      name: (_) @function_call.return_value)*)
   (expression_list
     value: (function_call
-      name: (identifier) @function_call.name
+      name: (_) @function_call.name
       arguments: (arguments
         .
         (_) @function_call.arg
@@ -55,12 +57,12 @@
 (variable_declaration
   (assignment_statement
     (variable_list
-      name: (identifier) @function_call.return_value
+      name: (_) @function_call.return_value
       (","
-        name: (identifier) @function_call.return_value)*)
+        name: (_) @function_call.return_value)*)
     (expression_list
       value: (function_call
-        name: (identifier) @function_call.name
+        name: (_) @function_call.name
         arguments: (arguments
           .
           (_) @function_call.arg

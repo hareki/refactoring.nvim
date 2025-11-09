@@ -119,16 +119,20 @@
     (_) @scope.inside)) @scope
 
 (source_file
-  ((comment)* @output.comment
-    (function_declaration) @output.function))
+  _*
+  (comment)* @output.comment
+  .
+  (function_declaration) @output.function)
 
 (source_file
-  ((comment)* @output.comment
-    (method_declaration
-      receiver: (parameter_list
-        (parameter_declaration
-          name: (identifier) @_struct_var_name
-          type: (pointer_type
-            (type_identifier) @_struct_name)))) @output.function)
+  _*
+  (comment)* @output.comment
+  .
+  (method_declaration
+    receiver: (parameter_list
+      (parameter_declaration
+        name: (identifier) @_struct_var_name
+        type: (pointer_type
+          (type_identifier) @_struct_name)))) @output.function
   (#set! struct_name @_struct_name)
   (#set! struct_var_name @_struct_var_name))

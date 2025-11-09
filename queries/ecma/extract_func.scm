@@ -90,26 +90,34 @@
 
 ; function a() {}
 (program
-  ((comment)* @output.comment
-    (function_declaration) @output.function))
+  _*
+  (comment)* @output.comment
+  .
+  (function_declaration) @output.function)
 
 ; const a = ()=>{}
 (program
-  ((comment)* @output.comment
-    (lexical_declaration
-      (variable_declarator
-        (arrow_function))) @output.function))
+  _*
+  (comment)* @output.comment
+  .
+  (lexical_declaration
+    (variable_declarator
+      (arrow_function))) @output.function)
 
 ; a = ()=>{}
 (program
-  ((comment)* @output.comment
-    (expression_statement
-      (assignment_expression
-        (arrow_function))) @output.function))
+  _*
+  (comment)* @output.comment
+  .
+  (expression_statement
+    (assignment_expression
+      (arrow_function))) @output.function)
 
 (program
   (class_declaration
     (class_body
-      ((comment)* @output.comment
-        (method_definition) @output.function)))
+      _*
+      (comment)* @output.comment
+      .
+      (method_definition) @output.function))
   (#set! method true))

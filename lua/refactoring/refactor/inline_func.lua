@@ -201,8 +201,8 @@ function M.inline_func(_, config)
     local definitions = unpack(results[1]) ---@type refactor.QfItem[]
     local references = unpack(results[2]) ---@type refactor.QfItem[]
 
-    local match_info = get_processed_match_info(definitions, references, lang)
-    if not match_info then return end
+    local match_info_by_buf = get_processed_match_info(definitions, references, lang)
+    if not match_info_by_buf then return end
 
     ---@class refactor.inline_func.DefinitionWithFunctionInfo
     ---@field definition refactor.QfItem
@@ -215,7 +215,7 @@ function M.inline_func(_, config)
         function(d)
           local buf = vim.fn.bufadd(d.filename)
 
-          local match_info = match_info[buf]
+          local match_info = match_info_by_buf[buf]
           -- TODO: add range.vimscript
           local d_range = range(d.lnum - 1, d.col - 1, d.end_lnum - 1, d.end_col - 1, { buf = buf })
           local function_info = iter(match_info.functions):find(
@@ -266,6 +266,10 @@ function M.inline_func(_, config)
     ---@field reference refactor.QfItem
     ---@field function_call_info refactor.FunctionCallInfo
 
+    -- TODO: some LSPs (like lua_ls) may give a reference to a symbol that is
+    -- not a function_call (i.e. the variable declaration on `require`). Maybe
+    -- give a warning and do nothing if there are no
+    -- `references_with_function_call_info` (?
     ---@type refactor.inline_func.ReferenceWithFunctionCallInfo[]
     local references_with_function_call_info = iter(references)
       :map(
@@ -273,7 +277,7 @@ function M.inline_func(_, config)
         function(r)
           local buf = vim.fn.bufadd(r.filename)
 
-          local match_info = match_info[buf]
+          local match_info = match_info_by_buf[buf]
           -- TODO: add range.vimscript
           local r_range = range(r.lnum - 1, r.col - 1, r.end_lnum - 1, r.end_col - 1, { buf = buf })
           local function_call_info = iter(match_info.function_calls):find(
@@ -303,9 +307,12 @@ function M.inline_func(_, config)
     else
       body_end_row, body_end_col = function_info.returns_info[1]["return"]:start()
     end
+    local body_range = range(body_start_row, body_start_col, body_end_row, body_end_col, { buf = in_buf })
+    local b_srow, b_scol, b_erow, b_ecol = body_range:to_extmark()
 
-    local body_lines_without_return =
-      api.nvim_buf_get_text(in_buf, body_start_row, body_start_col, body_end_row, body_end_col, {})
+    local body_lines_without_return = api.nvim_buf_get_text(in_buf, b_srow, b_scol, b_erow, b_ecol, {})
+    -- NOTE: can't use `indent()` because first line may not have any indent because of treesitter
+    -- TODO: use `indent()` without the first line and then add the first line
     local body_without_return = iter(body_lines_without_return)
       :map(
         ---@param line string
