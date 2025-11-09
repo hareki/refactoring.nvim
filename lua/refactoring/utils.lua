@@ -306,4 +306,177 @@ function M.get_extracted_lines(range_type)
   return vim.fn.getregion(vim.fn.getpos "'[", vim.fn.getpos "']", { type = range_type })
 end
 
+-- TODO: maybe use Info sufix for all of these types
+---@class refactor.TsInfo
+---@field debug_paths refactor.DebugPath[]
+---@field output_statements refactor.OutputStatement[]
+---@field references refactor.ReferenceInfo[]
+---@field scopes refactor.Scope[]
+---@field comments TSNode[]
+---@field variables_info refactor.VariableInfo[]
+---@field functions_info refactor.FunctionCallInfo[]
+---@field function_calls_info refactor.FunctionInfo[]
+---@field returns_info refactor.ReturnInfo[]
+---@field outputs refactor.Output[]
+
+-- TODO: Cache the results like on vim-matchup  to improve performance?
+---@param buf integer
+---@param nested_lang_tree vim.treesitter.LanguageTree
+---@param query vim.treesitter.Query
+---@return refactor.TsInfo
+function M.get_ts_info(buf, nested_lang_tree, query)
+  ---@type refactor.TsInfo
+  local out = {
+    -- TODO: change to a better name everywhere (debug_path_element?)
+    debug_paths = {},
+    output_statements = {},
+    references = {},
+    scopes = {},
+    comments = {},
+    variables_info = {},
+    functions_info = {},
+    function_calls_info = {},
+    returns_info = {},
+    outputs = {},
+  }
+
+  for _, tree in ipairs(nested_lang_tree:trees()) do
+    for _, match, metadata in query:iter_matches(tree:root(), buf) do
+      local output_statement ---@type nil|refactor.OutputStatement
+      local scope_info ---@type refactor.Scope|nil
+      local variable_info ---@type refactor.VariableInfo|nil
+      local function_info ---@type nil|refactor.FunctionInfo
+      local return_info ---@type nil|refactor.ReturnInfo
+      local function_call_info ---@type nil|refactor.FunctionCallInfo
+      local output ---@type table|refactor.Output|nil
+      for capture_id, nodes in pairs(match) do
+        local name = query.captures[capture_id]
+        if name == "debug_path" then
+          for i, node in ipairs(nodes) do
+            local text = type(metadata.text) == "string" and metadata.text
+              or ts.get_node_text(match[metadata.text][i], buf)
+            table.insert(out.debug_paths, { debug_path = node, text = text })
+          end
+        end
+
+        if name == "output_statement" then
+          output_statement = output_statement or {}
+          output_statement.output_statement = nodes[1]
+        elseif name == "output_statement.inside" then
+          output_statement = output_statement or {}
+          output_statement.inside = nodes[1]
+        end
+
+        if name == "reference.identifier" then
+          for i, node in ipairs(nodes) do
+            table.insert(out.references, {
+              identifier = node,
+              reference_type = metadata.reference_type,
+              type = metadata.types and metadata.types[i],
+              declaration = metadata.declaration ~= nil,
+            })
+          end
+        end
+
+        if name == "scope" then
+          scope_info = scope_info or {}
+          scope_info.scope = nodes[1]
+        elseif name == "scope.inside" then
+          scope_info = scope_info or {}
+          scope_info.inside = nodes[1]
+        elseif name == "scope.outside" then
+          scope_info = scope_info or {}
+          scope_info.outside = nodes[1]
+        end
+
+        if name == "comment" then table.insert(out.comments, nodes[1]) end
+
+        if name == "variable.identifier" then
+          variable_info = variable_info or {}
+          variable_info.identifier = nodes
+        elseif name == "variable.identifier_separator" then
+          variable_info = variable_info or {}
+          variable_info.identifier_separator = nodes
+        elseif name == "variable.value_separator" then
+          variable_info = variable_info or {}
+          variable_info.value_separator = nodes
+        elseif name == "variable.value" then
+          variable_info = variable_info or {}
+          variable_info.value = nodes
+        elseif name == "variable.declaration" then
+          variable_info = variable_info or {}
+          variable_info.declaration = nodes
+        end
+
+        if name == "function" then
+          function_info = function_info or {}
+          function_info["function"] = nodes[1]
+        elseif name == "function.outside" then
+          function_info = function_info or {}
+          function_info.outside = nodes[1]
+        elseif name == "function.body" then
+          function_info = function_info or {}
+          function_info.body = nodes
+        elseif name == "function.comment" then
+          function_info = function_info or {}
+          function_info.comments = nodes
+        elseif name == "function.arg" then
+          function_info = function_info or {}
+          function_info.args = nodes
+        end
+
+        if name == "return" then
+          return_info = return_info or {}
+          return_info["return"] = nodes[1]
+        elseif name == "return.value" then
+          return_info = return_info or {}
+          return_info.values = nodes
+        end
+
+        if name == "function_call" then
+          function_call_info = function_call_info or {}
+          function_call_info.function_call = nodes[1]
+        elseif name == "function_call.name" then
+          function_call_info = function_call_info or {}
+          function_call_info.name = nodes[1]
+        elseif name == "function_call.arg" then
+          function_call_info = function_call_info or {}
+          function_call_info.args = nodes
+        elseif name == "function_call.return_value" then
+          function_call_info = function_call_info or {}
+          function_call_info.return_values = nodes
+        elseif name == "function_call.outside" then
+          function_call_info = function_call_info or {}
+          function_call_info.outside = nodes[1]
+        end
+
+        -- TODO: split input.info and output location
+        if name == "output.comment" then
+          output = output or {}
+          output.comment = nodes
+        elseif name == "output.function" then
+          output = output or {}
+          output.fn = nodes[1]
+          output.method = metadata.method ~= nil
+          output.singleton = metadata.singleton ~= nil
+
+          local struct_name = metadata.struct_name
+          if struct_name then output.struct_name = ts.get_node_text(match[struct_name][1], buf) end
+          local struct_var_name = metadata.struct_var_name
+          if struct_var_name then output.struct_var_name = ts.get_node_text(match[struct_var_name][1], buf) end
+        end
+      end
+      if output_statement then table.insert(out.output_statements, output_statement) end
+      if scope_info then table.insert(out.scopes, scope_info) end
+      if variable_info then table.insert(out.variables_info, variable_info) end
+      if function_info then table.insert(out.functions_info, function_info) end
+      if function_call_info then table.insert(out.function_calls_info, function_call_info) end
+      if return_info then table.insert(out.returns_info, return_info) end
+      if output then table.insert(out.outputs, output) end
+    end
+  end
+
+  return out
+end
+
 return M

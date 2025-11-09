@@ -32,6 +32,7 @@ function M.print_loc(range_type, config)
   local code_gen_error = require("refactoring.utils").code_gen_error
   local indent = require("refactoring.utils").indent
   local apply_text_edits = require("refactoring.utils").apply_text_edits
+  local get_ts_info = require("refactoring.utils").get_ts_info
 
   local opts = config.debug.print_loc
   local code_generation = opts.code_generation
@@ -64,33 +65,9 @@ function M.print_loc(range_type, config)
     local get_print_loc = code_generation.print_loc[lang]
     if not get_print_loc then return code_gen_error("print_loc", lang) end
 
-    -- TODO: change to a better name everywhere (debug_path_element?)
-    local debug_paths = {} ---@type refactor.DebugPath[]
-    local output_statements = {} ---@type refactor.OutputStatement[]
-    for _, tree in ipairs(nested_lang_tree:trees()) do
-      for _, match, metadata in query:iter_matches(tree:root(), buf) do
-        local output_statement ---@type nil|refactor.OutputStatement
-        for capture_id, nodes in pairs(match) do
-          local name = query.captures[capture_id]
-          if name == "debug_path" then
-            for i, node in ipairs(nodes) do
-              local text = type(metadata.text) == "string" and metadata.text
-                or ts.get_node_text(match[metadata.text][i], buf)
-              table.insert(debug_paths, { debug_path = node, text = text })
-            end
-          end
-
-          if name == "output_statement" then
-            output_statement = output_statement or {}
-            output_statement.output_statement = nodes[1]
-          elseif name == "output_statement.inside" then
-            output_statement = output_statement or {}
-            output_statement.inside = nodes[1]
-          end
-        end
-        if output_statement then table.insert(output_statements, output_statement) end
-      end
-    end
+    local ts_info = get_ts_info(buf, nested_lang_tree, query)
+    local debug_paths = ts_info.debug_paths
+    local output_statements = ts_info.output_statements
 
     local extracted_range_api = { extracted_range:to_extmark() }
     -- NOTE: treesitter nodes usualy do not include leading whitespace

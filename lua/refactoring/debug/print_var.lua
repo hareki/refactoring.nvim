@@ -44,6 +44,7 @@ function M.print_var(range_type, config)
   local scopes_for_range = require("refactoring.utils").scopes_for_range
   local get_declaration_scope = require("refactoring.utils").get_declaration_scope
   local indent = require("refactoring.utils").indent
+  local get_ts_info = require("refactoring.utils").get_ts_info
 
   local opts = config.debug.print_var
   local code_generation = opts.code_generation
@@ -79,41 +80,20 @@ function M.print_var(range_type, config)
     local get_print_var = code_generation.print_var[lang]
     if not get_print_var then return code_gen_error("print_var", lang) end
 
-    local references = {} ---@type refactor.ReferenceInfo[]
-    local output_statements = {} ---@type refactor.OutputStatement[]
-    local scopes = {} ---@type TSNode[]
-    for _, tree in ipairs(nested_lang_tree:trees()) do
-      for _, match, metadata in query:iter_matches(tree:root(), buf) do
-        local output_statement ---@type nil|refactor.OutputStatement
-        for capture_id, nodes in pairs(match) do
-          local name = query.captures[capture_id]
-          if name == "reference.identifier" then
-            for i, node in ipairs(nodes) do
-              table.insert(references, {
-                identifier = node,
-                reference_type = metadata.reference_type,
-                type = metadata.types and metadata.types[i],
-                declaration = metadata.declaration ~= nil,
-              })
-            end
-          end
-
-          if name == "output_statement" then
-            output_statement = output_statement or {}
-            output_statement.output_statement = nodes[1]
-          elseif name == "output_statement.inside" then
-            output_statement = output_statement or {}
-            output_statement.inside = nodes[1]
-          end
-          if name == "scope" then
-            for _, node in ipairs(nodes) do
-              table.insert(scopes, node)
-            end
-          end
+    local ts_info = get_ts_info(buf, nested_lang_tree, query)
+    local references = ts_info.references
+    local output_statements = ts_info.output_statements
+    -- TODO: modify the util functions that use `scopes` as TSNode[] to use
+    -- refactor.Scope[] instead?
+    ---@type TSNode[]
+    local scopes = iter(ts_info.scopes)
+      :map(
+        ---@param scope refactor.Scope
+        function(scope)
+          return scope.scope
         end
-        if output_statement then table.insert(output_statements, output_statement) end
-      end
-    end
+      )
+      :totable()
 
     local extracted_range_api = { extracted_range:to_extmark() }
     -- NOTE: treesitter nodes usualy do not include leading whitespace
@@ -187,7 +167,6 @@ function M.print_var(range_type, config)
       end
     end
 
-    local output_start_pos = pos(output_range.start_row, output_range.start_col, { buf = output_range.buf })
     -- TODO: I also compute `declarations_before_output_range` in
     -- `extract_func`. Is there a cleaner wat to do all this in both places?
     local declarations_by_scope = get_declarations_by_scope(references, scopes, buf)

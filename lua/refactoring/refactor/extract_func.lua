@@ -59,33 +59,10 @@ end
 ---@return {method: boolean?, singleton: boolean?, struct_name: string?, struct_var_name: string?}
 local function get_output_node(nested_lang_tree, query, buf, extracted_range)
   local is_first_closer = require("refactoring.utils").is_first_closer
+  local get_ts_info = require("refactoring.utils").get_ts_info
 
-  local outputs = {} ---@type refactor.Output[]
-  for _, tree in ipairs(nested_lang_tree:trees()) do
-    for _, match, metadata in query:iter_matches(tree:root(), buf) do
-      local output ---@type table|refactor.Output|nil
-      for capture_id, nodes in pairs(match) do
-        local name = query.captures[capture_id]
-
-        -- TODO: split input.info and output location
-        if name == "output.comment" then
-          output = output or {}
-          output.comment = nodes
-        elseif name == "output.function" then
-          output = output or {}
-          output.fn = nodes[1]
-          output.method = metadata.method ~= nil
-          output.singleton = metadata.singleton ~= nil
-
-          local struct_name = metadata.struct_name
-          if struct_name then output.struct_name = ts.get_node_text(match[struct_name][1], buf) end
-          local struct_var_name = metadata.struct_var_name
-          if struct_var_name then output.struct_var_name = ts.get_node_text(match[struct_var_name][1], buf) end
-        end
-      end
-      if output then table.insert(outputs, output) end
-    end
-  end
+  local ts_info = get_ts_info(buf, nested_lang_tree, query)
+  local outputs = ts_info.outputs
 
   local extracted_start_pos = pos(extracted_range.start_row, extracted_range.start_col, { buf = extracted_range.buf })
   ---@type refactor.Output|nil
@@ -180,6 +157,7 @@ local function extract_func(opts)
   local get_declarations_by_scope = require("refactoring.utils").get_declarations_by_scope
   local scopes_for_range = require("refactoring.utils").scopes_for_range
   local get_declaration_scope = require("refactoring.utils").get_declaration_scope
+  local get_ts_info = require("refactoring.utils").get_ts_info
 
   local code_generation = opts.config_opts.code_generation
 
@@ -220,30 +198,19 @@ local function extract_func(opts)
     output_range = range.extmark(0, 0, 0, 0, { buf = out_buf })
   end
 
-  local references_info = {} ---@type refactor.ReferenceInfo[]
-  local scopes = {} ---@type TSNode[]
-  for _, tree in ipairs(nested_lang_tree:trees()) do
-    for _, match, metadata in in_query:iter_matches(tree:root(), in_buf) do
-      for capture_id, nodes in pairs(match) do
-        local name = in_query.captures[capture_id]
-        if name == "reference.identifier" then
-          for i, node in ipairs(nodes) do
-            table.insert(references_info, {
-              identifier = node,
-              reference_type = metadata.reference_type,
-              type = metadata.types and metadata.types[i],
-              declaration = metadata.declaration ~= nil,
-            })
-          end
-        elseif name == "scope" then
-          for _, node in ipairs(nodes) do
-            table.insert(scopes, node)
-          end
-        end
+  local in_ts_info = get_ts_info(in_buf, nested_lang_tree, in_query)
+  local references_info = in_ts_info.references
+  -- TODO: modify the util functions that use `scopes` as TSNode[] to use
+  -- refactor.Scope[] instead?
+  ---@type TSNode[]
+  local scopes = iter(in_ts_info.scopes)
+    :map(
+      ---@param scope refactor.Scope
+      function(scope)
+        return scope.scope
       end
-    end
-  end
-  -- TODO: maybe check that all the treesitter captures are not empty(?
+    )
+    :totable()
 
   local scopes_for_extracted_range = scopes_for_range(in_buf, scopes, extracted_range)
 
@@ -272,7 +239,6 @@ local function extract_func(opts)
     ---@param a refactor.ReferenceInfo
     ---@param b refactor.ReferenceInfo
     function(a, b)
-      -- TODO: don't I already have a function to sort nodes in utils?
       local a_srow, a_scol, a_erow, a_ecol = a.identifier:range()
       local a_range = range(a_srow, a_scol, a_erow, a_ecol, { buf = in_buf })
       local b_srow, b_scol, b_erow, b_ecol = b.identifier:range()

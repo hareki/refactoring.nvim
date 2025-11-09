@@ -72,6 +72,7 @@ end
 ---@return nil|{[integer]: refactor.inline_var.MatchInfo}
 local function get_match_info(definitions, references, lang)
   local is_unique = require("refactoring.utils").is_unique
+  local get_ts_info = require("refactoring.utils").get_ts_info
 
   local query = ts.query.get(lang, "inline_var")
   if not query then
@@ -80,7 +81,7 @@ local function get_match_info(definitions, references, lang)
   end
 
   ---@type {[integer]: refactor.inline_var.MatchInfo}
-  local ts_info = iter({ definitions, references })
+  local match_info = iter({ definitions, references })
     :flatten(1)
     :map(
       ---@param item refactor.QfItem
@@ -102,49 +103,11 @@ local function get_match_info(definitions, references, lang)
         end
         lang_tree:parse(true)
 
-        local variables_info = {} ---@type refactor.VariableInfo[]
-        local references_info = {} ---@type refactor.ReferenceInfo[]
-        for _, tree in ipairs(lang_tree:trees()) do
-          -- TODO: Cache the resutls like on vim-matchup (on all features) to
-          -- improve performance?
-          for _, match, metadata in query:iter_matches(tree:root(), buf) do
-            local variable_info ---@type refactor.VariableInfo|nil
-            for capture_id, nodes in pairs(match) do
-              local name = query.captures[capture_id]
+        local ts_info = get_ts_info(buf, lang_tree, query)
+        local variables_info = ts_info.variables_info
+        local references = ts_info.references
 
-              if name == "variable.identifier" then
-                variable_info = variable_info or {}
-                variable_info.identifier = nodes
-              elseif name == "variable.identifier_separator" then
-                variable_info = variable_info or {}
-                variable_info.identifier_separator = nodes
-              elseif name == "variable.value_separator" then
-                variable_info = variable_info or {}
-                variable_info.value_separator = nodes
-              elseif name == "variable.value" then
-                variable_info = variable_info or {}
-                variable_info.value = nodes
-              elseif name == "variable.declaration" then
-                variable_info = variable_info or {}
-                variable_info.declaration = nodes
-              end
-
-              if name == "reference.identifier" then
-                for i, node in ipairs(nodes) do
-                  table.insert(references_info, {
-                    identifier = node,
-                    reference_type = metadata.reference_type,
-                    type = metadata.types and metadata.types[i],
-                    declaration = metadata.declaration ~= nil,
-                  })
-                end
-              end
-            end
-            if variable_info then table.insert(variables_info, variable_info) end
-          end
-        end
-
-        return buf, { variables = variables_info, references = references_info }
+        return buf, { variables = variables_info, references = references }
       end
     )
     :fold(
@@ -157,7 +120,7 @@ local function get_match_info(definitions, references, lang)
         return acc
       end
     )
-  return ts_info
+  return match_info
 end
 
 ---@class refactor.VariableInfo
@@ -210,8 +173,8 @@ function M.inline_var(_, config)
     local definitions = unpack(results[1]) ---@type refactor.QfItem[]
     local references = unpack(results[2]) ---@type refactor.QfItem[]
 
-    local ts_info = get_match_info(definitions, references, lang)
-    if not ts_info then return end
+    local match_info = get_match_info(definitions, references, lang)
+    if not match_info then return end
 
     ---@type {definition: refactor.QfItem, info: refactor.ProcessedVariableInfo}[]
     local definitions_with_info = iter(definitions)
@@ -219,7 +182,7 @@ function M.inline_var(_, config)
         ---@param d refactor.QfItem
         function(d)
           local definition_buf = vim.fn.bufadd(d.filename)
-          local variables_info = ts_info[definition_buf].variables
+          local variables_info = match_info[definition_buf].variables
           local definition_info = get_definition_info(d, variables_info)
           return { definition = d, info = definition_info }
         end
@@ -268,7 +231,7 @@ function M.inline_var(_, config)
           if r_buf ~= definition_buf then return true end
 
           -- TODO: add range.vimscript
-          local r_range = range(r.lnum -1, r.col-1, r.end_lnum-1, r.end_col-1,{buf =r_buf})
+          local r_range = range(r.lnum - 1, r.col - 1, r.end_lnum - 1, r.end_col - 1, { buf = r_buf })
           return not r_range:has(definition_start)
         end
       )
@@ -277,9 +240,9 @@ function M.inline_var(_, config)
         function(r)
           local reference_buf = vim.fn.bufadd(r.filename)
           -- TODO: add range.vimscript
-          local reference_range = range(r.lnum -1, r.col-1, r.end_lnum-1, r.end_col-1,{buf =reference_buf})
+          local reference_range = range(r.lnum - 1, r.col - 1, r.end_lnum - 1, r.end_col - 1, { buf = reference_buf })
 
-          local references_info = ts_info[reference_buf].references
+          local references_info = match_info[reference_buf].references
           local reference_info = iter(references_info):find(
             ---@param ri refactor.ReferenceInfo
             function(ri)

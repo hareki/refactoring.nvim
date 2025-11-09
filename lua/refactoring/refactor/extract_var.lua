@@ -65,6 +65,7 @@ function M.extract_var(range_type, config)
   local apply_text_edits = require("refactoring.utils").apply_text_edits
   local input = require("refactoring.utils").input
   local code_gen_error = require("refactoring.utils").code_gen_error
+  local get_ts_info = require("refactoring.utils").get_ts_info
 
   local opts = config.refactor.extract_var
   local code_generation = opts.code_generation
@@ -118,30 +119,14 @@ function M.extract_var(range_type, config)
 
     local extracted_significant_text = significant_text(encompassing_node, buf)
     local matching_nodes = {} ---@type TSNode[]
-    local scopes = {} ---@type refactor.Scope[]
     for _, tree in ipairs(nested_lang_tree:trees()) do
       for _, node in encompasing_query:iter_captures(tree:root(), buf) do
         local node_significant_text = significant_text(node, buf)
         if node_significant_text == extracted_significant_text then table.insert(matching_nodes, node) end
       end
-      for _, match in query:iter_matches(tree:root(), buf) do
-        local match_info ---@type refactor.Scope|nil
-        for capture_id, nodes in pairs(match) do
-          local name = query.captures[capture_id]
-          if name == "scope" then
-            match_info = match_info or {}
-            match_info.scope = nodes[1]
-          elseif name == "scope.inside" then
-            match_info = match_info or {}
-            match_info.inside = nodes[1]
-          elseif name == "scope.outside" then
-            match_info = match_info or {}
-            match_info.outside = nodes[1]
-          end
-        end
-        if match_info then table.insert(scopes, match_info) end
-      end
     end
+    local ts_info = get_ts_info(buf, nested_lang_tree, query)
+    local scopes = ts_info.scopes
 
     ---@type {[integer]: refactor.TextEdit[]}
     local text_edits_by_buf = {}

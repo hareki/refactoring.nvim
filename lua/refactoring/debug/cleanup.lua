@@ -30,6 +30,7 @@ end
 function M.cleanup(range_type, config)
   local get_extracted_range = require("refactoring.utils").get_extracted_range
   local apply_text_edits = require("refactoring.utils").apply_text_edits
+  local get_ts_info = require("refactoring.utils").get_ts_info
 
   local opts = config.debug.cleanup
 
@@ -58,16 +59,8 @@ function M.cleanup(range_type, config)
       return
     end
 
-    local comments = {} ---@type TSNode[]
-    for _, tree in ipairs(nested_lang_tree:trees()) do
-      for _, match, _ in query:iter_matches(tree:root(), buf) do
-        for capture_id, nodes in pairs(match) do
-          local name = query.captures[capture_id]
-
-          if name == "comment" then table.insert(comments, nodes[1]) end
-        end
-      end
-    end
+    local ts_info = get_ts_info(buf, nested_lang_tree, query)
+    local comments = ts_info.comments
 
     table.sort(comments, node_comp_asc)
     ---@type vim.Range[]

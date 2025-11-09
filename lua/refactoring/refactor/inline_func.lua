@@ -24,6 +24,7 @@ local M = {}
 ---@return nil|{[integer]: refactor.inline_func.ProcessedMatchInfo}
 local function get_processed_match_info(definitions, references, lang)
   local is_unique = require("refactoring.utils").is_unique
+  local get_ts_info = require("refactoring.utils").get_ts_info
 
   local query = ts.query.get(lang, "inline_func")
   if not query then
@@ -32,7 +33,7 @@ local function get_processed_match_info(definitions, references, lang)
   end
 
   ---@type {[integer]: refactor.inline_func.MatchInfo}
-  local ts_info = iter({ definitions, references })
+  local match_info = iter({ definitions, references })
     :flatten(1)
     :map(
       ---@param item refactor.QfItem
@@ -54,66 +55,10 @@ local function get_processed_match_info(definitions, references, lang)
         end
         lang_tree:parse(true)
 
-        local functions_info = {} ---@type refactor.FunctionInfo[]
-        local returns_info = {} ---@type refactor.ReturnInfo[]
-        local function_calls_info = {} ---@type refactor.FunctionCallInfo[]
-        for _, tree in ipairs(lang_tree:trees()) do
-          for _, match in query:iter_matches(tree:root(), buf) do
-            local function_info ---@type nil|refactor.FunctionInfo
-            local return_info ---@type nil|refactor.ReturnInfo
-            local function_call_info ---@type nil|refactor.FunctionCallInfo
-
-            for capture_id, nodes in pairs(match) do
-              local name = query.captures[capture_id]
-
-              if name == "function" then
-                function_info = function_info or {}
-                function_info["function"] = nodes[1]
-              elseif name == "function.outside" then
-                function_info = function_info or {}
-                function_info.outside = nodes[1]
-              elseif name == "function.body" then
-                function_info = function_info or {}
-                function_info.body = nodes
-              elseif name == "function.comment" then
-                function_info = function_info or {}
-                function_info.comments = nodes
-              elseif name == "function.arg" then
-                function_info = function_info or {}
-                function_info.args = nodes
-              end
-
-              if name == "return" then
-                return_info = return_info or {}
-                return_info["return"] = nodes[1]
-              elseif name == "return.value" then
-                return_info = return_info or {}
-                return_info.values = nodes
-              end
-
-              if name == "function_call" then
-                function_call_info = function_call_info or {}
-                function_call_info.function_call = nodes[1]
-              elseif name == "function_call.name" then
-                function_call_info = function_call_info or {}
-                function_call_info.name = nodes[1]
-              elseif name == "function_call.arg" then
-                function_call_info = function_call_info or {}
-                function_call_info.args = nodes
-              elseif name == "function_call.return_value" then
-                function_call_info = function_call_info or {}
-                function_call_info.return_values = nodes
-              elseif name == "function_call.outside" then
-                function_call_info = function_call_info or {}
-                function_call_info.outside = nodes[1]
-              end
-            end
-
-            if function_info then table.insert(functions_info, function_info) end
-            if function_call_info then table.insert(function_calls_info, function_call_info) end
-            if return_info then table.insert(returns_info, return_info) end
-          end
-        end
+        local ts_info = get_ts_info(buf, lang_tree, query)
+        local functions_info = ts_info.functions_info
+        local function_calls_info = ts_info.function_calls_info
+        local returns_info = ts_info.returns_info
 
         return buf,
           {
@@ -134,7 +79,7 @@ local function get_processed_match_info(definitions, references, lang)
       end
     )
 
-  iter(pairs(ts_info)):each(
+  iter(pairs(match_info)):each(
     ---@param buf integer
     ---@param match_info refactor.inline_func.MatchInfo
     function(buf, match_info)
@@ -175,7 +120,7 @@ local function get_processed_match_info(definitions, references, lang)
   ---@diagnostic disable-next-line: cast-type-mismatch
   ---@cast ts_info {[integer]: refactor.inline_func.ProcessedMatchInfo}
 
-  return ts_info
+  return match_info
 end
 
 -- TODO: be consistent about what is singular/plural ins this kind of classes.
@@ -256,8 +201,8 @@ function M.inline_func(_, config)
     local definitions = unpack(results[1]) ---@type refactor.QfItem[]
     local references = unpack(results[2]) ---@type refactor.QfItem[]
 
-    local ts_info = get_processed_match_info(definitions, references, lang)
-    if not ts_info then return end
+    local match_info = get_processed_match_info(definitions, references, lang)
+    if not match_info then return end
 
     ---@class refactor.inline_func.DefinitionWithFunctionInfo
     ---@field definition refactor.QfItem
@@ -270,7 +215,7 @@ function M.inline_func(_, config)
         function(d)
           local buf = vim.fn.bufadd(d.filename)
 
-          local match_info = ts_info[buf]
+          local match_info = match_info[buf]
           -- TODO: add range.vimscript
           local d_range = range(d.lnum - 1, d.col - 1, d.end_lnum - 1, d.end_col - 1, { buf = buf })
           local function_info = iter(match_info.functions):find(
@@ -328,7 +273,7 @@ function M.inline_func(_, config)
         function(r)
           local buf = vim.fn.bufadd(r.filename)
 
-          local match_info = ts_info[buf]
+          local match_info = match_info[buf]
           -- TODO: add range.vimscript
           local r_range = range(r.lnum - 1, r.col - 1, r.end_lnum - 1, r.end_col - 1, { buf = buf })
           local function_call_info = iter(match_info.function_calls):find(
