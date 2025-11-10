@@ -33,6 +33,7 @@ function M.print_loc(range_type, config)
   local indent = require("refactoring.utils").indent
   local apply_text_edits = require("refactoring.utils").apply_text_edits
   local get_ts_info = require("refactoring.utils").get_ts_info
+  local get_statement_output_range = require("refactoring.debug.utils").get_statement_output_range
 
   local opts = config.debug.print_loc
   local code_generation = opts.code_generation
@@ -69,77 +70,17 @@ function M.print_loc(range_type, config)
     local debug_paths = ts_info.debug_paths
     local output_statements = ts_info.output_statements
 
-    local extracted_range_api = { extracted_range:to_extmark() }
     -- NOTE: treesitter nodes usualy do not include leading whitespace
-    local extracted_range_start_line =
-      api.nvim_buf_get_lines(buf, extracted_range_api[1], extracted_range_api[1] + 1, true)[1]
-    local _, extracted_range_start_line_first_non_white = extracted_range_start_line:find "^%s*"
-    extracted_range_start_line_first_non_white = extracted_range_start_line_first_non_white or 0
+    local srow = extracted_range:to_extmark()
+    local extracted_range_start_line = api.nvim_buf_get_lines(buf, srow, srow + 1, true)[1]
+    local _, extracted_start_line_first_non_white = extracted_range_start_line:find "^%s*"
+    extracted_start_line_first_non_white = extracted_start_line_first_non_white or 0
     local extracted_reference_pos = opts.output_location == "below"
-        and pos(extracted_range.end_row, math.max(extracted_range_start_line_first_non_white, extracted_range.end_col))
-      or pos(extracted_range.start_row, extracted_range_start_line_first_non_white)
-    ---@type refactor.OutputStatement|nil
-    local statement_for_range = iter(output_statements)
-      :filter(
-        ---@param os refactor.OutputStatement
-        function(os)
-          local os_srow, os_scol, os_erow, os_ecol = os.output_statement:range()
-          local os_range = range(os_srow, os_scol, os_erow, os_ecol, { buf = buf })
-          return os_range:has(extracted_reference_pos)
-        end
-      )
-      :fold(
-        nil,
-        ---@param acc nil|refactor.OutputStatement
-        ---@param os refactor.OutputStatement
-        function(acc, os)
-          if not acc then return os end
-          if os.output_statement:byte_length() < acc.output_statement:byte_length() then return os end
-          return acc
-        end
-      )
-    if not statement_for_range then
-      return vim.notify("Couldn't find statement for extracted range using Treesitter", vim.log.levels.ERROR)
-    end
-
-    local o_srow, o_scol, o_erow, o_ecol = statement_for_range.output_statement:range()
-    local before_range = range(o_srow, o_scol, o_srow, o_scol, { buf = buf })
-    local after_range = range(o_erow, o_ecol, o_erow, o_ecol, { buf = buf })
-    local output_range ---@type vim.Range
-    local inserted_at ---@type 'start'|'end'
-    if statement_for_range.inside and opts.output_location == "above" then
-      local i_srow, i_scol, i_erow, i_ecol = statement_for_range.inside:range()
-      local inside_range = range(i_srow, i_scol, i_erow, i_ecol, { buf = buf })
-
-      if extracted_range > inside_range then
-        local _, _, inside_erow, inside_ecol = inside_range:to_extmark()
-        output_range = range.extmark(inside_erow, inside_ecol, inside_erow, inside_ecol, { buf = buf })
-        inserted_at = "end"
-      else
-        output_range = before_range
-        inserted_at = "start"
-      end
-    elseif statement_for_range.inside and opts.output_location == "below" then
-      local i_srow, i_scol, i_erow, i_ecol = statement_for_range.inside:range()
-      local inside_range = range(i_srow, i_scol, i_erow, i_ecol, { buf = buf })
-
-      if extracted_range < inside_range then
-        local inside_srow, inside_scol = inside_range:to_extmark()
-        output_range = range.extmark(inside_srow, inside_scol, inside_srow, inside_scol, { buf = buf })
-        inserted_at = "start"
-      else
-        output_range = after_range
-        inserted_at = "end"
-      end
-    else
-      if opts.output_location == "above" then
-        output_range = before_range
-        inserted_at = "start"
-      elseif opts.output_location == "below" then
-        output_range = after_range
-        inserted_at = "end"
-      end
-    end
+        and pos(extracted_range.end_row, math.max(extracted_start_line_first_non_white, extracted_range.end_col))
+      or pos(extracted_range.start_row, extracted_start_line_first_non_white)
+    local output_range, inserted_at =
+      get_statement_output_range(buf, output_statements, opts.output_location, extracted_range, extracted_reference_pos)
+    if not output_range or not inserted_at then return end
 
     ---@type refactor.DebugPath[]
     local debug_paths_for_range = iter(debug_paths)
