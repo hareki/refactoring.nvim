@@ -35,7 +35,6 @@
 [
   (empty_statement)
   (assignment_statement)
-  (function_call)
   (label_statement)
   (break_statement)
   (goto_statement)
@@ -69,3 +68,9 @@
 
 (function_definition
   body: (_) @output_statement.inside) @output_statement
+
+(block
+  (function_call) @output_statement)
+
+(chunk
+  (function_call) @output_statement)
