@@ -61,7 +61,6 @@ print(foo)
 print(foo)
 print(foo)]]
   local expected_lines = [[
-
 print('foo')
 print('foo')
 print('foo')]]
@@ -88,6 +87,7 @@ print('foo')]]
   validate(lines, { 1, 6 }, expected_lines)
 end
 
+-- TODO: maybe the comment should also be deleted
 T["lua"]["filters LSP definitions without a Treesitter match"] = function()
   local lines = [[
 ---@type table<integer, string>
@@ -99,7 +99,6 @@ print(foo)
 print(foo)]]
   local expected_lines = [[
 ---@type table<integer, string>
-
 print({ "foo" })
 print({ "foo" })
 print({ "foo" })
@@ -117,7 +116,6 @@ print(foo, foo)
 print(foo, foo)
 print(foo, foo)]]
   local expected_lines = [[
-
 print("foo", "foo")
 print("foo", "foo")
 print("foo", "foo")]]

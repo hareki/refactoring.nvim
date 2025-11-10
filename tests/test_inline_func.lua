@@ -66,7 +66,6 @@ local c, d, e = a(1, 2, 3)
 c, d, e = a(c + 1, d + 1, e + 1)]]
   local expected_lines = [[
 
-
 local x, y, z = 1, 2, 3
 print(x)
 y = y + z
@@ -93,7 +92,6 @@ end
 b(1, 2, 3)
 c, d, e = b()]]
   local expected_lines = [[
-
 
 local x, y, z = 1, 2, 3
 print(x)

@@ -287,8 +287,6 @@ function M.inline_var(_, config)
       end
     )
 
-    -- TODO: these `text_edit`s only clean the line, they don't remove it.
-    -- Remove it instead. Do the same thing in `inline_func`
     if definition_info.value_separator or definition_info.identifier_separator then
       iter({
           definition_info.value_separator,
@@ -315,6 +313,11 @@ function M.inline_var(_, config)
         )
     else
       local srow, scol, erow, ecol = declaration_node:range()
+      -- NOTE: deletes whole line instead of leaving an empty line
+      if ecol > 0 and ecol == #api.nvim_buf_get_lines(0, erow, erow + 1, true)[1] then
+        erow = erow + 1
+        ecol = 0
+      end
       local declaration_range = range(srow, scol, erow, ecol, { buf = definition_buf })
 
       text_edits_by_buf[definition_buf] = text_edits_by_buf[definition_buf] or {}

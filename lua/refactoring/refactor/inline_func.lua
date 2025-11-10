@@ -403,6 +403,11 @@ function M.inline_func(_, config)
     )
 
     local srow, scol, erow, ecol = (function_info.outside or function_info["function"]):range()
+    -- NOTE: deletes whole line instead of leaving an empty line
+    if ecol > 0 and ecol == #api.nvim_buf_get_lines(0, erow, erow + 1, true)[1] then
+      erow = erow + 1
+      ecol = 0
+    end
     local function_range = range(srow, scol, erow, ecol, { buf = in_buf })
     if function_info.comments then
       local f_srow, f_scol, f_erow, f_ecol = function_info.comments[1]:range()
