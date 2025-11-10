@@ -77,6 +77,7 @@ function M.cleanup(range_type, config)
         ---@param comment TSNode
         function(comment)
           local text = ts.get_node_text(comment, buf)
+          local srow, _, erow, _ = comment:range()
 
           local is_start = iter(opts.types):any(
             ---@param name 'print_var'|'print_loc'|'print_exp'
@@ -84,18 +85,14 @@ function M.cleanup(range_type, config)
               return text:find(opts.markers[name].start) ~= nil
             end
           )
-          if is_start then
-            local srow, scol = comment:start()
-            return "start", pos(srow, scol, { buf = buf })
-          end
+          if is_start then return "start", pos(srow, 0, { buf = buf }) end
           local is_end = iter(opts.types):any(
             ---@param name 'print_var'|'print_loc'|'print_exp'
             function(name)
               return text:find(opts.markers[name]["end"]) ~= nil
             end
           )
-          local erow, ecol = comment:end_()
-          if is_end then return "end", pos(erow, ecol, { buf = buf }) end
+          if is_end then return "end", pos(erow + 1, 0, { buf = buf }) end
         end
       )
       :filter(
