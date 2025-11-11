@@ -5,16 +5,18 @@
 
 ; $foo = "foo"
 (pipeline
-  (logical_expression
-    (bitwise_expression
-      (comparison_expression
-        (additive_expression
-          (multiplicative_expression
-            (format_expression
-              (range_expression
-                (array_literal_expression
-                  (unary_expression
-                    (variable) @reference.identifier)))))))))
+  (assignment_expression
+    (left_assignment_expression
+      (logical_expression
+        (bitwise_expression
+          (comparison_expression
+            (additive_expression
+              (multiplicative_expression
+                (format_expression
+                  (range_expression
+                    (array_literal_expression
+                      (unary_expression
+                        (variable) @reference.identifier)))))))))))
   (#set! reference_type read))
 
 ; $bar = $foo

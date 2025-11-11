@@ -630,8 +630,12 @@ M.extract_func_to_file = function(range_type, config)
     local fn_name = opts.input and table.remove(opts.input) or input { prompt = "Function name: " }
     if not fn_name then return end
 
+    -- TODO: open the buffer somehow (configurable?) or give feedback to the
+    -- user somehow? I the buffer didn't exist previously, saved it to allow
+    -- the user to access it?
     local out_buf = vim.fn.bufadd(file_name)
     if not api.nvim_buf_is_loaded(out_buf) then vim.fn.bufload(out_buf) end
+    if not vim.bo[out_buf].buflisted then vim.bo[out_buf].buflisted = true end
 
     extract_func {
       in_buf = buf,
