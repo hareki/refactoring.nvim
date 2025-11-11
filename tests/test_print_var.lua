@@ -156,7 +156,7 @@ function get-foo {
 function get-foo {
     $i = 3
     # __PRINT_VAR_START
-    Write-Host '$i:' $i# __PRINT_VAR_END
+    Write-Host '$i:' $i # __PRINT_VAR_END
     return $i
 }]]
   child.cmd "edit tmp.ps1"

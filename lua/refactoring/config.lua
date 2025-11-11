@@ -779,7 +779,7 @@ local print_var_code_generation = {
       return ([[console.log("%s:", %s)]]):format(opts.identifier, opts.identifier)
     end,
     powershell = function(opts)
-      return ([[Write-Host '%s:' %s]]):format(opts.identifier, opts.identifier)
+      return ([[Write-Host '%s:' %s ]]):format(opts.identifier, opts.identifier)
     end,
     python = function(opts)
       return ([[print(f"%s: {str(%s)}")]]):format(opts.identifier, opts.identifier)
