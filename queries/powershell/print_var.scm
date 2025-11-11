@@ -124,3 +124,8 @@
 
 (function_statement
   (script_block) @scope.inside) @scope
+
+(script_block_expression
+  (script_block) @scope_inside) @scope
+
+(program) @scope
