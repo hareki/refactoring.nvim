@@ -243,14 +243,25 @@ function M.inline_var(_, config)
           local reference_range = range(r.lnum - 1, r.col - 1, r.end_lnum - 1, r.end_col - 1, { buf = reference_buf })
 
           local references_info = match_info_by_buf[reference_buf].references
-          local reference_info = iter(references_info):find(
-            ---@param ri refactor.ReferenceInfo
-            function(ri)
-              local srow, scol, erow, ecol = ri.identifier:range()
-              local identifier_range = range(srow, scol, erow, ecol, { buf = reference_buf })
-              return identifier_range:has(reference_range)
-            end
-          )
+          local reference_info = iter(references_info)
+            :filter(
+              ---@param ri refactor.ReferenceInfo
+              function(ri)
+                local srow, scol, erow, ecol = ri.identifier:range()
+                local identifier_range = range(srow, scol, erow, ecol, { buf = reference_buf })
+                return identifier_range:has(reference_range)
+              end
+            )
+            :fold(
+              nil,
+              ---@param acc nil|refactor.ReferenceInfo
+              ---@param ri refactor.ReferenceInfo
+              function(acc, ri)
+                if not acc then return ri end
+                if ri.identifier:byte_length() < acc.identifier:byte_length() then return ri end
+                return acc
+              end
+            )
 
           return { reference = r, info = reference_info }
         end
