@@ -16,8 +16,8 @@ local M = {}
 ---@class refactor.print_loc.UserCodeGeneration
 ---@field print_loc? {[string]: nil|fun(opts: refactor.print_loc.code_generation.Opts): string}
 
----@class refactor.DebugPath
----@field debug_path TSNode
+---@class refactor.DebugPathSegment
+---@field debug_path_segment TSNode
 ---@field text string
 
 ---@class refactor.OutputStatement
@@ -67,7 +67,7 @@ function M.print_loc(range_type, config)
     if not get_print_loc then return code_gen_error("print_loc", lang) end
 
     local ts_info = get_ts_info(buf, nested_lang_tree, query)
-    local debug_paths = ts_info.debug_paths
+    local debug_path_segments = ts_info.debug_path_segments
     local output_statements = ts_info.output_statements
 
     -- NOTE: treesitter nodes usualy do not include leading whitespace
@@ -82,12 +82,12 @@ function M.print_loc(range_type, config)
       get_statement_output_range(buf, output_statements, opts.output_location, extracted_range, extracted_reference_pos)
     if not output_range or not inserted_at then return end
 
-    ---@type refactor.DebugPath[]
-    local debug_paths_for_range = iter(debug_paths)
+    ---@type refactor.DebugPathSegment[]
+    local debug_path_segments_for_range = iter(debug_path_segments)
       :filter(
-        ---@param dp refactor.DebugPath
+        ---@param dp refactor.DebugPathSegment
         function(dp)
-          local dp_srow, dp_scol, dp_erow, dp_ecol = dp.debug_path:range()
+          local dp_srow, dp_scol, dp_erow, dp_ecol = dp.debug_path_segment:range()
           local dp_range = range(dp_srow, dp_scol, dp_erow, dp_ecol, { buf = buf })
 
           return dp_range:has(output_range)
@@ -95,17 +95,17 @@ function M.print_loc(range_type, config)
       )
       :totable()
 
-    table.sort(debug_paths_for_range, function(a, b)
-      local a_srow, a_scol = a.debug_path:range()
+    table.sort(debug_path_segments_for_range, function(a, b)
+      local a_srow, a_scol = a.debug_path_segment:range()
       local a_start_pos = pos(a_srow, a_scol, { buf = buf })
-      local b_srow, b_scol = b.debug_path:range()
+      local b_srow, b_scol = b.debug_path_segment:range()
       local b_start_pos = pos(b_srow, b_scol, { buf = buf })
       return a_start_pos < b_start_pos
     end)
 
-    local debug_path_for_range = iter(debug_paths_for_range)
+    local debug_path_for_range = iter(debug_path_segments_for_range)
       :map(
-        ---@param dp refactor.DebugPath
+        ---@param dp refactor.DebugPathSegment
         function(dp)
           return dp.text
         end

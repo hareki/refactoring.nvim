@@ -299,7 +299,7 @@ end
 
 -- TODO: maybe use Info sufix for all of these types
 ---@class refactor.TsInfo
----@field debug_paths refactor.DebugPath[]
+---@field debug_path_segments refactor.DebugPathSegment[]
 ---@field output_statements refactor.OutputStatement[]
 ---@field references refactor.ReferenceInfo[]
 ---@field scopes refactor.Scope[]
@@ -318,8 +318,7 @@ end
 function M.get_ts_info(buf, nested_lang_tree, query)
   ---@type refactor.TsInfo
   local out = {
-    -- TODO: change to a better name everywhere (debug_path_element?)
-    debug_paths = {},
+    debug_path_segments = {},
     output_statements = {},
     references = {},
     scopes = {},
@@ -342,11 +341,11 @@ function M.get_ts_info(buf, nested_lang_tree, query)
       local output_function ---@type table|refactor.OutputFunction|nil
       for capture_id, nodes in pairs(match) do
         local name = query.captures[capture_id]
-        if name == "debug_path" then
+        if name == "debug_path_segment" then
           for i, node in ipairs(nodes) do
             local text = type(metadata.text) == "string" and metadata.text
               or ts.get_node_text(match[metadata.text][i], buf)
-            table.insert(out.debug_paths, { debug_path = node, text = text })
+            table.insert(out.debug_path_segments, { debug_path_segment = node, text = text })
           end
         end
 
