@@ -308,7 +308,7 @@ end
 ---@field functions_info refactor.FunctionCallInfo[]
 ---@field function_calls_info refactor.FunctionInfo[]
 ---@field returns_info refactor.ReturnInfo[]
----@field outputs refactor.Output[]
+---@field outputs refactor.OutputFunction[]
 
 -- TODO: Cache the results like on vim-matchup  to improve performance?
 ---@param buf integer
@@ -339,7 +339,7 @@ function M.get_ts_info(buf, nested_lang_tree, query)
       local function_info ---@type nil|refactor.FunctionInfo
       local return_info ---@type nil|refactor.ReturnInfo
       local function_call_info ---@type nil|refactor.FunctionCallInfo
-      local output ---@type table|refactor.Output|nil
+      local output_function ---@type table|refactor.OutputFunction|nil
       for capture_id, nodes in pairs(match) do
         local name = query.captures[capture_id]
         if name == "debug_path" then
@@ -442,19 +442,19 @@ function M.get_ts_info(buf, nested_lang_tree, query)
         end
 
         -- TODO: split input.info and output location
-        if name == "output.comment" then
-          output = output or {}
-          output.comment = nodes
-        elseif name == "output.function" then
-          output = output or {}
-          output.fn = nodes[1]
-          output.method = metadata.method ~= nil
-          output.singleton = metadata.singleton ~= nil
+        if name == "output_function.comment" then
+          output_function = output_function or {}
+          output_function.comment = nodes
+        elseif name == "output_function" then
+          output_function = output_function or {}
+          output_function.fn = nodes[1]
+          output_function.method = metadata.method ~= nil
+          output_function.singleton = metadata.singleton ~= nil
 
           local struct_name = metadata.struct_name
-          if struct_name then output.struct_name = ts.get_node_text(match[struct_name][1], buf) end
+          if struct_name then output_function.struct_name = ts.get_node_text(match[struct_name][1], buf) end
           local struct_var_name = metadata.struct_var_name
-          if struct_var_name then output.struct_var_name = ts.get_node_text(match[struct_var_name][1], buf) end
+          if struct_var_name then output_function.struct_var_name = ts.get_node_text(match[struct_var_name][1], buf) end
         end
       end
       if output_statement then table.insert(out.output_statements, output_statement) end
@@ -463,7 +463,7 @@ function M.get_ts_info(buf, nested_lang_tree, query)
       if function_info then table.insert(out.functions_info, function_info) end
       if function_call_info then table.insert(out.function_calls_info, function_call_info) end
       if return_info then table.insert(out.returns_info, return_info) end
-      if output then table.insert(out.outputs, output) end
+      if output_function then table.insert(out.outputs, output_function) end
     end
   end
 

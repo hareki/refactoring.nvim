@@ -111,9 +111,9 @@
   (class
     (body_statement
       _*
-      (comment)* @output.comment
+      (comment)* @output_function.comment
       .
-      (singleton_method) @output.function))
+      (singleton_method) @output_function))
   (#set! method true)
   (#set! singleton true))
 
@@ -121,20 +121,20 @@
   (class
     (body_statement
       _*
-      (comment)* @output.comment
+      (comment)* @output_function.comment
       .
-      (method) @output.function))
+      (method) @output_function))
   (#set! method true))
 
 (program
   _*
-  (comment)* @output.comment
+  (comment)* @output_function.comment
   .
-  (method) @output.function)
+  (method) @output_function)
 
 (program
   _*
-  (comment)* @output.comment
+  (comment)* @output_function.comment
   .
-  (singleton_method) @output.function
+  (singleton_method) @output_function
   (#set! singleton true))

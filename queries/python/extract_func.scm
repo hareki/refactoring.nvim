@@ -93,21 +93,21 @@
 
 (module
   _*
-  (comment)* @output.comment
+  (comment)* @output_function.comment
   .
   [
     (function_definition)
     (decorated_definition)
-  ] @output.function)
+  ] @output_function)
 
 (module
   (class_definition
     (block
       _*
-      (comment)* @output.comment
+      (comment)* @output_function.comment
       .
       [
         (function_definition)
         (decorated_definition)
-      ] @output.function))
+      ] @output_function))
   (#set! method true))

@@ -85,6 +85,6 @@
 
 (translation_unit
   _*
-  (comment)* @output.comment
+  (comment)* @output_function.comment
   .
-  (function_definition) @output.function)
+  (function_definition) @output_function)

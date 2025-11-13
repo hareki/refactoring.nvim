@@ -80,6 +80,6 @@
       ([
         (line_comment)
         (block_comment)
-      ]* @output.comment
-        (method_declaration) @output.function)))
+      ]* @output_function.comment
+        (method_declaration) @output_function)))
   (#set! method true))

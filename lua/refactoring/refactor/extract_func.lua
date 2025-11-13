@@ -37,7 +37,7 @@ local M = {}
 ---@field function_call? {[string]: nil|fun(opts: refactor.extract_func.code_generation.function_call.Opts): string}
 ---@field return_statement? {[string]: nil|fun(opts: refactor.extract_func.code_generation.return_statement.Opts): string}
 
----@class refactor.Output
+---@class refactor.OutputFunction
 ---@field comment TSNode[]?
 ---@field fn TSNode
 ---@field method boolean?
@@ -45,7 +45,7 @@ local M = {}
 ---@field struct_name string?
 ---@field struct_var_name string?
 
----@param o refactor.Output
+---@param o refactor.OutputFunction
 ---@return TSNode
 local function choose_output(o)
   return o.comment and o.comment[1] or o.fn
@@ -65,10 +65,10 @@ local function get_output_node(nested_lang_tree, query, buf, extracted_range)
   local outputs = ts_info.outputs
 
   local extracted_start_pos = pos(extracted_range.start_row, extracted_range.start_col, { buf = extracted_range.buf })
-  ---@type refactor.Output|nil
+  ---@type refactor.OutputFunction|nil
   local selected_output = iter(outputs)
     :filter(
-      ---@param o refactor.Output
+      ---@param o refactor.OutputFunction
       function(o)
         local n = choose_output(o)
         local srow, scol = n:start()
@@ -78,8 +78,8 @@ local function get_output_node(nested_lang_tree, query, buf, extracted_range)
     )
     :fold(
       nil,
-      ---@param acc refactor.Output|nil
-      ---@param o refactor.Output
+      ---@param acc refactor.OutputFunction|nil
+      ---@param o refactor.OutputFunction
       function(acc, o)
         if not acc then return o end
 
