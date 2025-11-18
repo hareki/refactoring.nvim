@@ -16,11 +16,11 @@ local M = {}
 ---@class refactor.print_loc.UserCodeGeneration
 ---@field print_loc? {[string]: nil|fun(opts: refactor.print_loc.code_generation.Opts): string}
 
----@class refactor.DebugPathSegment
+---@class refactor.DebugPathSegmentInfo
 ---@field debug_path_segment TSNode
 ---@field text string
 
----@class refactor.OutputStatement
+---@class refactor.OutputStatementInfo
 ---@field output_statement TSNode
 ---@field inside TSNode|nil
 
@@ -32,7 +32,9 @@ function M.print_loc(range_type, config)
   local code_gen_error = require("refactoring.utils").code_gen_error
   local indent = require("refactoring.utils").indent
   local apply_text_edits = require("refactoring.utils").apply_text_edits
-  local get_ts_info = require("refactoring.utils").get_ts_info
+  local get_debug_path_segments_info = require("refactoring.utils").get_debug_path_segments_info
+  local get_output_statements_info = require("refactoring.utils").get_output_statements_info
+  local query_error = require("refactoring.utils").query_error
   local get_statement_output_range = require("refactoring.debug.utils").get_statement_output_range
 
   local opts = config.debug.print_loc
@@ -58,17 +60,16 @@ function M.print_loc(range_type, config)
       extracted_range.end_col,
     }
     local lang = nested_lang_tree:lang()
-    local query = ts.query.get(lang, "print_loc")
-    if not query then
-      return vim.notify(("There is no `print_loc` query file for language %s"):format(lang), vim.log.levels.ERROR)
-    end
+    local debug_path_query = ts.query.get(lang, "refactor_debug_path")
+    if not debug_path_query then return query_error("refactor_debug_path", lang) end
+    local output_statement_query = ts.query.get(lang, "refactor_output_statement")
+    if not output_statement_query then return query_error("refactor_output_statement", lang) end
 
     local get_print_loc = code_generation.print_loc[lang]
     if not get_print_loc then return code_gen_error("print_loc", lang) end
 
-    local ts_info = get_ts_info(buf, nested_lang_tree, query)
-    local debug_path_segments = ts_info.debug_path_segments
-    local output_statements = ts_info.output_statements
+    local debug_path_segments = get_debug_path_segments_info(buf, nested_lang_tree, debug_path_query)
+    local output_statements = get_output_statements_info(buf, nested_lang_tree, output_statement_query)
 
     -- NOTE: treesitter nodes usualy do not include leading whitespace
     local srow = extracted_range:to_extmark()
@@ -82,10 +83,10 @@ function M.print_loc(range_type, config)
       get_statement_output_range(buf, output_statements, opts.output_location, extracted_range, extracted_reference_pos)
     if not output_range or not inserted_at then return end
 
-    ---@type refactor.DebugPathSegment[]
+    ---@type refactor.DebugPathSegmentInfo[]
     local debug_path_segments_for_range = iter(debug_path_segments)
       :filter(
-        ---@param dp refactor.DebugPathSegment
+        ---@param dp refactor.DebugPathSegmentInfo
         function(dp)
           local dp_srow, dp_scol, dp_erow, dp_ecol = dp.debug_path_segment:range()
           local dp_range = range(dp_srow, dp_scol, dp_erow, dp_ecol, { buf = buf })
@@ -105,7 +106,7 @@ function M.print_loc(range_type, config)
 
     local debug_path_for_range = iter(debug_path_segments_for_range)
       :map(
-        ---@param dp refactor.DebugPathSegment
+        ---@param dp refactor.DebugPathSegmentInfo
         function(dp)
           return dp.text
         end

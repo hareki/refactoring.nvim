@@ -24,16 +24,17 @@ local M = {}
 ---@return nil|{[integer]: refactor.inline_func.ProcessedMatchInfo}
 local function get_processed_match_info(definitions, references, lang)
   local is_unique = require("refactoring.utils").is_unique
-  local get_ts_info = require("refactoring.utils").get_ts_info
+  local get_functions_info = require("refactoring.utils").get_functions_info
+  local get_function_calls_info = require("refactoring.utils").get_function_calls_info
+  local query_error = require("refactoring.utils").query_error
 
-  local query = ts.query.get(lang, "inline_func")
-  if not query then
-    vim.notify(("There is no `inline_func` query file for language %s"):format(lang), vim.log.levels.ERROR)
-    return
-  end
+  local function_query = ts.query.get(lang, "refactor_function")
+  if not function_query then return query_error("refactor_function", lang) end
+  local function_call_query = ts.query.get(lang, "refactor_function_call")
+  if not function_call_query then return query_error("refactor_function_call", lang) end
 
   ---@type {[integer]: refactor.inline_func.MatchInfo}
-  local match_info = iter({ definitions, references })
+  local match_info_by_buf = iter({ definitions, references })
     :flatten(1)
     :map(
       ---@param item refactor.QfItem
@@ -55,10 +56,8 @@ local function get_processed_match_info(definitions, references, lang)
         end
         lang_tree:parse(true)
 
-        local ts_info = get_ts_info(buf, lang_tree, query)
-        local functions_info = ts_info.functions_info
-        local function_calls_info = ts_info.function_calls_info
-        local returns_info = ts_info.returns_info
+        local functions_info, returns_info = get_functions_info(buf, lang_tree, function_query)
+        local function_calls_info = get_function_calls_info(buf, lang_tree, function_call_query)
 
         return buf,
           {
@@ -79,7 +78,7 @@ local function get_processed_match_info(definitions, references, lang)
       end
     )
 
-  iter(pairs(match_info)):each(
+  iter(pairs(match_info_by_buf)):each(
     ---@param buf integer
     ---@param match_info refactor.inline_func.MatchInfo
     function(buf, match_info)
@@ -118,9 +117,9 @@ local function get_processed_match_info(definitions, references, lang)
     end
   )
   ---@diagnostic disable-next-line: cast-type-mismatch
-  ---@cast ts_info {[integer]: refactor.inline_func.ProcessedMatchInfo}
+  ---@cast match_info_by_buf {[integer]: refactor.inline_func.ProcessedMatchInfo}
 
-  return match_info
+  return match_info_by_buf
 end
 
 -- TODO: be consistent about what is singular/plural ins this kind of classes.

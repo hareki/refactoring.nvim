@@ -45,6 +45,12 @@ function M.code_gen_error(missing_code_gen, lang)
   )
 end
 
+---@param missing_query string
+---@param lang string
+function M.query_error(missing_query, lang)
+  vim.notify(("There is no `%s` query file for language %s"):format(missing_query, lang), vim.log.levels.ERROR)
+end
+
 ---@param get_key nil|fun(value: any): any
 ---@return fun(value: any): boolean
 function M.is_unique(get_key)
@@ -195,7 +201,7 @@ local function node_comp_desc(a, b)
 end
 
 ---@param declarations_by_scope refactor.declarations_by_scope
----@param all_scopes refactor.Scope[]
+---@param all_scopes refactor.ScopeInfo[]
 ---@param reference refactor.ReferenceInfo
 ---@param buf integer
 ---@return TSNode|nil
@@ -297,57 +303,50 @@ function M.get_extracted_range(buf, range_type)
   return range(range_start[1], range_start[2], range_end[1], range_end[2], { buf = buf })
 end
 
--- TODO: maybe use Info sufix for all of these types
 ---@class refactor.TsInfo
----@field debug_path_segments refactor.DebugPathSegment[]
----@field output_statements refactor.OutputStatement[]
----@field references refactor.ReferenceInfo[]
----@field scopes refactor.Scope[]
----@field comments TSNode[]
----@field variables_info refactor.VariableInfo[]
 ---@field functions_info refactor.FunctionCallInfo[]
 ---@field function_calls_info refactor.FunctionInfo[]
 ---@field returns_info refactor.ReturnInfo[]
----@field outputs refactor.OutputFunction[]
 
--- TODO: Cache the results like on vim-matchup  to improve performance?
 ---@param buf integer
 ---@param nested_lang_tree vim.treesitter.LanguageTree
 ---@param query vim.treesitter.Query
----@return refactor.TsInfo
-function M.get_ts_info(buf, nested_lang_tree, query)
-  ---@type refactor.TsInfo
-  local out = {
-    debug_path_segments = {},
-    output_statements = {},
-    references = {},
-    scopes = {},
-    comments = {},
-    variables_info = {},
-    functions_info = {},
-    function_calls_info = {},
-    returns_info = {},
-    outputs = {},
-  }
+---@return refactor.DebugPathSegmentInfo[]
+function M.get_debug_path_segments_info(buf, nested_lang_tree, query)
+  ---@type refactor.DebugPathSegmentInfo[]
+  local debug_path_segments_info = {}
 
   for _, tree in ipairs(nested_lang_tree:trees()) do
     for _, match, metadata in query:iter_matches(tree:root(), buf) do
-      local output_statement ---@type nil|refactor.OutputStatement
-      local scope_info ---@type refactor.Scope|nil
-      local variable_info ---@type refactor.VariableInfo|nil
-      local function_info ---@type nil|refactor.FunctionInfo
-      local return_info ---@type nil|refactor.ReturnInfo
-      local function_call_info ---@type nil|refactor.FunctionCallInfo
-      local output_function ---@type table|refactor.OutputFunction|nil
       for capture_id, nodes in pairs(match) do
         local name = query.captures[capture_id]
         if name == "debug_path_segment" then
           for i, node in ipairs(nodes) do
             local text = type(metadata.text) == "string" and metadata.text
               or ts.get_node_text(match[metadata.text][i], buf)
-            table.insert(out.debug_path_segments, { debug_path_segment = node, text = text })
+            table.insert(debug_path_segments_info, { debug_path_segment = node, text = text })
           end
         end
+      end
+    end
+  end
+
+  return debug_path_segments_info
+end
+
+---@param buf integer
+---@param nested_lang_tree vim.treesitter.LanguageTree
+---@param query vim.treesitter.Query
+---@return refactor.OutputStatementInfo[]
+function M.get_output_statements_info(buf, nested_lang_tree, query)
+  ---@type refactor.OutputStatementInfo[]
+  local output_statements_info = {}
+
+  for _, tree in ipairs(nested_lang_tree:trees()) do
+    for _, match in query:iter_matches(tree:root(), buf) do
+      local output_statement ---@type nil|refactor.OutputStatementInfo
+      for capture_id, nodes in pairs(match) do
+        local name = query.captures[capture_id]
 
         if name == "output_statement" then
           output_statement = output_statement or {}
@@ -356,10 +355,31 @@ function M.get_ts_info(buf, nested_lang_tree, query)
           output_statement = output_statement or {}
           output_statement.inside = nodes[1]
         end
+      end
+
+      if output_statement then table.insert(output_statements_info, output_statement) end
+    end
+  end
+
+  return output_statements_info
+end
+
+---@param buf integer
+---@param nested_lang_tree vim.treesitter.LanguageTree
+---@param query vim.treesitter.Query
+---@return refactor.ReferenceInfo[]
+function M.get_references_info(buf, nested_lang_tree, query)
+  ---@type refactor.ReferenceInfo[]
+  local references_info = {}
+
+  for _, tree in ipairs(nested_lang_tree:trees()) do
+    for _, match, metadata in query:iter_matches(tree:root(), buf) do
+      for capture_id, nodes in pairs(match) do
+        local name = query.captures[capture_id]
 
         if name == "reference.identifier" then
           for i, node in ipairs(nodes) do
-            table.insert(out.references, {
+            table.insert(references_info, {
               identifier = node,
               reference_type = metadata.reference_type,
               type = metadata.types and metadata.types[i],
@@ -367,6 +387,26 @@ function M.get_ts_info(buf, nested_lang_tree, query)
             })
           end
         end
+      end
+    end
+  end
+
+  return references_info
+end
+
+---@param buf integer
+---@param nested_lang_tree vim.treesitter.LanguageTree
+---@param query vim.treesitter.Query
+---@return refactor.ScopeInfo[]
+function M.get_scopes_info(buf, nested_lang_tree, query)
+  ---@type refactor.ScopeInfo[]
+  local scopes_info = {}
+
+  for _, tree in ipairs(nested_lang_tree:trees()) do
+    for _, match in query:iter_matches(tree:root(), buf) do
+      local scope_info ---@type refactor.ScopeInfo|nil
+      for capture_id, nodes in pairs(match) do
+        local name = query.captures[capture_id]
 
         if name == "scope" then
           scope_info = scope_info or {}
@@ -378,8 +418,85 @@ function M.get_ts_info(buf, nested_lang_tree, query)
           scope_info = scope_info or {}
           scope_info.outside = nodes[1]
         end
+      end
+      if scope_info then table.insert(scopes_info, scope_info) end
+    end
+  end
 
-        if name == "comment" then table.insert(out.comments, nodes[1]) end
+  return scopes_info
+end
+
+---@param buf integer
+---@param nested_lang_tree vim.treesitter.LanguageTree
+---@param query vim.treesitter.Query
+---@return TSNode[]
+function M.get_comments(buf, nested_lang_tree, query)
+  ---@type TSNode[]
+  local comments = {}
+
+  for _, tree in ipairs(nested_lang_tree:trees()) do
+    for _, match in query:iter_matches(tree:root(), buf) do
+      for capture_id, nodes in pairs(match) do
+        local name = query.captures[capture_id]
+
+        if name == "comment" then table.insert(comments, nodes[1]) end
+      end
+    end
+  end
+
+  return comments
+end
+
+---@param buf integer
+---@param nested_lang_tree vim.treesitter.LanguageTree
+---@param query vim.treesitter.Query
+---@return refactor.OutputFunctionInfo[]
+function M.get_output_functions_info(buf, nested_lang_tree, query)
+  ---@type refactor.OutputFunctionInfo[]
+  local output_functions_info = {}
+
+  for _, tree in ipairs(nested_lang_tree:trees()) do
+    for _, match, metadata in query:iter_matches(tree:root(), buf) do
+      local output_function ---@type refactor.OutputFunctionInfo|nil
+      for capture_id, nodes in pairs(match) do
+        local name = query.captures[capture_id]
+
+        -- TODO: split input.info and output location
+        if name == "output_function.comment" then
+          output_function = output_function or {}
+          output_function.comment = nodes
+        elseif name == "output_function" then
+          output_function = output_function or {}
+          output_function.fn = nodes[1]
+          output_function.method = metadata.method ~= nil
+          output_function.singleton = metadata.singleton ~= nil
+
+          local struct_name = metadata.struct_name
+          if struct_name then output_function.struct_name = ts.get_node_text(match[struct_name][1], buf) end
+          local struct_var_name = metadata.struct_var_name
+          if struct_var_name then output_function.struct_var_name = ts.get_node_text(match[struct_var_name][1], buf) end
+        end
+      end
+      if output_function then table.insert(output_functions_info, output_function) end
+    end
+  end
+
+  return output_functions_info
+end
+
+---@param buf integer
+---@param nested_lang_tree vim.treesitter.LanguageTree
+---@param query vim.treesitter.Query
+---@return refactor.VariableInfo[]
+function M.get_variables_info(buf, nested_lang_tree, query)
+  ---@type refactor.VariableInfo[]
+  local variables_info = {}
+
+  for _, tree in ipairs(nested_lang_tree:trees()) do
+    for _, match in query:iter_matches(tree:root(), buf) do
+      local variable_info ---@type refactor.VariableInfo|nil
+      for capture_id, nodes in pairs(match) do
+        local name = query.captures[capture_id]
 
         if name == "variable.identifier" then
           variable_info = variable_info or {}
@@ -397,6 +514,31 @@ function M.get_ts_info(buf, nested_lang_tree, query)
           variable_info = variable_info or {}
           variable_info.declaration = nodes
         end
+      end
+      if variable_info then table.insert(variables_info, variable_info) end
+    end
+  end
+
+  return variables_info
+end
+
+---@param buf integer
+---@param nested_lang_tree vim.treesitter.LanguageTree
+---@param query vim.treesitter.Query
+---@return refactor.FunctionInfo[]
+---@return refactor.ReturnInfo[]
+function M.get_functions_info(buf, nested_lang_tree, query)
+  ---@type refactor.FunctionInfo[]
+  local functions_info = {}
+  ---@type refactor.ReturnInfo[]
+  local returns_info = {}
+
+  for _, tree in ipairs(nested_lang_tree:trees()) do
+    for _, match in query:iter_matches(tree:root(), buf) do
+      local function_info ---@type nil|refactor.FunctionInfo
+      local return_info ---@type nil|refactor.ReturnInfo
+      for capture_id, nodes in pairs(match) do
+        local name = query.captures[capture_id]
 
         if name == "function" then
           function_info = function_info or {}
@@ -422,6 +564,28 @@ function M.get_ts_info(buf, nested_lang_tree, query)
           return_info = return_info or {}
           return_info.values = nodes
         end
+      end
+      if function_info then table.insert(functions_info, function_info) end
+      if return_info then table.insert(returns_info, return_info) end
+    end
+  end
+
+  return functions_info, returns_info
+end
+
+---@param buf integer
+---@param nested_lang_tree vim.treesitter.LanguageTree
+---@param query vim.treesitter.Query
+---@return refactor.FunctionCallInfo[]
+function M.get_function_calls_info(buf, nested_lang_tree, query)
+  ---@type refactor.FunctionCallInfo[]
+  local function_calls_info = {}
+
+  for _, tree in ipairs(nested_lang_tree:trees()) do
+    for _, match in query:iter_matches(tree:root(), buf) do
+      local function_call_info ---@type nil|refactor.FunctionCallInfo
+      for capture_id, nodes in pairs(match) do
+        local name = query.captures[capture_id]
 
         if name == "function_call" then
           function_call_info = function_call_info or {}
@@ -439,34 +603,12 @@ function M.get_ts_info(buf, nested_lang_tree, query)
           function_call_info = function_call_info or {}
           function_call_info.outside = nodes[1]
         end
-
-        -- TODO: split input.info and output location
-        if name == "output_function.comment" then
-          output_function = output_function or {}
-          output_function.comment = nodes
-        elseif name == "output_function" then
-          output_function = output_function or {}
-          output_function.fn = nodes[1]
-          output_function.method = metadata.method ~= nil
-          output_function.singleton = metadata.singleton ~= nil
-
-          local struct_name = metadata.struct_name
-          if struct_name then output_function.struct_name = ts.get_node_text(match[struct_name][1], buf) end
-          local struct_var_name = metadata.struct_var_name
-          if struct_var_name then output_function.struct_var_name = ts.get_node_text(match[struct_var_name][1], buf) end
-        end
       end
-      if output_statement then table.insert(out.output_statements, output_statement) end
-      if scope_info then table.insert(out.scopes, scope_info) end
-      if variable_info then table.insert(out.variables_info, variable_info) end
-      if function_info then table.insert(out.functions_info, function_info) end
-      if function_call_info then table.insert(out.function_calls_info, function_call_info) end
-      if return_info then table.insert(out.returns_info, return_info) end
-      if output_function then table.insert(out.outputs, output_function) end
+      if function_call_info then table.insert(function_calls_info, function_call_info) end
     end
   end
 
-  return out
+  return function_calls_info
 end
 
 return M

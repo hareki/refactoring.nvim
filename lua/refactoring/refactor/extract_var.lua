@@ -53,7 +53,7 @@ end
 
 -- TODO: extract inline "before" code examples from tests to files under the `test/` directory
 
----@class refactor.Scope
+---@class refactor.ScopeInfo
 ---@field scope TSNode
 ---@field inside TSNode?
 ---@field outside TSNode?
@@ -65,7 +65,8 @@ function M.extract_var(range_type, config)
   local apply_text_edits = require("refactoring.utils").apply_text_edits
   local input = require("refactoring.utils").input
   local code_gen_error = require("refactoring.utils").code_gen_error
-  local get_ts_info = require("refactoring.utils").get_ts_info
+  local get_scopes_info = require("refactoring.utils").get_scopes_info
+  local query_error = require("refactoring.utils").query_error
 
   local opts = config.refactor.extract_var
   local code_generation = opts.code_generation
@@ -111,11 +112,8 @@ function M.extract_var(range_type, config)
       return
     end
     local encompasing_query = maybe_encompasing_query
-    local query = ts.query.get(lang, "extract_var")
-    if not query then
-      vim.notify(("There is no `extract_var` query file for language %s"):format(lang), vim.log.levels.ERROR)
-      return
-    end
+    local scope_query = ts.query.get(lang, "refactor_scope")
+    if not scope_query then return query_error("refactor_scope", lang) end
 
     local extracted_significant_text = significant_text(encompassing_node, buf)
     local matching_nodes = {} ---@type TSNode[]
@@ -125,8 +123,7 @@ function M.extract_var(range_type, config)
         if node_significant_text == extracted_significant_text then table.insert(matching_nodes, node) end
       end
     end
-    local ts_info = get_ts_info(buf, nested_lang_tree, query)
-    local scopes = ts_info.scopes
+    local scopes_info = get_scopes_info(buf, nested_lang_tree, scope_query)
 
     ---@type {[integer]: refactor.TextEdit[]}
     local text_edits_by_buf = {}
@@ -140,10 +137,10 @@ function M.extract_var(range_type, config)
       end
     )
 
-    ---@type refactor.Scope|nil
-    local smallest_common_scope = iter(scopes)
+    ---@type refactor.ScopeInfo|nil
+    local smallest_common_scope = iter(scopes_info)
       :filter(
-        ---@param s refactor.Scope
+        ---@param s refactor.ScopeInfo
         function(s)
           local srow, scol, erow, ecol = s.scope:range()
           local scope_range = range(srow, scol, erow, ecol, { buf = buf })
@@ -159,8 +156,8 @@ function M.extract_var(range_type, config)
       )
       :fold(
         nil,
-        ---@param acc refactor.Scope|nil
-        ---@param s refactor.Scope
+        ---@param acc refactor.ScopeInfo|nil
+        ---@param s refactor.ScopeInfo
         function(acc, s)
           if not acc then return s end
           if s.scope:byte_length() < acc.scope:byte_length() then return s end
@@ -176,10 +173,10 @@ function M.extract_var(range_type, config)
 
     local srow, scol, erow, ecol = (smallest_common_scope.inside or smallest_common_scope.scope):range()
     local smallest_common_scope_range = range(srow, scol, erow, ecol, { buf = buf })
-    ---@type refactor.Scope|nil
-    local highest_nested_containing_scope = iter(scopes)
+    ---@type refactor.ScopeInfo|nil
+    local highest_nested_containing_scope = iter(scopes_info)
       :filter(
-        ---@param s refactor.Scope
+        ---@param s refactor.ScopeInfo
         function(s)
           if s.scope:equal(smallest_common_scope.scope) then return false end
 
@@ -200,8 +197,8 @@ function M.extract_var(range_type, config)
       )
       :fold(
         nil,
-        ---@param acc refactor.Scope|nil
-        ---@param s refactor.Scope
+        ---@param acc refactor.ScopeInfo|nil
+        ---@param s refactor.ScopeInfo
         function(acc, s)
           if not acc then return s end
 

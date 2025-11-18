@@ -44,7 +44,10 @@ function M.print_var(range_type, config)
   local scopes_for_range = require("refactoring.utils").scopes_for_range
   local get_declaration_scope = require("refactoring.utils").get_declaration_scope
   local indent = require("refactoring.utils").indent
-  local get_ts_info = require("refactoring.utils").get_ts_info
+  local get_references_info = require("refactoring.utils").get_references_info
+  local get_output_statements_info = require("refactoring.utils").get_output_statements_info
+  local get_scopes_info = require("refactoring.utils").get_scopes_info
+  local query_error = require("refactoring.utils").query_error
   local get_statement_output_range = require("refactoring.debug.utils").get_statement_output_range
 
   local opts = config.debug.print_var
@@ -72,24 +75,25 @@ function M.print_var(range_type, config)
       extracted_range.end_col,
     }
     local lang = nested_lang_tree:lang()
-    local query = ts.query.get(lang, "print_var")
-    if not query then
-      vim.notify(("There is no `print_var` query file for language %s"):format(lang), vim.log.levels.ERROR)
-      return
-    end
+    local reference_query = ts.query.get(lang, "refactor_reference")
+    if not reference_query then return query_error("refactor_reference", lang) end
+    local output_statement_query = ts.query.get(lang, "refactor_output_statement")
+    if not output_statement_query then return query_error("refactor_output_statement", lang) end
+    local scope_query = ts.query.get(lang, "refactor_scope")
+    if not scope_query then return query_error("refactor_scope", lang) end
 
     local get_print_var = code_generation.print_var[lang]
     if not get_print_var then return code_gen_error("print_var", lang) end
 
-    local ts_info = get_ts_info(buf, nested_lang_tree, query)
-    local references = ts_info.references
-    local output_statements = ts_info.output_statements
+    local references = get_references_info(buf, nested_lang_tree, reference_query)
+    local output_statements = get_output_statements_info(buf, nested_lang_tree, output_statement_query)
+    local scopes_info = get_scopes_info(buf, nested_lang_tree, scope_query)
     -- TODO: modify the util functions that use `scopes` as TSNode[] to use
     -- refactor.Scope[] instead?
     ---@type TSNode[]
-    local scopes = iter(ts_info.scopes)
+    local scopes = iter(scopes_info)
       :map(
-        ---@param scope refactor.Scope
+        ---@param scope refactor.ScopeInfo
         function(scope)
           return scope.scope
         end

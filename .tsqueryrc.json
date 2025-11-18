@@ -8,56 +8,50 @@
         "ecma": "javascript"
     },
     "valid_captures": {
-        "cleanup": {
+        "refactor_comment": {
             "comment": "Comment. Used to search markers"
         },
-        "extract_func": {
+        "refactor_output_function": {
             "output_function": "Output function. Reference point where extracted function can be inserted before of.",
-            "output_function.comment": "Comment. Optional comment above and attached to `output_function`.",
-            "reference.identifier": "Identifier of a reference.",
+            "output_function.comment": "Comment. Optional comment above and attached to `output_function`."
+        },
+        "refactor_reference": {
+            "reference.identifier": "Identifier of a reference."
+        },
+        "refactor_scope": {
             "scope": "Scope. Should contain all identifiers available in the scope (including parameters).",
             "scope.inside": "Inside of a scope. Optional reference point where text can be inserted inside of a scope.",
             "scope.outside": "Outside of a scope. Optional reference point where text can be inserted outside of a scope."
         },
-        "extract_var": {
-            "scope": "Scope. Should contain all identifiers available in the scope (including parameters).",
-            "scope.inside": "Inside of a scope. Optional reference point where text can be inserted inside of a scope.",
-            "scope.outside": "Outside of a scope. Optional reference point where text can be inserted outside of a scope."
-        },
-        "inline_func": {
+        "refactor_function": {
             "function": "Function.",
             "function.arg": "Function arguments. Should match all arguments of a function",
             "function.body": "Function Body.",
             "function.comment": "Comment. Optional comment above and attached to `function`.",
             "function.outside": "Outside of a function. Optional reference point where text can be inserted outside of a function.",
             "return": "Return statement.",
-            "return.value": "Return statement values. Should match all values returned by the return statement.",
+            "return.value": "Return statement values. Should match all values returned by the return statement."
+        },
+        "refactor_function_call": {
             "function_call": "Function call.",
             "function_call.name": "Function call identifier.",
             "function_call.arg": "Function call parameters. Should match all parameters of a function call.",
             "function_call.return_value": "Function call return value. Optional.",
             "function_call.outside": "Outside of a function call. Optional reference point where text can be inserted ourisde of a function_call."
         },
-        "inline_var": {
+        "refactor_variable": {
             "variable.declaration": "Variable declaration",
             "variable.identifier": "Variable identifier. Should match all identifier in a declaration (i.e. more than one in multiple assignments)",
             "variable.identifier_separator": "Variable identifier separator. Optional separator between identifiers on multiple assignments.",
             "variable.value": "Variable value. Should match all values in a declaration (i.e. more than one in multiple assignments)",
-            "variable.value_separator": "Variable value separator. Optional separator between values on multiple assignments.",
-            "reference.identifier": "Identifier of a reference."
+            "variable.value_separator": "Variable value separator. Optional separator between values on multiple assignments."
         },
-        "print_loc": {
-            "output_statment": "Output statement. Reference point where output statement can be inserted before/after of. Should contain the range for which it is valid.",
-            "output_statment.inside": "Inside of an output statement. Optional reference point to override the reference point of `output_statement`",
+        "refactor_output_statement": {
+            "output_statement": "Output statement. Reference point where output statement can be inserted before/after of. Should contain the range for which it is valid.",
+            "output_statement.inside": "Inside of an output statement. Optional reference point to override the reference point of `output_statement`"
+        },
+        "refactor_debug_path": {
             "debug_path_segment": "Debug path segment. Should contain the range for which it's valid"
-        },
-        "print_var": {
-            "reference.identifier": "Identifier of a reference.",
-            "output_statment": "Output statement. Reference point where output statement can be inserted before/after of. Should contain the range for which it is valid.",
-            "output_statment.inside": "Inside of an output statement. Optional reference point to override the reference point of `output_statement`",
-            "scope": "Scope. Should contain all identifiers available in the scope (including parameters).",
-            "scope.inside": "Inside of a scope. Optional reference point where text can be inserted inside of a scope.",
-            "scope.outside": "Outside of a scope. Optional reference point where text can be inserted outside of a scope."
         }
     },
     "valid_predicates": {

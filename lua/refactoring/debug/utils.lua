@@ -4,16 +4,16 @@ local iter = vim.iter
 local M = {}
 
 ---@param buf integer
----@param output_statements refactor.OutputStatement[]
+---@param output_statements refactor.OutputStatementInfo[]
 ---@param output_location 'above'|'below'
 ---@param reference_range vim.Range
 ---@param reference_pos vim.Pos
 ---@return vim.Range?, 'start'|'end'?
 function M.get_statement_output_range(buf, output_statements, output_location, reference_range, reference_pos)
-  ---@type refactor.OutputStatement|nil
+  ---@type refactor.OutputStatementInfo|nil
   local statement_for_range = iter(output_statements)
     :filter(
-      ---@param os refactor.OutputStatement
+      ---@param os refactor.OutputStatementInfo
       function(os)
         local os_srow, os_scol, os_erow, os_ecol = os.output_statement:range()
         local os_range = range(os_srow, os_scol, os_erow, os_ecol, { buf = buf })
@@ -22,8 +22,8 @@ function M.get_statement_output_range(buf, output_statements, output_location, r
     )
     :fold(
       nil,
-      ---@param acc nil|refactor.OutputStatement
-      ---@param os refactor.OutputStatement
+      ---@param acc nil|refactor.OutputStatementInfo
+      ---@param os refactor.OutputStatementInfo
       function(acc, os)
         if not acc then return os end
         if os.output_statement:byte_length() < acc.output_statement:byte_length() then return os end

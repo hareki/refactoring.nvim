@@ -30,7 +30,8 @@ end
 function M.cleanup(range_type, config)
   local get_extracted_range = require("refactoring.utils").get_extracted_range
   local apply_text_edits = require("refactoring.utils").apply_text_edits
-  local get_ts_info = require("refactoring.utils").get_ts_info
+  local get_comments = require("refactoring.utils").get_comments
+  local query_error = require("refactoring.utils").query_error
 
   local opts = config.debug.cleanup
 
@@ -53,14 +54,10 @@ function M.cleanup(range_type, config)
       extracted_range.end_col,
     }
     local lang = nested_lang_tree:lang()
-    local query = ts.query.get(lang, "cleanup")
-    if not query then
-      vim.notify(("There is no `cleanup` query file for language %s"):format(lang), vim.log.levels.ERROR)
-      return
-    end
+    local comment_query = ts.query.get(lang, "refactor_comment")
+    if not comment_query then return query_error("refactor_comment", lang) end
 
-    local ts_info = get_ts_info(buf, nested_lang_tree, query)
-    local comments = ts_info.comments
+    local comments = get_comments(buf, nested_lang_tree, comment_query)
 
     table.sort(comments, node_comp_asc)
     ---@type vim.Range[]

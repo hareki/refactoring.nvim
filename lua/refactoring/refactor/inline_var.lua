@@ -72,13 +72,14 @@ end
 ---@return nil|{[integer]: refactor.inline_var.MatchInfo}
 local function get_match_info(definitions, references, lang)
   local is_unique = require("refactoring.utils").is_unique
-  local get_ts_info = require("refactoring.utils").get_ts_info
+  local get_references_info = require("refactoring.utils").get_references_info
+  local get_variables_info = require("refactoring.utils").get_variables_info
+  local query_error = require("refactoring.utils").query_error
 
-  local query = ts.query.get(lang, "inline_var")
-  if not query then
-    vim.notify(("There is no `inline_var` query file for language %s"):format(lang), vim.log.levels.ERROR)
-    return
-  end
+  local reference_query = ts.query.get(lang, "refactor_reference")
+  if not reference_query then return query_error("refactor_reference", lang) end
+  local variable_query = ts.query.get(lang, "refactor_variable")
+  if not variable_query then return query_error("refactor_variable", lang) end
 
   ---@type {[integer]: refactor.inline_var.MatchInfo}
   local match_info = iter({ definitions, references })
@@ -103,11 +104,10 @@ local function get_match_info(definitions, references, lang)
         end
         lang_tree:parse(true)
 
-        local ts_info = get_ts_info(buf, lang_tree, query)
-        local variables_info = ts_info.variables_info
-        local references = ts_info.references
+        local variables_info = get_variables_info(buf, lang_tree, variable_query)
+        local references_info = get_references_info(buf, lang_tree, reference_query)
 
-        return buf, { variables = variables_info, references = references }
+        return buf, { variables = variables_info, references = references_info }
       end
     )
     :fold(

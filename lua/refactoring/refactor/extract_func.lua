@@ -37,7 +37,7 @@ local M = {}
 ---@field function_call? {[string]: nil|fun(opts: refactor.extract_func.code_generation.function_call.Opts): string}
 ---@field return_statement? {[string]: nil|fun(opts: refactor.extract_func.code_generation.return_statement.Opts): string}
 
----@class refactor.OutputFunction
+---@class refactor.OutputFunctionInfo
 ---@field comment TSNode[]?
 ---@field fn TSNode
 ---@field method boolean?
@@ -45,30 +45,44 @@ local M = {}
 ---@field struct_name string?
 ---@field struct_var_name string?
 
----@param o refactor.OutputFunction
+---@param o refactor.OutputFunctionInfo
 ---@return TSNode
 local function choose_output(o)
   return o.comment and o.comment[1] or o.fn
 end
 
----@param nested_lang_tree vim.treesitter.LanguageTree
----@param query vim.treesitter.Query
 ---@param buf integer
 ---@param extracted_range vim.Range
 ---@return TSNode?
----@return {method: boolean?, singleton: boolean?, struct_name: string?, struct_var_name: string?}
-local function get_output_node(nested_lang_tree, query, buf, extracted_range)
+---@return {method: boolean?, singleton: boolean?, struct_name: string?, struct_var_name: string?}?
+local function get_output_node(buf, extracted_range)
   local is_first_closer = require("refactoring.utils").is_first_closer
-  local get_ts_info = require("refactoring.utils").get_ts_info
+  local query_error = require("refactoring.utils").query_error
+  local get_output_functions_info = require("refactoring.utils").get_output_functions_info
 
-  local ts_info = get_ts_info(buf, nested_lang_tree, query)
-  local outputs = ts_info.outputs
+  local extracted_range_ts =
+    { extracted_range.start_row, extracted_range.start_col, extracted_range.end_row, extracted_range.end_col }
+
+  local lang_tree, err1 = ts.get_parser(buf, nil, { error = false })
+  if not lang_tree then
+    ---@cast err1 -nil
+    vim.notify(err1, vim.log.levels.ERROR)
+    return
+  end
+  -- TODO: use async parsing
+  lang_tree:parse(true)
+  local nested_lang_tree = lang_tree:language_for_range(extracted_range_ts)
+  local lang = nested_lang_tree:lang()
+  local output_function_query = ts.query.get(lang, "refactor_output_function")
+  if not output_function_query then return query_error("refactor_output_function", lang) end
+
+  local outputs = get_output_functions_info(buf, nested_lang_tree, output_function_query)
 
   local extracted_start_pos = pos(extracted_range.start_row, extracted_range.start_col, { buf = extracted_range.buf })
-  ---@type refactor.OutputFunction|nil
+  ---@type refactor.OutputFunctionInfo|nil
   local selected_output = iter(outputs)
     :filter(
-      ---@param o refactor.OutputFunction
+      ---@param o refactor.OutputFunctionInfo
       function(o)
         local n = choose_output(o)
         local srow, scol = n:start()
@@ -78,8 +92,8 @@ local function get_output_node(nested_lang_tree, query, buf, extracted_range)
     )
     :fold(
       nil,
-      ---@param acc refactor.OutputFunction|nil
-      ---@param o refactor.OutputFunction
+      ---@param acc refactor.OutputFunctionInfo|nil
+      ---@param o refactor.OutputFunctionInfo
       function(acc, o)
         if not acc then return o end
 
@@ -105,29 +119,6 @@ local function get_output_node(nested_lang_tree, query, buf, extracted_range)
       struct_name = selected_output.struct_name,
       struct_var_name = selected_output.struct_var_name,
     }
-end
-
----@param buf integer
----@param extracted_range Range4
----@return vim.treesitter.LanguageTree?, vim.treesitter.Query?
-local function ts_parse(buf, extracted_range)
-  local lang_tree, err1 = ts.get_parser(buf, nil, { error = false })
-  if not lang_tree then
-    ---@cast err1 -nil
-    vim.notify(err1, vim.log.levels.ERROR)
-    return
-  end
-  -- TODO: use async parsing
-  lang_tree:parse(true)
-  local nested_lang_tree = lang_tree:language_for_range(extracted_range)
-  local lang = nested_lang_tree:lang()
-  local query = ts.query.get(lang, "extract_func")
-  if not query then
-    vim.notify(("There is no `extract_func` query file for language %s"):format(lang), vim.log.levels.ERROR)
-    return
-  end
-
-  return nested_lang_tree, query
 end
 
 ---@class refactor.ReferenceInfo
@@ -157,7 +148,9 @@ local function extract_func(opts)
   local get_declarations_by_scope = require("refactoring.utils").get_declarations_by_scope
   local scopes_for_range = require("refactoring.utils").scopes_for_range
   local get_declaration_scope = require("refactoring.utils").get_declaration_scope
-  local get_ts_info = require("refactoring.utils").get_ts_info
+  local get_references_info = require("refactoring.utils").get_references_info
+  local get_scopes_info = require("refactoring.utils").get_scopes_info
+  local query_error = require("refactoring.utils").query_error
 
   local code_generation = opts.config_opts.code_generation
 
@@ -169,16 +162,29 @@ local function extract_func(opts)
 
   local extracted_range_ts =
     { extracted_range.start_row, extracted_range.start_col, extracted_range.end_row, extracted_range.end_col }
-  local nested_lang_tree, in_query = ts_parse(in_buf, extracted_range_ts)
-  if not nested_lang_tree or not in_query then return end
 
-  local out_nested_lang_tree, out_query = ts_parse(out_buf, extracted_range_ts)
-  if not out_nested_lang_tree or not out_query then return end
+  local lang_tree, err1 = ts.get_parser(in_buf, nil, { error = false })
+  if not lang_tree then
+    ---@cast err1 -nil
+    vim.notify(err1, vim.log.levels.ERROR)
+    return
+  end
+  -- TODO: use async parsing
+  lang_tree:parse(true)
+  local nested_lang_tree = lang_tree:language_for_range(extracted_range_ts)
+  local lang = nested_lang_tree:lang()
+  local reference_query = ts.query.get(lang, "refactor_reference")
+  if not reference_query then return query_error("refactor_reference", lang) end
+  local scope_query = ts.query.get(lang, "refactor_scope")
+  if not scope_query then return query_error("refactor_scope", lang) end
+
   -- TODO: this doesn't work for `extract_func_to_file` (unless that, because
   -- of a coincidence, the information is available in that file). Instead,
   -- split `get_output_node` and `get_output/input_opts` to get it from
   -- `in_buf` (that will always have the information available instead)
-  local output_node, output_opts = get_output_node(out_nested_lang_tree, out_query, out_buf, extracted_range)
+  local output_node, output_opts = get_output_node(out_buf, extracted_range)
+  if not output_opts then output_opts = {} end
+
   ---@type vim.Range
   local output_range
   if output_node then
@@ -198,14 +204,14 @@ local function extract_func(opts)
     output_range = range.extmark(0, 0, 0, 0, { buf = out_buf })
   end
 
-  local in_ts_info = get_ts_info(in_buf, nested_lang_tree, in_query)
-  local references_info = in_ts_info.references
+  local references_info = get_references_info(in_buf, nested_lang_tree, reference_query)
+  local scopes_info = get_scopes_info(in_buf, nested_lang_tree, scope_query)
   -- TODO: modify the util functions that use `scopes` as TSNode[] to use
   -- refactor.Scope[] instead?
   ---@type TSNode[]
-  local scopes = iter(in_ts_info.scopes)
+  local scopes = iter(scopes_info)
     :map(
-      ---@param scope refactor.Scope
+      ---@param scope refactor.ScopeInfo
       function(scope)
         return scope.scope
       end
@@ -512,7 +518,6 @@ local function extract_func(opts)
   local body = table.concat(lines, "\n")
   local body_indent ---@type integer
   body, body_indent = indent(expandtab, 0, body)
-  local lang = nested_lang_tree:lang()
   local get_return_statement = code_generation.return_statement[lang]
   if not get_return_statement then return code_gen_error("return_statement", lang) end
   local get_function_declaration = code_generation.function_declaration[lang]
