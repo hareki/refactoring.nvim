@@ -1,4 +1,3 @@
-; TODO: print_var for methods doesn't work
 ; foo = bar
 (assignment_statement
   (variable_list
@@ -30,7 +29,7 @@
       value: (_) @_value)*)
   (#infer-type! lua @_value)
   (#set! reference_type write)
-  (#set! declaration true))
+  (#set! field true))
 
 ; local foo = bar
 (variable_declaration
@@ -67,59 +66,66 @@
   (#set! reference_type read))
 
 (function_call
-  (method_index_expression)
-  (#set! reference_type read)) @reference.identifier
+  [
+    (method_index_expression)
+    (dot_index_expression)
+    (bracket_index_expression)
+  ]
+  (#set! reference_type read)
+  (#set! field true)) @reference.identifier
+
+(arguments
+  (identifier) @reference.identifier
+  (#set! reference_type read))
 
 (arguments
   [
-    (identifier)
     (dot_index_expression)
     (bracket_index_expression)
-    (function_call
-      (method_index_expression))
   ] @reference.identifier
-  (#set! reference_type read))
+  (#set! reference_type read)
+  (#set! field true))
 
 (parameters
-  [
-    (identifier)
-    (dot_index_expression)
-    (bracket_index_expression)
-    (function_call
-      (method_index_expression))
-  ] @reference.identifier
+  (identifier) @reference.identifier
   (#set! reference_type write)
   (#set! declaration true))
 
 (function_call
+  name: (identifier) @reference.identifier
+  (#set! reference_type read))
+
+(function_call
   name: [
-    (identifier)
     (dot_index_expression)
     (bracket_index_expression)
-    (function_call
-      (method_index_expression))
   ] @reference.identifier
+  (#set! reference_type read)
+  (#set! field true))
+
+(expression_list
+  (identifier) @reference.identifier
   (#set! reference_type read))
 
 (expression_list
   [
-    (identifier)
     (dot_index_expression)
     (bracket_index_expression)
-    (function_call
-      (method_index_expression))
   ] @reference.identifier
+  (#set! reference_type read)
+  (#set! field true))
+
+(binary_expression
+  (identifier) @reference.identifier
   (#set! reference_type read))
 
 (binary_expression
   [
-    (identifier)
     (dot_index_expression)
     (bracket_index_expression)
-    (function_call
-      (method_index_expression))
   ] @reference.identifier
-  (#set! reference_type read))
+  (#set! reference_type read)
+  (#set! field true))
 
 (for_generic_clause
   (variable_list
@@ -128,48 +134,49 @@
   (#set! declaration true))
 
 (for_numeric_clause
-  name: [
-    (identifier)
-    (dot_index_expression)
-    (bracket_index_expression)
-    (function_call
-      (method_index_expression))
-  ] @reference.identifier
+  name: (identifier) @reference.identifier
   (#set! reference_type write)
   (#set! declaration true))
 
 (for_numeric_clause
+  end: (identifier) @reference.identifier
+  (#set! reference_type read))
+
+(for_numeric_clause
   end: [
-    (identifier)
     (dot_index_expression)
     (bracket_index_expression)
-    (function_call
-      (method_index_expression))
   ] @reference.identifier
+  (#set! reference_type read)
+  (#set! field true))
+
+(for_numeric_clause
+  start: (identifier) @reference.identifier
   (#set! reference_type read))
 
 (for_numeric_clause
   start: [
-    (identifier)
     (dot_index_expression)
     (bracket_index_expression)
-    (function_call
-      (method_index_expression))
   ] @reference.identifier
-  (#set! reference_type read))
+  (#set! reference_type read)
+  (#set! field true))
 
 ; repeat until/while/if
 (_
+  condition: (identifier) @reference.identifier
+  (#set! reference_type read))
+
+(_
   condition: [
-    (identifier)
     (dot_index_expression)
     (bracket_index_expression)
-    (function_call
-      (method_index_expression))
   ] @reference.identifier
-  (#set! reference_type read))
+  (#set! reference_type read)
+  (#set! field true))
 
 (function_declaration
   name: (_) @reference.identifier
   (#set! declaration true)
   (#set! reference_type write))
+

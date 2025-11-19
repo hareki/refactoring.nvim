@@ -44,77 +44,142 @@
   (#set! reference_type read))
 
 (binary_expression
-  [
-    (identifier)
-    (selector_expression)
-  ] @reference.identifier
+  (identifier) @reference.identifier
   (#set! reference_type read))
+
+(binary_expression
+  [
+    (selector_expression)
+    (index_expression)
+  ] @reference.identifier
+  (#set! reference_type read)
+  (#set! field true))
+
+(inc_statement
+  (identifier) @reference.identifier
+  (#set! reference_type write))
 
 (inc_statement
   [
-    (identifier)
     (selector_expression)
+    (index_expression)
   ] @reference.identifier
-  (#set! reference_type write))
+  (#set! reference_type write)
+  (#set! field true))
+
+(argument_list
+  (identifier) @reference.identifier
+  (#set! reference_type read))
 
 (argument_list
   [
-    (identifier)
     (selector_expression)
+    (index_expression)
   ] @reference.identifier
+  (#set! reference_type read)
+  (#set! field true))
+
+(selector_expression
+  operand: (identifier) @reference.identifier
   (#set! reference_type read))
 
 (selector_expression
   operand: [
-    (identifier)
     (selector_expression)
+    (index_expression)
   ] @reference.identifier
+  (#set! reference_type read)
+  (#set! field true))
+
+(return_statement
+  (expression_list
+    (identifier) @reference.identifier)
   (#set! reference_type read))
 
 (return_statement
   (expression_list
     [
-      (identifier)
       (selector_expression)
-    ] @reference.identifier)
+      (index_expression)
+    ] @reference.identifier
+    (#set! field true))
   (#set! reference_type read))
 
 (assignment_statement
   left: (expression_list
+    (identifier) @reference.identifier)
+  (#set! reference_type write))
+
+(assignment_statement
+  left: (expression_list
     [
-      (identifier)
       (selector_expression)
-    ] @reference.identifier)
+      (index_expression)
+    ] @reference.identifier
+    (#set! field true))
   (#set! reference_type write))
 
 (assignment_statement
   right: (expression_list
+    (identifier) @reference.identifier)
+  (#set! reference_type read))
+
+(assignment_statement
+  right: (expression_list
     [
-      (identifier)
       (selector_expression)
-    ] @reference.identifier)
+      (index_expression)
+    ] @reference.identifier
+    (#set! field true))
+  (#set! reference_type read))
+
+(index_expression
+  operand: (identifier) @reference.identifier
   (#set! reference_type read))
 
 (index_expression
   operand: [
-    (identifier)
     (selector_expression)
+    (index_expression)
   ] @reference.identifier
+  (#set! reference_type read)
+  (#set! field true))
+
+(call_expression
+  function: (identifier) @reference.identifier
   (#set! reference_type read))
 
 (call_expression
+  function: (identifier)
+  (#set! reference_type read)) @reference.identifier
+
+(call_expression
   function: [
-    (identifier)
     (selector_expression)
+    (index_expression)
   ] @reference.identifier
+  (#set! reference_type read)
+  (#set! field true))
+
+(call_expression
+  function: [
+    (selector_expression)
+    (index_expression)
+  ]
+  (#set! reference_type read)
+  (#set! field true)) @reference.identifier
+
+(if_statement
+  condition: (identifier) @reference.identifier
   (#set! reference_type read))
 
 (if_statement
   condition: [
-    (identifier)
     (selector_expression)
+    (index_expression)
   ] @reference.identifier
-  (#set! reference_type read))
+  (#set! reference_type read)
+  (#set! field true))
 
 ; NOTE: method_declaration is purposefully not included because it doesn't
 ; create a top.level identifier

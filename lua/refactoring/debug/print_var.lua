@@ -16,8 +16,6 @@ local M = {}
 -- TODO: add some way to list/search/travel across all inserted statements
 -- TODO: allow to filter function_calls (and maybe some arbitraty mechanism for
 -- doing so)
--- TODO: allow specifying in reference captures which references do not need an
--- explicit declaration above (usually, object fields)
 
 ---@class refactor.print_var.code_generation.Opts
 ---@field identifier string
@@ -192,20 +190,21 @@ function M.print_var(range_type, config)
       :map(
         ---@param r refactor.ReferenceInfo
         function(r)
-          return ts.get_node_text(r.identifier, buf)
+          return ts.get_node_text(r.identifier, buf), r
         end
       )
       :filter(is_unique())
       :filter(
         ---@param identifier string
-        function(identifier)
-          return vim.list_contains(declarations_before_output_range, identifier)
+        ---@param r refactor.ReferenceInfo
+        function(identifier, r)
+          return r.field or vim.list_contains(declarations_before_output_range, identifier)
         end
       )
       :map(
-        ---@param i string
-        function(i)
-          return get_print_var { identifier = i }
+        ---@param identifier string
+        function(identifier)
+          return get_print_var { identifier = identifier }
         end
       )
       :totable()

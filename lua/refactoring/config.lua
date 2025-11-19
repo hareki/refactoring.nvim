@@ -787,6 +787,9 @@ local print_var_code_generation = {
     vim = function(opts)
       return ([[echom '%s' %s|]]):format(opts.identifier, opts.identifier)
     end,
+    go = function(opts)
+      return ([[fmt.Println(fmt.Sprintf("%s %%v", %s))]]):format(opts.identifier, opts.identifier)
+    end,
   },
 }
 print_var_code_generation.print_var.cpp = print_var_code_generation.print_var.c

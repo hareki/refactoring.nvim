@@ -33,32 +33,97 @@
   (#set! reference_type write)
   (#set! declaration true))
 
+; int foo;
+(declaration
+  .
+  type: (_) @_type
+  .
+  (field_expression) @reference.identifier
+  .
+  (","
+    (field_expression) @reference.identifier)*
+  (#set-type! c @_type @reference.identifier)
+  (#set! reference_type write)
+  (#set! declaration true)
+  (#set! field true))
+
 (binary_expression
   (identifier) @reference.identifier
   (#set! reference_type read))
+
+(binary_expression
+  (field_expression) @reference.identifier
+  (#set! reference_type read)
+  (#set! field true))
 
 (update_expression
   (identifier) @reference.identifier
   (#set! reference_type write))
 
+(update_expression
+  (field_expression) @reference.identifier
+  (#set! reference_type write)
+  (#set! field true))
+
 (assignment_expression
-  (identifier) @reference.identifier
+  left: (identifier) @reference.identifier
   (#set! reference_type write))
+
+(assignment_expression
+  left: (field_expression) @reference.identifier
+  (#set! reference_type write)
+  (#set! field true))
+
+(assignment_expression
+  right: (identifier) @reference.identifier
+  (#set! reference_type read))
+
+(assignment_expression
+  right: (field_expression) @reference.identifier
+  (#set! reference_type read)
+  (#set! field true))
 
 (argument_list
   (identifier) @reference.identifier
   (#set! reference_type read))
 
+(argument_list
+  (field_expression) @reference.identifier
+  (#set! reference_type read)
+  (#set! field true))
+
 (return_statement
   (identifier) @reference.identifier
   (#set! reference_type read))
+
+(return_statement
+  (field_expression) @reference.identifier
+  (#set! reference_type read)
+  (#set! field true))
 
 (call_expression
   (identifier) @reference.identifier
   (#set! reference_type read))
 
+; TODO: these (are similartly in other languages like lua) are not really
+; identifiers. Should I compute them in some other way?
+(call_expression
+  (identifier)
+  (#set! reference_type read)) @reference.identifier
+
+(call_expression
+  (field_expression) @reference.identifier
+  (#set! reference_type read)
+  (#set! field true))
+
+(call_expression
+  (field_expression)
+  (#set! reference_type read)
+  (#set! field true)) @reference.identifier
+
 (function_definition
   declarator: (function_declarator
-    declarator: (_) @reference.identifier)
+    declarator: (identifier) @reference.identifier)
   (#set! declaration true)
   (#set! reference_type write))
+

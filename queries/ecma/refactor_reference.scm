@@ -1,62 +1,91 @@
 (assignment_expression
-  left: [
-    (identifier)
-    (member_expression)
-  ] @reference.identifier
+  left: (identifier) @reference.identifier
   (#set! reference_type write))
 
 (assignment_expression
-  right: [
-    (identifier)
-    (member_expression)
-  ] @reference.identifier
+  left: (member_expression) @reference.identifier
+  (#set! reference_type write)
+  (#set! field true))
+
+(assignment_expression
+  right: (identifier) @reference.identifier
+  (#set! reference_type read))
+
+(assignment_expression
+  right: (member_expression) @reference.identifier
+  (#set! reference_type read)
+  (#set! field true))
+
+(binary_expression
+  (identifier) @reference.identifier
   (#set! reference_type read))
 
 (binary_expression
-  [
-    (identifier)
-    (member_expression)
-  ] @reference.identifier
-  (#set! reference_type read))
+  (member_expression) @reference.identifier
+  (#set! reference_type read)
+  (#set! field true))
 
 (update_expression
-  [
-    (identifier)
-    (member_expression)
-  ] @reference.identifier
+  (identifier) @reference.identifier
+  (#set! reference_type write))
+
+(update_expression
+  (member_expression) @reference.identifier
+  (#set! reference_type write)
+  (#set! field true))
+
+(augmented_assignment_expression
+  (identifier) @reference.identifier
   (#set! reference_type write))
 
 (augmented_assignment_expression
-  [
-    (identifier)
-    (member_expression)
-  ] @reference.identifier
-  (#set! reference_type write))
+  (member_expression) @reference.identifier
+  (#set! reference_type write)
+  (#set! field true))
 
 (arguments
-  [
-    (identifier)
-    (member_expression)
-  ] @reference.identifier
+  (identifier) @reference.identifier
+  (#set! reference_type read))
+
+(arguments
+  (member_expression) @reference.identifier
+  (#set! reference_type read)
+  (#set! field true))
+
+(return_statement
+  (identifier) @reference.identifier
   (#set! reference_type read))
 
 (return_statement
-  [
-    (identifier)
-    (member_expression)
-  ] @reference.identifier
+  (member_expression) @reference.identifier
+  (#set! reference_type read)
+  (#set! field true))
+
+(member_expression
+  object: (identifier) @reference.identifier
   (#set! reference_type read))
 
 (member_expression
-  object: [
-    (identifier)
-    (member_expression)
-  ] @reference.identifier
+  (#set! reference_type read)
+  (#set! field true)) @reference.identifier
+
+(call_expression
+  function: (identifier) @reference.identifier
   (#set! reference_type read))
 
 (call_expression
-  function: (_) @reference.identifier
-  (#set! reference_type read))
+  function: (identifier)
+  (#set! reference_type read)) @reference.identifier
+
+(call_expression
+  function: (member_expression) @reference.identifier
+  (#set! reference_type read)
+  (#set! field true))
+
+(call_expression
+  function: (member_expression)
+  (#set! reference_type read)
+  (#set! field true)) @reference.identifier
 
 (function_declaration
   name: (_) @reference.identifier

@@ -18,3 +18,8 @@
   (identifier) @reference.identifier
   (#set! reference_type write)
   (#set! declaration true))
+
+(field_definition
+  (property_identifier) @reference.identifier
+  (#set! declaration true)
+  (#set! reference_type write))

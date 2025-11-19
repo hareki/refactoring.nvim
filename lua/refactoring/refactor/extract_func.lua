@@ -126,6 +126,7 @@ end
 ---@field type string|{identifier: string}|vim.NIL|nil
 ---@field reference_type 'read'|'write'
 ---@field declaration boolean
+---@field field boolean
 
 ---@class refactor.Variable
 ---@field identifier string
@@ -329,8 +330,8 @@ local function extract_func(opts)
       end
     end
   )
-  -- TODO: actually, not all types will be string at this point. Actuallyx2,
-  -- they will be if I resolve the types in the correct order
+  -- TODO: actually, not all types will be string at this point.
+  -- Actuallyx2, they will be if I resolve the types in the correct order
   ---@cast scoped_types_up_to_extracted_range_end{[string]: string}[]
 
   ---@type refactor.ReferenceInfo[]
@@ -347,9 +348,9 @@ local function extract_func(opts)
     :totable()
 
   local reference_to_variable =
-    ---@param r refactor.ReferenceInfo
-    function(r)
-      local identifier = ts.get_node_text(r.identifier, in_buf)
+    ---@param ri refactor.ReferenceInfo
+    function(ri)
+      local identifier = ts.get_node_text(ri.identifier, in_buf)
 
       ---@type {[string]: string}|nil
       local types = iter(scoped_types_up_to_extracted_range_end):find(
