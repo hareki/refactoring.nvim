@@ -171,14 +171,14 @@ T["python"]["works"] = function()
   local lines = [[
 def foo():
     i = 3
-    foo = i
+    bar = i
     return i]]
   local expected_lines = [[
 def foo():
     i = 3
     # __PRINT_VAR_START
     print(f"i: {str(i)}")# __PRINT_VAR_END
-    foo = i
+    bar = i
     return i]]
   child.cmd "edit tmp.py"
   child.bo.expandtab = true

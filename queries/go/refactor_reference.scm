@@ -44,40 +44,81 @@
   (#set! reference_type read))
 
 (binary_expression
-  (identifier) @reference.identifier
+  [
+    (identifier)
+    (selector_expression)
+  ] @reference.identifier
   (#set! reference_type read))
 
 (inc_statement
-  (identifier) @reference.identifier
+  [
+    (identifier)
+    (selector_expression)
+  ] @reference.identifier
   (#set! reference_type write))
 
 (argument_list
-  (identifier) @reference.identifier
+  [
+    (identifier)
+    (selector_expression)
+  ] @reference.identifier
   (#set! reference_type read))
 
 (selector_expression
-  operand: (identifier) @reference.identifier
+  operand: [
+    (identifier)
+    (selector_expression)
+  ] @reference.identifier
   (#set! reference_type read))
 
 (return_statement
   (expression_list
-    (identifier) @reference.identifier)
+    [
+      (identifier)
+      (selector_expression)
+    ] @reference.identifier)
   (#set! reference_type read))
 
 (assignment_statement
   left: (expression_list
-    (identifier) @reference.identifier)
+    [
+      (identifier)
+      (selector_expression)
+    ] @reference.identifier)
   (#set! reference_type write))
 
 (assignment_statement
   right: (expression_list
-    (identifier) @reference.identifier)
+    [
+      (identifier)
+      (selector_expression)
+    ] @reference.identifier)
   (#set! reference_type read))
 
 (index_expression
-  operand: (identifier) @reference.identifier
+  operand: [
+    (identifier)
+    (selector_expression)
+  ] @reference.identifier
   (#set! reference_type read))
 
 (call_expression
-  function: (identifier) @reference.identifier
+  function: [
+    (identifier)
+    (selector_expression)
+  ] @reference.identifier
   (#set! reference_type read))
+
+(if_statement
+  condition: [
+    (identifier)
+    (selector_expression)
+  ] @reference.identifier
+  (#set! reference_type read))
+
+; NOTE: method_declaration is purposefully not included because it doesn't
+; create a top.level identifier
+(function_declaration
+  name: (_) @reference.identifier
+  (#set! reference_type write)
+  (#set! declaration true))

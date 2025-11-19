@@ -98,3 +98,12 @@
   (argument_list
     (identifier) @reference.identifier)
   (#set! reference_type read))
+
+(call
+  method: (_) @reference.identifier
+  (#set! reference_type read))
+
+(method
+  name: (_) @reference.identifier
+  (#set! reference_type write)
+  (#set! declaration true))

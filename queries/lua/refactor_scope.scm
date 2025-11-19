@@ -1,6 +1,6 @@
 ; table.sort(function() end)
 ((function_definition
-  body: (block) @scope.inside) @scope
+  body: (block) @scope.inside) @scope @scope.outside
   (#not-has-parent? @scope expression_list))
 
 ; foo = function() end
@@ -18,25 +18,26 @@
         body: (block) @scope.inside) @scope))) @scope.outside
 
 (function_declaration
-  body: (block) @scope.inside) @scope
+  parameters: (parameters) @scope
+  body: (block) @scope @scope.inside) @scope.outside
 
 (for_statement
-  body: (block) @scope.inside) @scope
+  body: (block) @scope.inside) @scope @scope.outside
 
 (repeat_statement
-  body: (block) @scope.inside) @scope
+  body: (block) @scope.inside) @scope @scope.outside
 
 (while_statement
-  body: (block) @scope.inside) @scope
+  body: (block) @scope.inside) @scope @scope.outside
 
 (do_statement
-  body: (block) @scope.inside) @scope
+  body: (block) @scope.inside) @scope @scope.outside
 
-(chunk) @scope
+(chunk) @scope @scope.inside @scope.outside
 
 (if_statement
-  consequence: (block) @scope) @scope.outside
+  consequence: (block) @scope @scope.inside) @scope.outside
 
 (if_statement
   alternative: (else_statement
-    body: (block) @scope)) @scope.outside
+    body: (block) @scope @scope.inside)) @scope.outside

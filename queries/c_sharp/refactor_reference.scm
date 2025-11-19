@@ -35,3 +35,21 @@
 (argument
   (identifier) @reference.identifier
   (#set! reference_type read))
+
+(member_access_expression
+  expression: (identifier) @reference.identifier
+  (#set! reference_type read))
+
+(invocation_expression
+  function: (_) @reference.identifier
+  (#set! reference_type read))
+
+(method_declaration
+  name: (_) @reference.identifier
+  (#set! declaration true)
+  (#set! reference_type write))
+
+(local_function_statement
+  name: (_) @reference.identifier
+  (#set! declaration true)
+  (#set! reference_type write))

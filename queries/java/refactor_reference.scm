@@ -13,49 +13,85 @@
   (#set! declaration true))
 
 (argument_list
-  (identifier) @reference.identifier
+  [
+    (identifier)
+    (field_access)
+  ] @reference.identifier
   (#set! reference_type read))
 
 (update_expression
-  (identifier) @reference.identifier
+  [
+    (identifier)
+    (field_access)
+  ] @reference.identifier
   (#set! reference_type write))
 
 (assignment_expression
-  left: (identifier) @reference.identifier
+  left: [
+    (identifier)
+    (field_access)
+  ] @reference.identifier
   (#set! reference_type write))
 
 (assignment_expression
-  right: (identifier) @reference.identifier
+  right: [
+    (identifier)
+    (field_access)
+  ] @reference.identifier
   (#set! reference_type read))
 
 (binary_expression
-  (identifier) @reference.identifier
+  [
+    (identifier)
+    (field_access)
+  ] @reference.identifier
   (#set! reference_type read))
 
 (array_access
-  array: (identifier) @reference.identifier
+  array: [
+    (identifier)
+    (field_access)
+  ] @reference.identifier
   (#set! reference_type read))
 
 (field_access
-  object: (identifier) @reference.identifier
+  object: [
+    (identifier)
+    (field_access)
+  ] @reference.identifier
   (#set! reference_type read))
 
 (method_invocation
-  object: (identifier) @reference.identifier
+  object: [
+    (identifier)
+    (field_access)
+  ] @reference.identifier
   (#set! reference_type read))
 
 ; if/while/do while
 (_
   condition: (parenthesized_expression
-    (identifier) @reference.identifier
+    [
+      (identifier)
+      (field_access)
+    ] @reference.identifier
     (#set! reference_type read)))
 
 (return_statement
-  (identifier) @reference.identifier
+  [
+    (identifier)
+    (field_access)
+  ] @reference.identifier
   (#set! reference_type read))
 
 (formal_parameter
   type: (_) @_type
   name: (identifier) @reference.identifier
   (#set-type! java @_type @reference.identifier)
-  (#set! declaration true))
+  (#set! declaration true)
+  (#set! reference_type write))
+
+(method_declaration
+  name: (_) @reference.identifier
+  (#set! declaration true)
+  (#set! reference_type write))

@@ -1,3 +1,4 @@
+; TODO: print_var for methods doesn't work
 ; foo = bar
 (assignment_statement
   (variable_list
@@ -167,3 +168,8 @@
       (method_index_expression))
   ] @reference.identifier
   (#set! reference_type read))
+
+(function_declaration
+  name: (_) @reference.identifier
+  (#set! declaration true)
+  (#set! reference_type write))

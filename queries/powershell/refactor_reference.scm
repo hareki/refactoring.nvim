@@ -109,3 +109,13 @@
   (unary_expression
     (variable) @reference.identifier)
   (#set! reference_type read))
+
+(function_statement
+  (function_name) @reference.identifier
+  (#set! reference_type write)
+  (#set! declaration true))
+
+(class_method_definition
+  (simple_name) @reference.identifier
+  (#set! reference_type write)
+  (#set! declaration true))

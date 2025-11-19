@@ -54,9 +54,9 @@ end
 -- TODO: extract inline "before" code examples from tests to files under the `test/` directory
 
 ---@class refactor.ScopeInfo
----@field scope TSNode
----@field inside TSNode?
----@field outside TSNode?
+---@field scope TSNode[]
+---@field inside TSNode
+---@field outside TSNode
 
 ---@param range_type 'v' | 'V' | ''
 ---@param config refactor.Config
@@ -137,54 +137,67 @@ function M.extract_var(range_type, config)
       end
     )
 
-    ---@type refactor.ScopeInfo|nil
-    local smallest_common_scope = iter(scopes_info)
-      :filter(
-        ---@param s refactor.ScopeInfo
-        function(s)
-          local srow, scol, erow, ecol = s.scope:range()
-          local scope_range = range(srow, scol, erow, ecol, { buf = buf })
-          return iter(matching_nodes):all(
-            ---@param n TSNode
-            function(n)
-              local n_srow, n_scol, n_erow, n_ecol = n:range()
-              local node_range = range(n_srow, n_scol, n_erow, n_ecol, { buf = buf })
-              return scope_range:has(node_range)
+    ---@type {si: refactor.ScopeInfo, s: TSNode}|nil
+    local smallest_common_scope_with_node = iter(scopes_info)
+      :map(
+        ---@param si refactor.ScopeInfo
+        function(si)
+          local scope = iter(si.scope):find(
+            ---@param s TSNode
+            function(s)
+              local srow, scol, erow, ecol = s:range()
+              local scope_range = range(srow, scol, erow, ecol, { buf = buf })
+              return iter(matching_nodes):all(
+                ---@param n TSNode
+                function(n)
+                  local n_srow, n_scol, n_erow, n_ecol = n:range()
+                  local node_range = range(n_srow, n_scol, n_erow, n_ecol, { buf = buf })
+                  return scope_range:has(node_range)
+                end
+              )
             end
           )
+          return si, scope
+        end
+      )
+      :filter(
+        ---@param scope TSNode|nil
+        function(_, scope)
+          return scope ~= nil
         end
       )
       :fold(
         nil,
-        ---@param acc refactor.ScopeInfo|nil
-        ---@param s refactor.ScopeInfo
-        function(acc, s)
-          if not acc then return s end
-          if s.scope:byte_length() < acc.scope:byte_length() then return s end
+        ---@param acc {si: refactor.ScopeInfo, s: TSNode}|nil
+        ---@param si refactor.ScopeInfo
+        ---@param s TSNode
+        function(acc, si, s)
+          if not acc then return { si = si, s = s } end
+          if s:byte_length() < acc.s:byte_length() then return { si = si, s = s } end
           return acc
         end
       )
-    if not smallest_common_scope then
+    if not smallest_common_scope_with_node then
       -- TODO: put all of this notifies into a single function and return to
       -- put into a single line
-      vim.notify "Couldn't find the smallest common scope using Treesitter"
-      return
+      return vim.notify "Couldn't find the smallest common scope using Treesitter"
     end
+    local smallest_common_scope = smallest_common_scope_with_node.si
 
-    local srow, scol, erow, ecol = (smallest_common_scope.inside or smallest_common_scope.scope):range()
-    local smallest_common_scope_range = range(srow, scol, erow, ecol, { buf = buf })
+    local srow, scol, erow, ecol = smallest_common_scope.inside:range()
+    local smallest_common_inside_scope_range = range(srow, scol, erow, ecol, { buf = buf })
     ---@type refactor.ScopeInfo|nil
     local highest_nested_containing_scope = iter(scopes_info)
       :filter(
-        ---@param s refactor.ScopeInfo
-        function(s)
-          if s.scope:equal(smallest_common_scope.scope) then return false end
+        ---@param si refactor.ScopeInfo
+        function(si)
+          if si == smallest_common_scope then return false end
 
-          local scope = s.outside or s.scope
+          local scope = si.outside
           local s_srow, s_scol, s_erow, s_ecol = scope:range()
           local scope_range = range(s_srow, s_scol, s_erow, s_ecol, { buf = buf })
 
-          return smallest_common_scope_range:has(scope_range)
+          return smallest_common_inside_scope_range:has(scope_range)
             and iter(matching_nodes):any(
               ---@param n TSNode
               function(n)
@@ -202,9 +215,9 @@ function M.extract_var(range_type, config)
         function(acc, s)
           if not acc then return s end
 
-          local s_srow, s_scol = (s.outside or s.scope):start()
+          local s_srow, s_scol = s.outside:start()
           local s_start = pos(s_srow, s_scol, { buf = buf })
-          local acc_srow, acc_scol = (acc.outside or acc.scope):start()
+          local acc_srow, acc_scol = acc.outside:start()
           local acc_start = pos(acc_srow, acc_scol, { buf = buf })
           if s_start < acc_start then return s end
 
@@ -248,7 +261,7 @@ function M.extract_var(range_type, config)
       { buf = buf }
     )
     if highest_nested_containing_scope then
-      local cs_srow, cs_scol = (highest_nested_containing_scope.outside or highest_nested_containing_scope.scope):start()
+      local cs_srow, cs_scol = highest_nested_containing_scope.outside:start()
       local highest_nested_containing_scope_start = pos(cs_srow, cs_scol, { buf = buf })
       if
         highest_nested_containing_scope_start

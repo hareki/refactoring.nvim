@@ -206,19 +206,8 @@ local function extract_func(opts)
 
   local references_info = get_references_info(in_buf, nested_lang_tree, reference_query)
   local scopes_info = get_scopes_info(in_buf, nested_lang_tree, scope_query)
-  -- TODO: modify the util functions that use `scopes` as TSNode[] to use
-  -- refactor.Scope[] instead?
-  ---@type TSNode[]
-  local scopes = iter(scopes_info)
-    :map(
-      ---@param scope refactor.ScopeInfo
-      function(scope)
-        return scope.scope
-      end
-    )
-    :totable()
 
-  local scopes_for_extracted_range = scopes_for_range(in_buf, scopes, extracted_range)
+  local scopes_for_extracted_range = scopes_for_range(in_buf, scopes_info, extracted_range)
 
   local declarations_info = iter(references_info)
     :filter(
@@ -229,7 +218,7 @@ local function extract_func(opts)
     )
     :totable()
 
-  local declarations_info_by_scope = get_declarations_by_scope(references_info, scopes, in_buf)
+  local declarations_info_by_scope = get_declarations_by_scope(references_info, scopes_info, in_buf)
 
   ---@type refactor.ReferenceInfo[]
   local typed_references_info = iter(references_info)
@@ -254,23 +243,24 @@ local function extract_func(opts)
     end
   )
   local extracted_end_pos = pos(extracted_range.end_row, extracted_range.end_col, { buf = extracted_range.buf })
-  ---@type {[TSNode]: {scope: TSNode, types: {[string]: string|{identifier: string}}}}
+  ---@type {[refactor.ScopeInfo]: {scope_info: refactor.ScopeInfo, types: {[string]: string|{identifier: string}}}}
   local types_by_scope_up_to_extracted_range_end = iter(typed_references_info)
     :filter(
       ---@param r refactor.ReferenceInfo
       function(r)
         -- TODO: maybe extract this filter into some function, there are
         -- similar ones for all the `before_` variables
-        local declaration_scope = get_declaration_scope(declarations_info_by_scope, scopes, r, in_buf)
+        local declaration_scope = get_declaration_scope(declarations_info_by_scope, scopes_info, r, in_buf)
 
-        local is_in_scope = declaration_scope
-            and iter(scopes_for_extracted_range):any(
-              ---@param s TSNode
-              function(s)
-                return s:equal(declaration_scope)
-              end
-            )
-          or false
+        local is_in_scope = false
+        if declaration_scope then
+          is_in_scope = iter(scopes_for_extracted_range):any(
+            ---@param si refactor.ScopeInfo
+            function(si)
+              return si == declaration_scope
+            end
+          )
+        end
 
         local srow, scol, erow, ecol = r.identifier:range()
         local node_start_pos = pos(srow, scol, { buf = in_buf })
@@ -280,29 +270,29 @@ local function extract_func(opts)
     )
     :fold(
       {},
-      ---@param acc {[TSNode]: {scope: TSNode, types: {[string]: string|{identifier: string}}}}
+      ---@param acc {[refactor.ScopeInfo]: {scope_info: refactor.ScopeInfo, types: {[string]: string|{identifier: string}}}}
       ---@param r refactor.ReferenceInfo
       function(acc, r)
         if r.type == nil or r.type == vim.NIL then return acc end
 
-        local scope = get_declaration_scope(declarations_info_by_scope, scopes, r, in_buf)
+        local scope = get_declaration_scope(declarations_info_by_scope, scopes_info, r, in_buf)
         if not scope then return acc end
 
         acc[scope] = acc[scope] or {}
         acc[scope].types = acc[scope].types or {}
         local identifier = ts.get_node_text(r.identifier, in_buf)
         acc[scope].types[identifier] = r.type
-        acc[scope].scope = scope
+        acc[scope].scope_info = scope
         return acc
       end
     )
 
-  ---@type {scope: TSNode, types: {[string]: string|{identifier: string}}}[]
+  ---@type {scope_info: refactor.ScopeInfo, types: {[string]: string|{identifier: string}}}[]
   local types_with_scope_up_to_extracted_range_end = vim.tbl_values(types_by_scope_up_to_extracted_range_end)
   table.sort(types_with_scope_up_to_extracted_range_end, function(a, b)
-    local a_srow, a_scol, a_erow, a_ecol = a.scope:range()
+    local a_srow, a_scol, a_erow, a_ecol = a.scope_info.scope[1]:range()
     local a_range = range(a_srow, a_scol, a_erow, a_ecol, { buf = in_buf })
-    local b_srow, b_scol, b_erow, b_ecol = b.scope:range()
+    local b_srow, b_scol, b_erow, b_ecol = b.scope_info.scope[1]:range()
     local b_range = range(b_srow, b_scol, b_erow, b_ecol, { buf = in_buf })
 
     return a_range < b_range
@@ -310,12 +300,15 @@ local function extract_func(opts)
   ---@type {[string]: string|{identifier: string}}[]
   local scoped_types_up_to_extracted_range_end = iter(types_with_scope_up_to_extracted_range_end)
     :map(
-      ---@param a {scope: TSNode, types: {[string]: string}}
+      ---@param a {scope_info: refactor.ScopeInfo, types: {[string]: string|{identifier: string}}}
       function(a)
         return a.types
       end
     )
     :totable()
+  -- TODO: check if this should rev or not. In either case, remove it and
+  -- change the sorting above. But I'm using oposite sorting orders here and
+  -- below, so double check this logic
   iter(scoped_types_up_to_extracted_range_end):rev():each(
     ---@param t {[string]: string|{identifier: string}}
     function(t)
@@ -336,7 +329,8 @@ local function extract_func(opts)
       end
     end
   )
-  -- TODO: actually, not all types will be string at this point
+  -- TODO: actually, not all types will be string at this point. Actuallyx2,
+  -- they will be if I resolve the types in the correct order
   ---@cast scoped_types_up_to_extracted_range_end{[string]: string}[]
 
   ---@type refactor.ReferenceInfo[]
@@ -417,16 +411,17 @@ local function extract_func(opts)
     :filter(
       ---@param r refactor.ReferenceInfo
       function(r)
-        local declaration_scope = get_declaration_scope(declarations_info_by_scope, scopes, r, in_buf)
+        local declaration_scope = get_declaration_scope(declarations_info_by_scope, scopes_info, r, in_buf)
 
-        local is_in_scope = declaration_scope
-            and iter(scopes_for_extracted_range):any(
-              ---@param s TSNode
-              function(s)
-                return s:equal(declaration_scope)
-              end
-            )
-          or false
+        local is_in_scope = false
+        if declaration_scope then
+          is_in_scope = iter(scopes_for_extracted_range):any(
+            ---@param si refactor.ScopeInfo
+            function(si)
+              return si == declaration_scope
+            end
+          )
+        end
 
         local srow, scol, erow, ecol = r.identifier:range()
         local node_range = range(srow, scol, erow, ecol, { buf = in_buf })
@@ -440,16 +435,17 @@ local function extract_func(opts)
     :filter(
       ---@param r refactor.ReferenceInfo
       function(r)
-        local declaration_scope = get_declaration_scope(declarations_info_by_scope, scopes, r, in_buf)
+        local declaration_scope = get_declaration_scope(declarations_info_by_scope, scopes_info, r, in_buf)
 
-        local is_in_scope = declaration_scope
-            and iter(scopes_for_extracted_range):any(
-              ---@param s TSNode
-              function(s)
-                return s:equal(declaration_scope)
-              end
-            )
-          or false
+        local is_in_scope = false
+        if declaration_scope then
+          is_in_scope = iter(scopes_for_extracted_range):any(
+            ---@param si refactor.ScopeInfo
+            function(si)
+              return si == declaration_scope
+            end
+          )
+        end
 
         local srow, scol, erow, ecol = r.identifier:range()
         local node_range = range(srow, scol, erow, ecol, { buf = in_buf })
@@ -479,15 +475,17 @@ local function extract_func(opts)
     :filter(
       ---@param r refactor.ReferenceInfo
       function(r)
-        local declaration_scope = get_declaration_scope(declarations_info_by_scope, scopes, r, in_buf)
-        local is_in_scope = declaration_scope
-            and iter(scopes_for_extracted_range):any(
-              ---@param s TSNode
-              function(s)
-                return s:equal(declaration_scope)
-              end
-            )
-          or false
+        local declaration_scope = get_declaration_scope(declarations_info_by_scope, scopes_info, r, in_buf)
+
+        local is_in_scope = false
+        if declaration_scope then
+          is_in_scope = iter(scopes_for_extracted_range):any(
+            ---@param si refactor.ScopeInfo
+            function(si)
+              return si == declaration_scope
+            end
+          )
+        end
 
         local srow, scol, erow, ecol = r.identifier:range()
         local node_range = range(srow, scol, erow, ecol, { buf = in_buf })

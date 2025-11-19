@@ -88,17 +88,6 @@ function M.print_var(range_type, config)
     local references = get_references_info(buf, nested_lang_tree, reference_query)
     local output_statements = get_output_statements_info(buf, nested_lang_tree, output_statement_query)
     local scopes_info = get_scopes_info(buf, nested_lang_tree, scope_query)
-    -- TODO: modify the util functions that use `scopes` as TSNode[] to use
-    -- refactor.Scope[] instead?
-    ---@type TSNode[]
-    local scopes = iter(scopes_info)
-      :map(
-        ---@param scope refactor.ScopeInfo
-        function(scope)
-          return scope.scope
-        end
-      )
-      :totable()
 
     local extracted_range_api = { extracted_range:to_extmark() }
     -- NOTE: treesitter nodes usualy do not include leading whitespace
@@ -115,8 +104,8 @@ function M.print_var(range_type, config)
 
     -- TODO: I also compute `declarations_before_output_range` in
     -- `extract_func`. Is there a cleaner wat to do all this in both places?
-    local declarations_by_scope = get_declarations_by_scope(references, scopes, buf)
-    local scopes_for_extracted_range = scopes_for_range(buf, scopes, extracted_range)
+    local declarations_by_scope = get_declarations_by_scope(references, scopes_info, buf)
+    local scopes_for_extracted_range = scopes_for_range(buf, scopes_info, extracted_range)
     local reference_to_text =
       ---@param reference refactor.ReferenceInfo
       function(reference)
@@ -132,16 +121,17 @@ function M.print_var(range_type, config)
       :filter(
         ---@param r refactor.ReferenceInfo
         function(r)
-          local declaration_scope = get_declaration_scope(declarations_by_scope, scopes, r, buf)
+          local declaration_scope = get_declaration_scope(declarations_by_scope, scopes_info, r, buf)
 
-          local is_in_scope = declaration_scope
-              and iter(scopes_for_extracted_range):any(
-                ---@param s TSNode
-                function(s)
-                  return s:equal(declaration_scope)
-                end
-              )
-            or false
+          local is_in_scope = false
+          if declaration_scope then
+            is_in_scope = iter(scopes_for_extracted_range):any(
+              ---@param si refactor.ScopeInfo
+              function(si)
+                return si == declaration_scope
+              end
+            )
+          end
 
           local r_srow, r_scol, r_erow, r_ecol = r.identifier:range()
           local r_range = range(r_srow, r_scol, r_erow, r_ecol, { buf = buf })

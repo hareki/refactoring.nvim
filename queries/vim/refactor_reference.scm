@@ -120,3 +120,10 @@
     (scoped_identifier)
   ] @reference.identifier
   (#set! reference_type read))
+
+(function_declaration
+  name: [
+    (identifier)
+    (scoped_identifier)
+  ] @reference.identifier
+  (#set! declaration true))

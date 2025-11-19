@@ -127,40 +127,56 @@ end)
 -- TODO: maybe move all scope/reference related functions into a diferent file
 
 ---@param buf integer
----@param scopes TSNode[]
+---@param scopes_info refactor.ScopeInfo[]
 ---@param inner_range vim.Range
----@return TSNode|nil
-local function smaller_containing_scope(buf, scopes, inner_range)
-  local declaration_scope = iter(scopes)
+---@return refactor.ScopeInfo|nil
+local function smaller_containing_scope(buf, scopes_info, inner_range)
+  ---@type {si: refactor.ScopeInfo, s: TSNode}|nil
+  local declaration_scope = iter(scopes_info)
+    :map(
+      ---@param si refactor.ScopeInfo
+      function(si)
+        ---@type TSNode|nil
+        local scope = iter(si.scope):find(
+          ---@param s TSNode
+          function(s)
+            local srow, scol, erow, ecol = s:range()
+            local scope_range = range(srow, scol, erow, ecol, { buf = buf })
+            return scope_range:has(inner_range)
+          end
+        )
+        return si, scope
+      end
+    )
     :filter(
-      ---@param s TSNode
-      function(s)
-        local srow, scol, erow, ecol = s:range()
-        local scope_range = range(srow, scol, erow, ecol, { buf = buf })
-        return scope_range:has(inner_range)
+      ---@param s TSNode|nil
+      function(_, s)
+        return s ~= nil
       end
     )
     :fold(
       nil,
-      ---@param acc nil|TSNode
+      ---@param acc nil|{si: refactor.ScopeInfo, s: TSNode}
+      ---@param si refactor.ScopeInfo
       ---@param s TSNode
-      function(acc, s)
-        if not acc then return s end
-        if s:byte_length() < acc:byte_length() then return s end
+      function(acc, si, s)
+        if not acc then return { si = si, s = s } end
+        if s:byte_length() < acc.s:byte_length() then return { si = si, s = s } end
         return acc
       end
     )
+  if not declaration_scope then return end
 
-  return declaration_scope
+  return declaration_scope.si
 end
 
----@alias refactor.declarations_by_scope {[TSNode]: {[string]: refactor.ReferenceInfo[]}}
+---@alias refactor.declarations_by_scope {[refactor.ScopeInfo]: {[string]: refactor.ReferenceInfo[]}}
 
 ---@param references refactor.ReferenceInfo[]
----@param scopes TSNode[]
+---@param scopes_info refactor.ScopeInfo[]
 ---@param buf integer
 ---@return refactor.declarations_by_scope
-function M.get_declarations_by_scope(references, scopes, buf)
+function M.get_declarations_by_scope(references, scopes_info, buf)
   local declarations_by_scope = iter(references)
     :filter(
       ---@param r refactor.ReferenceInfo
@@ -175,12 +191,12 @@ function M.get_declarations_by_scope(references, scopes, buf)
       function(acc, d)
         local srow, scol, erow, ecol = d.identifier:range()
         local d_range = range(srow, scol, erow, ecol, { buf = buf })
-        local scope = smaller_containing_scope(buf, scopes, d_range)
+        local scope_info = smaller_containing_scope(buf, scopes_info, d_range)
         local identifier = ts.get_node_text(d.identifier, buf)
-        assert(scope)
-        acc[scope] = acc[scope] or {}
-        acc[scope][identifier] = acc[scope][identifier] or {}
-        table.insert(acc[scope][identifier], d)
+        assert(scope_info)
+        acc[scope_info] = acc[scope_info] or {}
+        acc[scope_info][identifier] = acc[scope_info][identifier] or {}
+        table.insert(acc[scope_info][identifier], d)
 
         return acc
       end
@@ -189,34 +205,29 @@ function M.get_declarations_by_scope(references, scopes, buf)
   return declarations_by_scope
 end
 
----@param a TSNode
----@param b TSNode
----@return boolean
-local function node_comp_desc(a, b)
-  local a_row, a_col, a_bytes = a:start()
-  local b_row, b_col, b_bytes = b:start()
-  if a_row ~= b_row then return a_row > b_row end
-
-  return (a_col > b_col or a_col + a_bytes > b_col + b_bytes)
-end
-
 ---@param declarations_by_scope refactor.declarations_by_scope
 ---@param all_scopes refactor.ScopeInfo[]
 ---@param reference refactor.ReferenceInfo
 ---@param buf integer
----@return TSNode|nil
+---@return refactor.ScopeInfo|nil
 function M.get_declaration_scope(declarations_by_scope, all_scopes, reference, buf)
   local srow, scol, erow, ecol = reference.identifier:range()
   local reference_range = range(srow, scol, erow, ecol, { buf = buf })
   local scopes_for_reference = M.scopes_for_range(buf, all_scopes, reference_range)
-  table.sort(scopes_for_reference, node_comp_desc)
+  table.sort(scopes_for_reference, function(a, b)
+    local a_row, a_col, a_bytes = a.scope[1]:start()
+    local b_row, b_col, b_bytes = b.scope[1]:start()
+    if a_row ~= b_row then return a_row > b_row end
+
+    return (a_col > b_col or a_col + a_bytes > b_col + b_bytes)
+  end)
 
   local identifier = ts.get_node_text(reference.identifier, buf)
   local reference_start = pos(srow, scol, { buf = buf })
   return iter(scopes_for_reference):find(
-    ---@param s TSNode
-    function(s)
-      local scope_declarations = declarations_by_scope[s]
+    ---@param si refactor.ScopeInfo
+    function(si)
+      local scope_declarations = declarations_by_scope[si]
       if not scope_declarations then return end
       local identifier_declarations = scope_declarations[identifier]
       if not identifier_declarations then return end
@@ -267,17 +278,22 @@ function M.is_first_closer(first, second, position)
 end
 
 ---@param buf integer
----@param all_scopes TSNode[]
+---@param all_scopes refactor.ScopeInfo[]
 ---@param contained_range vim.Range
----@return TSNode[]
+---@return refactor.ScopeInfo[]
 function M.scopes_for_range(buf, all_scopes, contained_range)
   return iter(all_scopes)
     :filter(
-      ---@param s TSNode
-      function(s)
-        local srow, scol, erow, ecol = s:range()
-        local scope_range = range(srow, scol, erow, ecol, { buf = buf })
-        return scope_range:has(contained_range)
+      ---@param si refactor.ScopeInfo
+      function(si)
+        return iter(si.scope):any(
+          ---@param s TSNode
+          function(s)
+            local srow, scol, erow, ecol = s:range()
+            local scope_range = range(srow, scol, erow, ecol, { buf = buf })
+            return scope_range:has(contained_range)
+          end
+        )
       end
     )
     :totable()
@@ -410,7 +426,7 @@ function M.get_scopes_info(buf, nested_lang_tree, query)
 
         if name == "scope" then
           scope_info = scope_info or {}
-          scope_info.scope = nodes[1]
+          scope_info.scope = nodes
         elseif name == "scope.inside" then
           scope_info = scope_info or {}
           scope_info.inside = nodes[1]

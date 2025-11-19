@@ -56,3 +56,9 @@
 (call_expression
   (identifier) @reference.identifier
   (#set! reference_type read))
+
+(function_definition
+  declarator: (function_declarator
+    declarator: (_) @reference.identifier)
+  (#set! declaration true)
+  (#set! reference_type write))

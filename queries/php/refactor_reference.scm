@@ -108,3 +108,8 @@
 (function_call_expression
   function: (variable_name) @reference.identifier
   (#set! reference_type read))
+
+(function_definition
+  name: (_) @reference.identifier
+  (#set! reference_type write)
+  (#set! declaration true))
