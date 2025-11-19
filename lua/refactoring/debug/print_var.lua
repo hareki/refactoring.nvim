@@ -14,8 +14,6 @@ local M = {}
 -- things like that unless necessary. Maybe as close as possible to the last
 -- declaration of the variables]
 -- TODO: add some way to list/search/travel across all inserted statements
--- TODO: allow to filter function_calls (and maybe some arbitraty mechanism for
--- doing so)
 
 ---@class refactor.print_var.code_generation.Opts
 ---@field identifier string
@@ -198,7 +196,8 @@ function M.print_var(range_type, config)
         ---@param identifier string
         ---@param r refactor.ReferenceInfo
         function(identifier, r)
-          return r.field or vim.list_contains(declarations_before_output_range, identifier)
+          return not r.function_call_identifier
+            and (r.field or vim.list_contains(declarations_before_output_range, identifier))
         end
       )
       :map(

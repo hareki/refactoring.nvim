@@ -68,7 +68,8 @@
 (call
   arguments: (argument_list
     (identifier) @reference.identifier)
-  (#set! reference_type read))
+  (#set! reference_type read)
+  (#set! function_call_identifier true))
 
 (element_reference
   object: (identifier) @reference.identifier

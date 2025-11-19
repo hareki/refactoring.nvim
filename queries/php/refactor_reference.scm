@@ -103,11 +103,13 @@
 
 (member_call_expression
   (variable_name) @reference.identifier
-  (#set! reference_type read))
+  (#set! reference_type read)
+  (#set! function_call_identifier true))
 
 (function_call_expression
   function: (variable_name) @reference.identifier
-  (#set! reference_type read))
+  (#set! reference_type read)
+  (#set! function_call_identifier true))
 
 (function_definition
   name: (_) @reference.identifier

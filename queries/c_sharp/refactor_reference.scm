@@ -42,7 +42,8 @@
 
 (invocation_expression
   function: (_) @reference.identifier
-  (#set! reference_type read))
+  (#set! reference_type read)
+  (#set! function_call_identifier true))
 
 (method_declaration
   name: (_) @reference.identifier

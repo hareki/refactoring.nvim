@@ -99,11 +99,12 @@
     (variable) @reference.identifier)
   (#set! reference_type read))
 
-; $foo.foo
+; $foo.foo()
 (unary_expression
   (invokation_expression
     (variable) @reference.identifier)
-  (#set! reference_type read))
+  (#set! reference_type read)
+  (#set! function_call_identifier true))
 
 (range_argument_expression
   (unary_expression

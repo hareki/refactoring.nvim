@@ -401,6 +401,7 @@ function M.get_references_info(buf, nested_lang_tree, query)
               type = metadata.types and metadata.types[i],
               declaration = metadata.declaration ~= nil,
               field = metadata.field ~= nil,
+              function_call_identifier = metadata.function_call_identifier ~= nil,
             })
           end
         end

@@ -71,7 +71,8 @@
 
 (call_expression
   function: (identifier) @reference.identifier
-  (#set! reference_type read))
+  (#set! reference_type read)
+  (#set! function_call_identifier true))
 
 (call_expression
   function: (identifier)
@@ -80,7 +81,8 @@
 (call_expression
   function: (member_expression) @reference.identifier
   (#set! reference_type read)
-  (#set! field true))
+  (#set! field true)
+  (#set! function_call_identifier true))
 
 (call_expression
   function: (member_expression)

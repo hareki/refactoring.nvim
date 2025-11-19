@@ -65,15 +65,6 @@
   table: (identifier) @reference.identifier
   (#set! reference_type read))
 
-(function_call
-  [
-    (method_index_expression)
-    (dot_index_expression)
-    (bracket_index_expression)
-  ]
-  (#set! reference_type read)
-  (#set! field true)) @reference.identifier
-
 (arguments
   (identifier) @reference.identifier
   (#set! reference_type read))
@@ -93,7 +84,8 @@
 
 (function_call
   name: (identifier) @reference.identifier
-  (#set! reference_type read))
+  (#set! reference_type read)
+  (#set! function_call_identifier true))
 
 (function_call
   name: [
@@ -101,7 +93,17 @@
     (bracket_index_expression)
   ] @reference.identifier
   (#set! reference_type read)
-  (#set! field true))
+  (#set! field true)
+  (#set! function_call_identifier true))
+
+(function_call
+  [
+    (method_index_expression)
+    (dot_index_expression)
+    (bracket_index_expression)
+  ]
+  (#set! reference_type read)
+  (#set! field true)) @reference.identifier
 
 (expression_list
   (identifier) @reference.identifier
@@ -179,4 +181,3 @@
   name: (_) @reference.identifier
   (#set! declaration true)
   (#set! reference_type write))
-

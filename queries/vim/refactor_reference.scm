@@ -62,7 +62,8 @@
     (identifier)
     (scoped_identifier)
   ] @reference.identifier
-  (#set! reference_type read))
+  (#set! reference_type read)
+  (#set! function_call_identifier true))
 
 (field_expression
   value: [

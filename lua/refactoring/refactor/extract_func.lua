@@ -127,6 +127,7 @@ end
 ---@field reference_type 'read'|'write'
 ---@field declaration boolean
 ---@field field boolean
+---@field function_call_identifier boolean
 
 ---@class refactor.Variable
 ---@field identifier string

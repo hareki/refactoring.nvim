@@ -66,7 +66,8 @@
     (identifier)
     (field_access)
   ] @reference.identifier
-  (#set! reference_type read))
+  (#set! reference_type read)
+  (#set! function_call_identifier true))
 
 ; if/while/do while
 (_

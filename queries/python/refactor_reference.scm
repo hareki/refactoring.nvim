@@ -76,7 +76,8 @@
 
 (call
   function: (identifier) @reference.identifier
-  (#set! reference_type read))
+  (#set! reference_type read)
+  (#set! function_call_identifier true))
 
 (function_definition
   name: (_) @reference.identifier

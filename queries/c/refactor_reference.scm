@@ -103,7 +103,8 @@
 
 (call_expression
   (identifier) @reference.identifier
-  (#set! reference_type read))
+  (#set! reference_type read)
+  (#set! function_call_identifier true))
 
 ; TODO: these (are similartly in other languages like lua) are not really
 ; identifiers. Should I compute them in some other way?
@@ -114,7 +115,8 @@
 (call_expression
   (field_expression) @reference.identifier
   (#set! reference_type read)
-  (#set! field true))
+  (#set! field true)
+  (#set! function_call_identifier true))
 
 (call_expression
   (field_expression)
@@ -126,4 +128,3 @@
     declarator: (identifier) @reference.identifier)
   (#set! declaration true)
   (#set! reference_type write))
-
