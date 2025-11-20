@@ -1,8 +1,6 @@
 local api = vim.api
 local ts = vim.treesitter
-local iter = vim.iter
 local async = require "async"
-local range = require "refactoring.range"
 local pos = require "refactoring.pos"
 
 local M = {}
@@ -32,9 +30,9 @@ function M.print_loc(range_type, config)
   local code_gen_error = require("refactoring.utils").code_gen_error
   local indent = require("refactoring.utils").indent
   local apply_text_edits = require("refactoring.utils").apply_text_edits
-  local get_debug_path_segments_info = require("refactoring.utils").get_debug_path_segments_info
   local get_output_statements_info = require("refactoring.utils").get_output_statements_info
   local query_error = require("refactoring.utils").query_error
+  local get_debug_path_for_range = require("refactoring.utils").get_debug_path_for_range
   local get_statement_output_range = require("refactoring.debug.utils").get_statement_output_range
 
   local opts = config.debug.print_loc
@@ -60,15 +58,12 @@ function M.print_loc(range_type, config)
       extracted_range.end_col,
     }
     local lang = nested_lang_tree:lang()
-    local debug_path_query = ts.query.get(lang, "refactor_debug_path")
-    if not debug_path_query then return query_error("refactor_debug_path", lang) end
     local output_statement_query = ts.query.get(lang, "refactor_output_statement")
     if not output_statement_query then return query_error("refactor_output_statement", lang) end
 
     local get_print_loc = code_generation.print_loc[lang]
     if not get_print_loc then return code_gen_error("print_loc", lang) end
 
-    local debug_path_segments = get_debug_path_segments_info(buf, nested_lang_tree, debug_path_query)
     local output_statements = get_output_statements_info(buf, nested_lang_tree, output_statement_query)
 
     -- NOTE: treesitter nodes usualy do not include leading whitespace
@@ -83,35 +78,8 @@ function M.print_loc(range_type, config)
       get_statement_output_range(buf, output_statements, opts.output_location, extracted_range, extracted_reference_pos)
     if not output_range or not inserted_at then return end
 
-    ---@type refactor.DebugPathSegmentInfo[]
-    local debug_path_segments_for_range = iter(debug_path_segments)
-      :filter(
-        ---@param dp refactor.DebugPathSegmentInfo
-        function(dp)
-          local dp_srow, dp_scol, dp_erow, dp_ecol = dp.debug_path_segment:range()
-          local dp_range = range(dp_srow, dp_scol, dp_erow, dp_ecol, { buf = buf })
-
-          return dp_range:has(output_range)
-        end
-      )
-      :totable()
-
-    table.sort(debug_path_segments_for_range, function(a, b)
-      local a_srow, a_scol = a.debug_path_segment:range()
-      local a_start_pos = pos(a_srow, a_scol, { buf = buf })
-      local b_srow, b_scol = b.debug_path_segment:range()
-      local b_start_pos = pos(b_srow, b_scol, { buf = buf })
-      return a_start_pos < b_start_pos
-    end)
-
-    local debug_path_for_range = iter(debug_path_segments_for_range)
-      :map(
-        ---@param dp refactor.DebugPathSegmentInfo
-        function(dp)
-          return dp.text
-        end
-      )
-      :join "#"
+    local debug_path_for_range = get_debug_path_for_range(buf, nested_lang_tree, output_range)
+    if not debug_path_for_range then return end
 
     local start_marker = opts.markers.print_loc.start
     local end_marker = opts.markers.print_loc["end"]

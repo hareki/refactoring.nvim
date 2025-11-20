@@ -629,4 +629,50 @@ function M.get_function_calls_info(buf, nested_lang_tree, query)
   return function_calls_info
 end
 
+---@param buf integer
+---@param lang_tree vim.treesitter.LanguageTree
+---@param output_range vim.Range
+function M.get_debug_path_for_range(buf, lang_tree, output_range)
+  local lang = lang_tree:lang()
+  local query = ts.query.get(lang, "refactor_debug_path")
+  if not query then return M.query_error("refactor_debug_path", lang) end
+
+  local debug_path_segments = M.get_debug_path_segments_info(buf, lang_tree, query)
+  ---@type refactor.DebugPathSegmentInfo[]
+  local debug_path_segments_for_range = iter(debug_path_segments)
+    :filter(
+      ---@param dp refactor.DebugPathSegmentInfo
+      function(dp)
+        local dp_srow, dp_scol, dp_erow, dp_ecol = dp.debug_path_segment:range()
+        -- NOTE: in languages without end delimiters (like python) the range of
+        -- the `debug_path_segment` won't contain the `output_range`, it'll be
+        -- right outside it. So, we add an offset to compensate
+        -- TODO: do I need to handle this anywhere else?
+        local end_offset = lang == "python" and 1 or 0
+        local dp_range = range(dp_srow, dp_scol, dp_erow, dp_ecol + end_offset, { buf = buf })
+
+        return dp_range:has(output_range)
+      end
+    )
+    :totable()
+
+  table.sort(debug_path_segments_for_range, function(a, b)
+    local a_srow, a_scol = a.debug_path_segment:range()
+    local a_start_pos = pos(a_srow, a_scol, { buf = buf })
+    local b_srow, b_scol = b.debug_path_segment:range()
+    local b_start_pos = pos(b_srow, b_scol, { buf = buf })
+    return a_start_pos < b_start_pos
+  end)
+
+  local debug_path_for_range = iter(debug_path_segments_for_range)
+    :map(
+      ---@param dp refactor.DebugPathSegmentInfo
+      function(dp)
+        return dp.text
+      end
+    )
+    :join "#"
+  return debug_path_for_range
+end
+
 return M

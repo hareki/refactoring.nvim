@@ -17,6 +17,7 @@ local M = {}
 
 ---@class refactor.print_var.code_generation.Opts
 ---@field identifier string
+---@field debug_path string
 
 ---@class refactor.print_var.CodeGeneration
 ---@field print_var {[string]: nil|fun(opts: refactor.print_var.code_generation.Opts): string}
@@ -24,7 +25,6 @@ local M = {}
 ---@class refactor.print_var.UserCodeGeneration
 ---@field print_var? {[string]: nil|fun(opts: refactor.print_var.code_generation.Opts): string}
 
--- TODO: support geting the location (e.g if#for#some_variable)
 -- TODO: support for count of each occurrence (can I use treesitter with
 -- a query of any node (1 or more times) between two comment nodes that match
 -- the start and end pattern?). Or maybe don't support count at all and only
@@ -45,6 +45,7 @@ function M.print_var(range_type, config)
   local get_scopes_info = require("refactoring.utils").get_scopes_info
   local query_error = require("refactoring.utils").query_error
   local get_statement_output_range = require("refactoring.debug.utils").get_statement_output_range
+  local get_debug_path_for_range = require("refactoring.utils").get_debug_path_for_range
 
   local opts = config.debug.print_var
   local code_generation = opts.code_generation
@@ -137,6 +138,9 @@ function M.print_var(range_type, config)
       :map(reference_to_text)
       :totable()
 
+    local debug_path_for_range = get_debug_path_for_range(buf, nested_lang_tree, output_range)
+    if not debug_path_for_range then return end
+
     ---@type {[string]: refactor.ReferenceInfo}
     local selected_references_by_start = iter(references)
       :filter(
@@ -203,7 +207,7 @@ function M.print_var(range_type, config)
       :map(
         ---@param identifier string
         function(identifier)
-          return get_print_var { identifier = identifier }
+          return get_print_var { identifier = identifier, debug_path = debug_path_for_range }
         end
       )
       :totable()

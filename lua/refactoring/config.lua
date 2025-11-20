@@ -770,25 +770,40 @@ local inline_func_code_generation = {
 local print_var_code_generation = {
   print_var = {
     lua = function(opts)
-      return ("print([==[%s:]==], vim.inspect(%s))"):format(opts.identifier, opts.identifier)
+      local prefix = opts.debug_path == "" and ("%s:"):format(opts.identifier)
+        or ("%s %s:"):format(opts.debug_path, opts.identifier)
+      return ("print([==[%s]==], vim.inspect(%s))"):format(prefix, opts.identifier)
     end,
     c = function(opts)
-      return ([[printf("%s: %%s \n", %s);]]):format(opts.identifier, opts.identifier)
+      local prefix = opts.debug_path == "" and ("%s:"):format(opts.identifier)
+        or ("%s %s:"):format(opts.debug_path, opts.identifier)
+      return ([[printf("%s %%s \n", %s);]]):format(prefix, opts.identifier)
     end,
     javascript = function(opts)
-      return ([[console.log("%s:", %s)]]):format(opts.identifier, opts.identifier)
+      local prefix = opts.debug_path == "" and ("%s:"):format(opts.identifier)
+        or ("%s %s:"):format(opts.debug_path, opts.identifier)
+      prefix = prefix:gsub('"', '\\"')
+      return ([[console.log("%s", %s)]]):format(prefix, opts.identifier)
     end,
     powershell = function(opts)
-      return ([[Write-Host '%s:' %s ]]):format(opts.identifier, opts.identifier)
+      local prefix = opts.debug_path == "" and ("%s:"):format(opts.identifier)
+        or ("%s %s:"):format(opts.debug_path, opts.identifier)
+      return ([[Write-Host '%s' %s ]]):format(prefix, opts.identifier)
     end,
     python = function(opts)
-      return ([[print(f"%s: {str(%s)}")]]):format(opts.identifier, opts.identifier)
+      local prefix = opts.debug_path == "" and ("%s:"):format(opts.identifier)
+        or ("%s %s:"):format(opts.debug_path, opts.identifier)
+      return ([[print(f"%s {str(%s)}")]]):format(prefix, opts.identifier)
     end,
     vim = function(opts)
-      return ([[echom '%s' %s|]]):format(opts.identifier, opts.identifier)
+      local prefix = opts.debug_path == "" and ("%s:"):format(opts.identifier)
+        or ("%s %s:"):format(opts.debug_path, opts.identifier)
+      return ([[echom '%s' %s|]]):format(prefix, opts.identifier)
     end,
     go = function(opts)
-      return ([[fmt.Println(fmt.Sprintf("%s %%v", %s))]]):format(opts.identifier, opts.identifier)
+      local prefix = opts.debug_path == "" and ("%s:"):format(opts.identifier)
+        or ("%s %s:"):format(opts.debug_path, opts.identifier)
+      return ([[fmt.Println(fmt.Sprintf("%s %%v", %s))]]):format(prefix, opts.identifier)
     end,
   },
 }

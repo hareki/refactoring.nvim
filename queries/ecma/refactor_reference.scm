@@ -69,6 +69,9 @@
   (#set! reference_type read)
   (#set! field true)) @reference.identifier
 
+; TODO: remove the full function call everywhere, filter out references that
+; are function calls (I may be already doing this). `print_exp` will be used to
+; print function calls
 (call_expression
   function: (identifier) @reference.identifier
   (#set! reference_type read)

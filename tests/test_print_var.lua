@@ -106,21 +106,25 @@ T["c"] = MiniTest.new_set()
 
 T["c"]["works"] = function()
   local lines = [[
+#include <stdio.h>
+
 int main() {
-    int i = 3;
-    return i;
+  int i = 3;
+  return i;
 }]]
   local expected_lines = [[
+#include <stdio.h>
+
 int main() {
-    int i = 3;
-    // __PRINT_VAR_START
-    printf("i: %s \n", i);// __PRINT_VAR_END
-    return i;
+  int i = 3;
+  // __PRINT_VAR_START
+  printf("main i: %s \n", i);// __PRINT_VAR_END
+  return i;
 }]]
   child.cmd "edit tmp.c"
   child.bo.expandtab = true
-  child.bo.shiftwidth = 4
-  validate(lines, { 2, 8 }, expected_lines, " pviw")
+  child.bo.shiftwidth = 2
+  validate(lines, { 4, 6 }, expected_lines, " pviw")
 end
 
 T["javascript"] = MiniTest.new_set()
@@ -135,7 +139,7 @@ function foo() {
 function foo() {
   const i = 3;
   // __PRINT_VAR_START
-  console.log("i:", i)// __PRINT_VAR_END
+  console.log("foo i:", i)// __PRINT_VAR_END
   return i;
 }]]
   child.cmd "edit tmp.js"
@@ -156,7 +160,7 @@ function get-foo {
 function get-foo {
     $i = 3
     # __PRINT_VAR_START
-    Write-Host '$i:' $i # __PRINT_VAR_END
+    Write-Host 'get-foo $i:' $i # __PRINT_VAR_END
     return $i
 }]]
   child.cmd "edit tmp.ps1"
@@ -177,7 +181,7 @@ def foo():
 def foo():
     i = 3
     # __PRINT_VAR_START
-    print(f"i: {str(i)}")# __PRINT_VAR_END
+    print(f"foo i: {str(i)}")# __PRINT_VAR_END
     bar = i
     return i]]
   child.cmd "edit tmp.py"
@@ -198,7 +202,7 @@ endfunction]]
 function! Foo() abort
     let i = 3
     "__PRINT_VAR_START
-    echom 'i' i|"__PRINT_VAR_END
+    echom 'Foo i:' i|"__PRINT_VAR_END
     return i
 endfunction]]
   child.cmd "edit tmp.vim"
