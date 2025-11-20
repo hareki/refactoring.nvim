@@ -818,6 +818,24 @@ local print_loc_code_generation = {
     lua = function(opts)
       return ([[print([==[%s]==])]]):format(opts.debug_path)
     end,
+    c = function(opts)
+      return ([[printf("%s\n");]]):format(opts.debug_path)
+    end,
+    javascript = function(opts)
+      return ([[console.log("%s")]]):format(opts.debug_path)
+    end,
+    powershell = function(opts)
+      return ([[Write-Host '%s']]):format(opts.debug_path)
+    end,
+    python = function(opts)
+      return ([[print(f"%s")]]):format(opts.debug_path)
+    end,
+    vim = function(opts)
+      return ([[echom '%s'|]]):format(opts.debug_path)
+    end,
+    go = function(opts)
+      return ([[fmt.Println("%s")]]):format(opts.debug_path)
+    end,
   },
 }
 
