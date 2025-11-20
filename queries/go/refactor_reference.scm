@@ -151,10 +151,6 @@
   (#set! function_call_identifier true))
 
 (call_expression
-  function: (identifier)
-  (#set! reference_type read)) @reference.identifier
-
-(call_expression
   function: [
     (selector_expression)
     (index_expression)
@@ -162,14 +158,6 @@
   (#set! reference_type read)
   (#set! field true)
   (#set! function_call_identifier true))
-
-(call_expression
-  function: [
-    (selector_expression)
-    (index_expression)
-  ]
-  (#set! reference_type read)
-  (#set! field true)) @reference.identifier
 
 (if_statement
   condition: (identifier) @reference.identifier

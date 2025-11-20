@@ -106,22 +106,11 @@
   (#set! reference_type read)
   (#set! function_call_identifier true))
 
-; TODO: these (are similartly in other languages like lua) are not really
-; identifiers. Should I compute them in some other way?
-(call_expression
-  (identifier)
-  (#set! reference_type read)) @reference.identifier
-
 (call_expression
   (field_expression) @reference.identifier
   (#set! reference_type read)
   (#set! field true)
   (#set! function_call_identifier true))
-
-(call_expression
-  (field_expression)
-  (#set! reference_type read)
-  (#set! field true)) @reference.identifier
 
 (function_definition
   declarator: (function_declarator

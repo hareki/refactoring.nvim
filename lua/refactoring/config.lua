@@ -811,6 +811,7 @@ print_var_code_generation.print_var.cpp = print_var_code_generation.print_var.c
 print_var_code_generation.print_var.typescript = print_var_code_generation.print_var.javascript
 print_var_code_generation.print_var.tsx = print_var_code_generation.print_var.javascript
 
+-- TODO: add support for all of the languages in print_var (the queries are already there)
 ---@type refactor.print_loc.CodeGeneration
 local print_loc_code_generation = {
   print_loc = {

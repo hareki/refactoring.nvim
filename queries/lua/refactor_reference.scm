@@ -96,15 +96,6 @@
   (#set! field true)
   (#set! function_call_identifier true))
 
-(function_call
-  [
-    (method_index_expression)
-    (dot_index_expression)
-    (bracket_index_expression)
-  ]
-  (#set! reference_type read)
-  (#set! field true)) @reference.identifier
-
 (expression_list
   (identifier) @reference.identifier
   (#set! reference_type read))
