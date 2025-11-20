@@ -507,7 +507,6 @@ local function extract_func(opts)
     :filter(
       ---@param v refactor.Variable
       function(v)
-        -- TODO: maybe limit to write_identifiers that are not declarations
         return vim.list_contains(write_identifiers_inside_extracted_range, v.identifier)
       end
     )

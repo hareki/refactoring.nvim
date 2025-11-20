@@ -172,3 +172,15 @@
   name: (_) @reference.identifier
   (#set! declaration true)
   (#set! reference_type write))
+
+(field
+  value: (identifier) @reference.identifier
+  (#set! reference_type read))
+
+(field
+  value: [
+    (dot_index_expression)
+    (bracket_index_expression)
+  ] @reference.identifier
+  (#set! reference_type read)
+  (#set! field true))
