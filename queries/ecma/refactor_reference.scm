@@ -89,3 +89,36 @@
   name: (_) @reference.identifier
   (#set! declaration true)
   (#set! reference_type write))
+
+(pair
+  value: (identifier) @reference.identifier
+  (#set! reference_type read)
+  (#set! function_call_identifier true))
+
+(pair
+  value: (member_expression) @reference.identifier
+  (#set! reference_type read)
+  (#set! function_call_identifier true)
+  (#set! field true))
+
+(array
+  (identifier) @reference.identifier
+  (#set! reference_type read)
+  (#set! function_call_identifier true))
+
+(array
+  (member_expression) @reference.identifier
+  (#set! reference_type read)
+  (#set! function_call_identifier true)
+  (#set! field true))
+
+(spread_element
+  (identifier) @reference.identifier
+  (#set! reference_type read)
+  (#set! function_call_identifier true))
+
+(spread_element
+  (member_expression) @reference.identifier
+  (#set! reference_type read)
+  (#set! function_call_identifier true)
+  (#set! field true))
