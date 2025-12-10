@@ -184,3 +184,15 @@
   ] @reference.identifier
   (#set! reference_type read)
   (#set! field true))
+
+(unary_expression
+  operand: (identifier) @reference.identifier
+  (#set! reference_type read))
+
+(unary_expression
+  operand: [
+    (dot_index_expression)
+    (bracket_index_expression)
+  ] @reference.identifier
+  (#set! reference_type read)
+  (#set! field true))
