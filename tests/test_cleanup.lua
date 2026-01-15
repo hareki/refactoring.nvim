@@ -44,31 +44,23 @@ local function validate(lines, cursor, expected_lines, ...)
   eq(get_lines(), vim.split(expected_lines, "\n"))
 end
 
+---@param path string
+---@return string
+local function read_file(path)
+  local before_file = io.open(path)
+  assert(before_file)
+  local lines = before_file:read "*a"
+  -- NOTE: remove trailling newline to avoid issues when splitting by newlines
+  lines = lines:gsub("\n$", "") ---@type string
+
+  return lines
+end
+
 T["lua"] = MiniTest.new_set()
 
 T["lua"]["works"] = function()
-  local lines = [[
-local bar = "bar"
-local foo = "foo"
-print(foo)
-print(foo)
-print(foo)
-print(foo)
-print(bar)
-print(bar)
--- __PRINT_VAR_START
-print([==[bar]==], vim.inspect(bar))
-print([==[foo]==], vim.inspect(foo))-- __PRINT_VAR_END]]
-  local expected_lines = [[
-local bar = "bar"
-local foo = "foo"
-print(foo)
-print(foo)
-print(foo)
-print(foo)
-print(bar)
-print(bar)
-]]
+  local lines = read_file "./tests/files/cleanup_works_before.lua"
+  local expected_lines = read_file "./tests/files/cleanup_works_after.lua"
   child.cmd "edit tmp.lua"
   child.bo.expandtab = true
   child.bo.shiftwidth = 2

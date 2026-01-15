@@ -44,43 +44,23 @@ local function validate(lines, cursor, expected_lines, ...)
   eq(get_lines(), vim.split(expected_lines, "\n"))
 end
 
+---@param path string
+---@return string
+local function read_file(path)
+  local before_file = io.open(path)
+  assert(before_file)
+  local lines = before_file:read "*a"
+  -- NOTE: remove trailling newline to avoid issues when splitting by newlines
+  lines = lines:gsub("\n$", "") ---@type string
+
+  return lines
+end
+
 T["lua"] = MiniTest.new_set()
 
 T["lua"]["works below"] = function()
-  local lines = [[
-local a, b =
-  function()
-    print "a"
-  end, function()
-    print "b"
-    if true then
-      for _, value in ipairs(some_table) do
-        print "a"
-      end
-    elseif false then
-      print "elseif"
-    else
-      print "else"
-    end
-  end]]
-  local expected_lines = [[
-local a, b =
-  function()
-    print "a"
-  end, function()
-    print "b"
-    if true then
-      for _, value in ipairs(some_table) do
-        print "a"
-        -- __PRINT_LOC_START
-        print([==[b#if#for]==])-- __PRINT_LOC_END
-      end
-    elseif false then
-      print "elseif"
-    else
-      print "else"
-    end
-  end]]
+  local lines = read_file "./tests/files/print_loc_works_below_before.lua"
+  local expected_lines = read_file "./tests/files/print_loc_works_below_after.lua"
   child.cmd "edit tmp.lua"
   child.bo.expandtab = true
   child.bo.shiftwidth = 2
@@ -88,40 +68,8 @@ local a, b =
 end
 
 T["lua"]["works above"] = function()
-  local lines = [[
-local a, b =
-  function()
-    print "a"
-  end, function()
-    print "b"
-    if true then
-      for _, value in ipairs(some_table) do
-        print "a"
-      end
-    elseif false then
-      print "elseif"
-    else
-      print "else"
-    end
-  end]]
-  local expected_lines = [[
-local a, b =
-  function()
-    print "a"
-  end, function()
-    print "b"
-    if true then
-      -- __PRINT_LOC_START
-      print([==[b#if]==])-- __PRINT_LOC_END
-      for _, value in ipairs(some_table) do
-        print "a"
-      end
-    elseif false then
-      print "elseif"
-    else
-      print "else"
-    end
-  end]]
+  local lines = read_file "./tests/files/print_loc_works_above_before.lua"
+  local expected_lines = read_file "./tests/files/print_loc_works_above_after.lua"
   child.cmd "edit tmp.lua"
   child.bo.expandtab = true
   child.bo.shiftwidth = 2

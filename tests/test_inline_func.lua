@@ -52,57 +52,30 @@ local function validate(lines, cursor, expected_lines)
   eq(get_lines(), vim.split(expected_lines, "\n"))
 end
 
+---@param path string
+---@return string
+local function read_file(path)
+  local before_file = io.open(path)
+  assert(before_file)
+  local lines = before_file:read "*a"
+  -- NOTE: remove trailling newline to avoid issues when splitting by newlines
+  lines = lines:gsub("\n$", "") ---@type string
+
+  return lines
+end
+
 T["lua"] = MiniTest.new_set()
 
 T["lua"]["works"] = function()
-  local lines = [[
-local function a(x, y, z)
-  print(x)
-  y = y + z
-  return x, y, z
-end
-
-local c, d, e = a(1, 2, 3)
-c, d, e = a(c + 1, d + 1, e + 1)]]
-  local expected_lines = [[
-
-local x, y, z = 1, 2, 3
-print(x)
-y = y + z
-
-local c, d, e = x, y, z
-local x, y, z = c + 1, d + 1, e + 1
-print(x)
-y = y + z
-
-local c, d, e = x, y, z]]
-
+  local lines = read_file "./tests/files/inline_func_works_before.lua"
+  local expected_lines = read_file "./tests/files/inline_func_works_after.lua"
   child.cmd "edit tmp.lua"
   validate(lines, { 1, 15 }, expected_lines)
 end
 
 T["lua"]["anonymous function declaration"] = function()
-  local lines = [[
-local b = function(x, y, z)
-  print(x)
-  y = y + z
-  return x, y, z
-end
-
-b(1, 2, 3)
-c, d, e = b()]]
-  local expected_lines = [[
-
-local x, y, z = 1, 2, 3
-print(x)
-y = y + z
-
-
-local x, y, z = nil, nil, nil
-print(x)
-y = y + z
-
-local c, d, e = x, y, z]]
+  local lines = read_file "./tests/files/inline_func_anonymous_function_declaration_before.lua"
+  local expected_lines = read_file "./tests/files/inline_func_anonymous_function_declaration_after.lua"
 
   child.cmd "edit tmp.lua"
   validate(lines, { 1, 6 }, expected_lines)

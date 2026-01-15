@@ -52,36 +52,31 @@ local function validate(lines, cursor, expected_lines)
   eq(get_lines(), vim.split(expected_lines, "\n"))
 end
 
+---@param path string
+---@return string
+local function read_file(path)
+  local before_file = io.open(path)
+  assert(before_file)
+  local lines = before_file:read "*a"
+  -- NOTE: remove trailling newline to avoid issues when splitting by newlines
+  lines = lines:gsub("\n$", "") ---@type string
+
+  return lines
+end
+
 T["lua"] = MiniTest.new_set()
 
 T["lua"]["simple assignment"] = function()
-  local lines = [[
-local foo = 'foo'
-print(foo)
-print(foo)
-print(foo)]]
-  local expected_lines = [[
-print('foo')
-print('foo')
-print('foo')]]
+  local lines = read_file "./tests/files/inline_var_simple_assignment_before.lua"
+  local expected_lines = read_file "./tests/files/inline_var_simple_assignment_after.lua"
 
   child.cmd "edit tmp.lua"
   validate(lines, { 1, 6 }, expected_lines)
 end
 
 T["lua"]["multiple assignment"] = function()
-  local lines = [[
-local foo, bar = 'foo', 'bar'
-print(bar)
-print(foo)
-print(foo)
-print(foo)]]
-  local expected_lines = [[
-local  bar =  'bar'
-print(bar)
-print('foo')
-print('foo')
-print('foo')]]
+  local lines = read_file "./tests/files/inline_var_multiple_assignment_before.lua"
+  local expected_lines = read_file "./tests/files/inline_var_multiple_assignment_after.lua"
 
   child.cmd "edit tmp.lua"
   validate(lines, { 1, 6 }, expected_lines)
@@ -89,36 +84,17 @@ end
 
 -- TODO: maybe the comment should also be deleted
 T["lua"]["filters LSP definitions without a Treesitter match"] = function()
-  local lines = [[
----@type table<integer, string>
-local foo = { "foo" }
-print(foo)
-print(foo)
-print(foo)
-print(foo)
-print(foo)]]
-  local expected_lines = [[
----@type table<integer, string>
-print({ "foo" })
-print({ "foo" })
-print({ "foo" })
-print({ "foo" })
-print({ "foo" })]]
+  local lines = read_file "./tests/files/inline_var_filters_LSP_definitions_without_a_Treesitter_match_before.lua"
+  local expected_lines =
+    read_file "./tests/files/inline_var_filters_LSP_definitions_without_a_Treesitter_match_after.lua"
 
   child.cmd "edit tmp.lua"
   validate(lines, { 2, 6 }, expected_lines)
 end
 
 T["lua"]["orders reference's text edits backwards"] = function()
-  local lines = [[
-local foo = "foo"
-print(foo, foo)
-print(foo, foo)
-print(foo, foo)]]
-  local expected_lines = [[
-print("foo", "foo")
-print("foo", "foo")
-print("foo", "foo")]]
+  local lines = read_file "./tests/files/inline_var_orders_reference's_text_edits_backwards_before.lua"
+  local expected_lines = read_file "./tests/files/inline_var_orders_reference's_text_edits_backwards_after.lua"
 
   child.cmd "edit tmp.lua"
   validate(lines, { 1, 6 }, expected_lines)
@@ -127,28 +103,8 @@ end
 T["c"] = MiniTest.new_set()
 
 T["c"]["multiple assignment"] = function()
-  local lines = [[
-#include <stdio.h>
-
-int main(){
-    int a = 1, b = 2;
-    printf("%i", a);
-    printf("%i", a);
-
-    printf("%i", b);
-    printf("%i", b);
-}]]
-  local expected_lines = [[
-#include <stdio.h>
-
-int main(){
-    int    b = 2;
-    printf("%i", 1);
-    printf("%i", 1);
-
-    printf("%i", b);
-    printf("%i", b);
-}]]
+  local lines = read_file "./tests/files/inline_var_multiple_assignment_before.c"
+  local expected_lines = read_file "./tests/files/inline_var_multiple_assignment_after.c"
 
   child.cmd "edit tmp.c"
   validate(lines, { 4, 8 }, expected_lines)

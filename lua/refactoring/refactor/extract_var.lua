@@ -51,8 +51,6 @@ end
 ---@field variable_declaration? {[string]: nil|fun(opts: refactor.extract_var.code_generation.variable_declaration.Opts): string}
 ---@field variable? {[string]: nil|fun(opts: refactor.extract_var.code_generation.variable.Opts): string}
 
--- TODO: extract inline "before" code examples from tests to files under the `test/` directory
-
 ---@class refactor.ScopeInfo
 ---@field scope TSNode[]
 ---@field inside TSNode

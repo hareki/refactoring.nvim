@@ -44,72 +44,23 @@ local function validate(lines, cursor, expected_lines, ...)
   eq(get_lines(), vim.split(expected_lines, "\n"))
 end
 
+---@param path string
+---@return string
+local function read_file(path)
+  local before_file = io.open(path)
+  assert(before_file)
+  local lines = before_file:read "*a"
+  -- NOTE: remove trailling newline to avoid issues when splitting by newlines
+  lines = lines:gsub("\n$", "") ---@type string
+
+  return lines
+end
+
 T["lua"] = MiniTest.new_set()
 
 T["lua"]["works"] = function()
-  local lines = [[
-local function bar()
-  print("foo")
-end
-print("foo")
-
-do
-  print("foo")
-end
-
-while false do
-  print("foo")
-end
-
-repeat
-  print("foo")
-until true
-
-if true then
-  print("foo")
-else
-  print("foo")
-end
-
-for i = 1, 2 do
-  print("foo")
-end
-local baz = function()
-  print("foo")
-end
-]]
-  local expected_lines = [[
-local foo = "foo"
-local function bar()
-  print(foo)
-end
-print(foo)
-
-do
-  print(foo)
-end
-
-while false do
-  print(foo)
-end
-
-repeat
-  print(foo)
-until true
-
-if true then
-  print(foo)
-else
-  print(foo)
-end
-
-for i = 1, 2 do
-  print(foo)
-end
-local baz = function()
-  print(foo)
-end
-]]
+  local lines = read_file "./tests/files/extract_var_works_before.lua"
+  local expected_lines = read_file "./tests/files/extract_var_works_after.lua"
   child.cmd "edit tmp.lua"
   child.bo.expandtab = true
   child.bo.shiftwidth = 2
@@ -117,19 +68,8 @@ end
 end
 
 T["lua"]["works for 1 scope"] = function()
-  local lines = [[
-print("foo")
-print("foo")
-print("foo")
-print("foo")
-]]
-  local expected_lines = [[
-local foo = "foo"
-print(foo)
-print(foo)
-print(foo)
-print(foo)
-]]
+  local lines = read_file "./tests/files/extract_var_works_for_1_scope_before.lua"
+  local expected_lines = read_file "./tests/files/extract_var_works_for_1_scope_after.lua"
   child.cmd "edit tmp.lua"
   child.bo.expandtab = true
   child.bo.shiftwidth = 2
@@ -137,17 +77,8 @@ print(foo)
 end
 
 T["lua"]["works for 1 nested scope"] = function()
-  local lines = [[
-local function bar()
-  print("foo")
-end
-]]
-  local expected_lines = [[
-local function bar()
-  local foo = "foo"
-  print(foo)
-end
-]]
+  local lines = read_file "./tests/files/extract_var_works_for_1_nested_scope_before.lua"
+  local expected_lines = read_file "./tests/files/extract_var_works_for_1_nested_scope_after.lua"
   child.cmd "edit tmp.lua"
   child.bo.expandtab = true
   child.bo.shiftwidth = 2
@@ -155,21 +86,8 @@ end
 end
 
 T["lua"]["works for multiple scopes including global"] = function()
-  local lines = [[
-print("foo")
-
-local function bar()
-  print("foo")
-end
-]]
-  local expected_lines = [[
-local foo = "foo"
-print(foo)
-
-local function bar()
-  print(foo)
-end
-]]
+  local lines = read_file "./tests/files/extract_var_works_for_multiple_scopes_including_global_before.lua"
+  local expected_lines = read_file "./tests/files/extract_var_works_for_multiple_scopes_including_global_after.lua"
   child.cmd "edit tmp.lua"
   child.bo.expandtab = true
   child.bo.shiftwidth = 2
@@ -177,29 +95,10 @@ end
 end
 
 T["lua"]["uses closest point to highest extracted text with correct scope"] = function()
-  local lines = [[
-print("bar")
-print("bar")
-print("bar")
-print("bar")
-local function bar()
-  print("foo")
-end
-
-print("foo")
-]]
-  local expected_lines = [[
-print("bar")
-print("bar")
-print("bar")
-print("bar")
-local foo = "foo"
-local function bar()
-  print(foo)
-end
-
-print(foo)
-]]
+  local lines =
+    read_file "./tests/files/extract_var_uses_closest_point_to_highest_extracted_text_with_correct_scope_before.lua"
+  local expected_lines =
+    read_file "./tests/files/extract_var_uses_closest_point_to_highest_extracted_text_with_correct_scope_after.lua"
   child.cmd "edit tmp.lua"
   child.bo.expandtab = true
   child.bo.shiftwidth = 2
@@ -209,63 +108,8 @@ end
 T["javascript"] = MiniTest.new_set()
 
 T["javascript"]["works"] = function()
-  local lines = [[
-function bar() {
-  console.log("foo");
-}
-
-console.log("foo");
-
-while (false) {
-  console.log("foo");
-}
-
-do {
-  console.log("foo");
-} while (false);
-
-if (true) {
-  console.log("foo");
-} else {
-  console.log("foo");
-}
-
-for (let i = 0; i < 5; i++) {
-  console.log("foo");
-}
-const baz = () => {
-  console.log("foo");
-};
-]]
-  local expected_lines = [[
-const foo = "foo";
-function bar() {
-  console.log(foo);
-}
-
-console.log(foo);
-
-while (false) {
-  console.log(foo);
-}
-
-do {
-  console.log(foo);
-} while (false);
-
-if (true) {
-  console.log(foo);
-} else {
-  console.log(foo);
-}
-
-for (let i = 0; i < 5; i++) {
-  console.log(foo);
-}
-const baz = () => {
-  console.log(foo);
-};
-]]
+  local lines = read_file "./tests/files/extract_var_works_before.js"
+  local expected_lines = read_file "./tests/files/extract_var_works_after.js"
   child.cmd "edit tmp.js"
   child.bo.expandtab = true
   child.bo.shiftwidth = 2
@@ -275,61 +119,8 @@ end
 T["c"] = MiniTest.new_set()
 
 T["c"]["works"] = function()
-  local lines = [[
-#include <stdio.h>
-#include <stdbool.h>
-
-int main() {
-  printf("foo");
-
-  while (false) {
-    printf("foo");
-  }
-
-  do {
-    printf("foo");
-  } while (false);
-
-  if (true) {
-    int a;
-    printf("foo");
-  } else {
-    printf("foo");
-  }
-
-  for (int i = 0; i < 5; i++) {
-    printf("foo");
-  }
-}
-]]
-  local expected_lines = [[
-#include <stdio.h>
-#include <stdbool.h>
-
-int main() {
-  P foo = "foo";
-  printf(foo);
-
-  while (false) {
-    printf(foo);
-  }
-
-  do {
-    printf(foo);
-  } while (false);
-
-  if (true) {
-    int a;
-    printf(foo);
-  } else {
-    printf(foo);
-  }
-
-  for (int i = 0; i < 5; i++) {
-    printf(foo);
-  }
-}
-]]
+  local lines = read_file "./tests/files/extract_var_works_before.c"
+  local expected_lines = read_file "./tests/files/extract_var_works_after.c"
   child.cmd "edit tmp.c"
   child.bo.expandtab = true
   child.bo.shiftwidth = 2
@@ -339,73 +130,8 @@ end
 T["c#"] = MiniTest.new_set()
 
 T["c#"]["works"] = function()
-  local lines = [[
-class Program
-{
-    static void Main(string[] args)
-    {
-        Console.WriteLine("foo");
-
-        while (false)
-        {
-            Console.WriteLine("foo");
-        }
-
-        do
-        {
-            Console.WriteLine("foo");
-        } while (false);
-
-        if (true)
-        {
-            Console.WriteLine("foo");
-        }
-        else
-        {
-            Console.WriteLine("foo");
-        }
-
-        for (int i = 0; i < 5; i++)
-        {
-            Console.WriteLine("foo");
-        }
-    }
-}
-]]
-  local expected_lines = [[
-class Program
-{
-    static void Main(string[] args)
-    {
-        var foo = "foo";
-        Console.WriteLine(foo);
-
-        while (false)
-        {
-            Console.WriteLine(foo);
-        }
-
-        do
-        {
-            Console.WriteLine(foo);
-        } while (false);
-
-        if (true)
-        {
-            Console.WriteLine(foo);
-        }
-        else
-        {
-            Console.WriteLine(foo);
-        }
-
-        for (int i = 0; i < 5; i++)
-        {
-            Console.WriteLine(foo);
-        }
-    }
-}
-]]
+  local lines = read_file "./tests/files/extract_var_works_before.cs"
+  local expected_lines = read_file "./tests/files/extract_var_works_after.cs"
   child.cmd "edit tmp.cs"
   child.bo.expandtab = true
   child.bo.shiftwidth = 4
@@ -415,73 +141,8 @@ end
 T["go"] = MiniTest.new_set()
 
 T["go"]["works"] = function()
-  local lines = [[
-package a
-
-import "fmt"
-
-func main() {
-	fmt.Println("foo")
-
-	func() { fmt.Println("foo") }()
-
-	for false {
-		fmt.Println("foo")
-	}
-
-	if true {
-		fmt.Println("foo")
-	} else {
-		fmt.Println("foo")
-	}
-
-	for i := 0; i < 5; i++ {
-		fmt.Println("foo")
-	}
-
-        a := 1
-	switch a {
-	case 1:
-		fmt.Println("foo")
-	default:
-		fmt.Println("foo")
-	}
-}
-]]
-  local expected_lines = [[
-package a
-
-import "fmt"
-
-func main() {
-	foo := "foo"
-	fmt.Println(foo)
-
-	func() { fmt.Println(foo) }()
-
-	for false {
-		fmt.Println(foo)
-	}
-
-	if true {
-		fmt.Println(foo)
-	} else {
-		fmt.Println(foo)
-	}
-
-	for i := 0; i < 5; i++ {
-		fmt.Println(foo)
-	}
-
-        a := 1
-	switch a {
-	case 1:
-		fmt.Println(foo)
-	default:
-		fmt.Println(foo)
-	}
-}
-]]
+  local lines = read_file "./tests/files/extract_var_works_before.go"
+  local expected_lines = read_file "./tests/files/extract_var_works_after.go"
   child.cmd "edit tmp.go"
   child.bo.expandtab = false
   validate(lines, { 6, 0 }, expected_lines, " avi)", "foo<cr>")
@@ -490,67 +151,8 @@ end
 T["java"] = MiniTest.new_set()
 
 T["java"]["works"] = function()
-  local lines = [[
-package org.example;
-
-public class App {
-
-    public static void main(String[] args) {
-
-        System.out.println("foo");
-
-        while (true) {
-            System.out.println("foo");
-            break;
-        }
-
-        do {
-            System.out.println("foo");
-        } while (false);
-
-        if (true) {
-            System.out.println("foo");
-        } else {
-            System.out.println("foo");
-        }
-
-        for (int i = 0; i < 5; i++) {
-            System.out.println("foo");
-        }
-
-    }
-}]]
-  local expected_lines = [[
-package org.example;
-
-public class App {
-
-    public static void main(String[] args) {
-
-        var foo = "foo";
-        System.out.println(foo);
-
-        while (true) {
-            System.out.println(foo);
-            break;
-        }
-
-        do {
-            System.out.println(foo);
-        } while (false);
-
-        if (true) {
-            System.out.println(foo);
-        } else {
-            System.out.println(foo);
-        }
-
-        for (int i = 0; i < 5; i++) {
-            System.out.println(foo);
-        }
-
-    }
-}]]
+  local lines = read_file "./tests/files/extract_var_works_before.java"
+  local expected_lines = read_file "./tests/files/extract_var_works_after.java"
   child.cmd "edit tmp.java"
   child.bo.expandtab = true
   child.bo.shiftwidth = 4
@@ -560,59 +162,8 @@ end
 T["php"] = MiniTest.new_set()
 
 T["php"]["works"] = function()
-  local lines = [[
-<?php
-
-function foo()
-{
-    print ('foo');
-
-    while (true) {
-        print ('foo');
-        break;
-    }
-
-    do {
-        print ('foo');
-    } while (false);
-
-    if (true) {
-        print ('foo');
-    } else {
-        print ('foo');
-    }
-
-    for ($i = 0; $i < 5; $i++) {
-        print ('foo');
-    }
-}]]
-  local expected_lines = [[
-<?php
-
-function foo()
-{
-    $foo = 'foo';
-    print ($foo);
-
-    while (true) {
-        print ($foo);
-        break;
-    }
-
-    do {
-        print ($foo);
-    } while (false);
-
-    if (true) {
-        print ($foo);
-    } else {
-        print ($foo);
-    }
-
-    for ($i = 0; $i < 5; $i++) {
-        print ($foo);
-    }
-}]]
+  local lines = read_file "./tests/files/extract_var_works_before.php"
+  local expected_lines = read_file "./tests/files/extract_var_works_after.php"
   child.cmd "edit tmp.php"
   child.bo.expandtab = true
   child.bo.shiftwidth = 4
@@ -622,37 +173,8 @@ end
 T["python"] = MiniTest.new_set()
 
 T["python"]["works"] = function()
-  local lines = [[
-def foo():
-    print("foo")
-
-    while True:
-        print("foo")
-        break
-
-    if True:
-        print("foo")
-    else:
-        print("foo")
-
-    for i in range(0, 5):
-        print("foo")]]
-  local expected_lines = [[
-def foo():
-    foo = "foo"
-    print(foo)
-
-    while True:
-        print(foo)
-        break
-
-    if True:
-        print(foo)
-    else:
-        print(foo)
-
-    for i in range(0, 5):
-        print(foo)]]
+  local lines = read_file "./tests/files/extract_var_works_before.py"
+  local expected_lines = read_file "./tests/files/extract_var_works_after.py"
   child.cmd "edit tmp.py"
   child.bo.expandtab = true
   child.bo.shiftwidth = 4
@@ -662,61 +184,8 @@ end
 T["ruby"] = MiniTest.new_set()
 
 T["ruby"]["works"] = function()
-  local lines = [[
-def foo()
-    print "foo"
-
-    while true do
-        print "foo"
-        break
-    end
-
-    if true then
-        print "foo"
-    else
-        print "foo"
-    end
-
-    for i in range(0, 5) do
-        print "foo"
-    end
-
-    [:a, :b].each do |item|
-        print "foo"
-    end
-
-    [:a, :b].each {|item|
-        print "foo"
-    }
-end]]
-  local expected_lines = [[
-def foo()
-    foo = "foo"
-    print foo
-
-    while true do
-        print foo
-        break
-    end
-
-    if true then
-        print foo
-    else
-        print foo
-    end
-
-    for i in range(0, 5) do
-        print foo
-    end
-
-    [:a, :b].each do |item|
-        print foo
-    end
-
-    [:a, :b].each {|item|
-        print foo
-    }
-end]]
+  local lines = read_file "./tests/files/extract_var_works_before.rb"
+  local expected_lines = read_file "./tests/files/extract_var_works_after.rb"
   child.cmd "edit tmp.rb"
   child.bo.expandtab = true
   child.bo.shiftwidth = 4
@@ -726,43 +195,8 @@ end
 T["vimscript"] = MiniTest.new_set()
 
 T["vimscript"]["works"] = function()
-  local lines = [[
-function! s:foo() abort
-    echo "foo"
-    while v:true
-        echo "foo"
-        break
-    endwhile
-
-    if v:true
-        echo "foo"
-    else
-        echo "foo"
-    endif
-
-    for i in range(0, 5)
-        echo "foo"
-    endfor
-endfunction]]
-  local expected_lines = [[
-function! s:foo() abort
-    let l:foo = "foo"
-    echo l:foo
-    while v:true
-        echo l:foo
-        break
-    endwhile
-
-    if v:true
-        echo l:foo
-    else
-        echo l:foo
-    endif
-
-    for i in range(0, 5)
-        echo l:foo
-    endfor
-endfunction]]
+  local lines = read_file "./tests/files/extract_var_works_before.vim"
+  local expected_lines = read_file "./tests/files/extract_var_works_after.vim"
   child.cmd "edit tmp.vim"
   child.bo.expandtab = true
   child.bo.shiftwidth = 4
@@ -772,45 +206,8 @@ end
 T["powershell"] = MiniTest.new_set()
 
 T["powershell"]["works"] = function()
-  local lines = [[
-function get-foo {
-    Write-Host 'foo'
-
-    while ($true) {
-        Write-Host 'foo'
-        break
-    }
-
-    if ($true) {
-        Write-Host 'foo'
-    } else {
-        Write-Host 'foo'
-    }
-
-    for ($i = 0; $i -lt 5; $i++) {
-        Write-Host 'foo'
-    }
-}]]
-  local expected_lines = [[
-function get-foo {
-    $foo = 'foo'
-    Write-Host $foo
-
-    while ($true) {
-        Write-Host $foo
-        break
-    }
-
-    if ($true) {
-        Write-Host $foo
-    } else {
-        Write-Host $foo
-    }
-
-    for ($i = 0; $i -lt 5; $i++) {
-        Write-Host $foo
-    }
-}]]
+  local lines = read_file "./tests/files/extract_var_works_before.ps1"
+  local expected_lines = read_file "./tests/files/extract_var_works_after.ps1"
   child.cmd "edit tmp.ps1"
   child.bo.expandtab = true
   child.bo.shiftwidth = 4
