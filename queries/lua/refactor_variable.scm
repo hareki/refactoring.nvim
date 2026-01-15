@@ -1,4 +1,3 @@
-; TODO: configure ts_query_ls for the repo once all the captures and predicates are stable-ish
 ; local foo = 'foo'
 (variable_declaration
   (assignment_statement

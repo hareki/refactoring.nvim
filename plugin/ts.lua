@@ -1,4 +1,3 @@
--- TODO: add ts_query_ls config for custom directives
 local iter = vim.iter
 local ts = vim.treesitter
 
