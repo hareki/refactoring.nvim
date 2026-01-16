@@ -1,5 +1,4 @@
 ---@module "mini.test"
--- TODO: add tests for extract_func_to_file
 
 local child = MiniTest.new_child_neovim()
 
@@ -48,9 +47,9 @@ end
 ---@param path string
 ---@return string
 local function read_file(path)
-  local before_file = io.open(path)
-  assert(before_file)
-  local lines = before_file:read "*a"
+  local file = io.open(path)
+  assert(file)
+  local lines = file:read "*a"
   -- NOTE: remove trailling newline to avoid issues when splitting by newlines
   lines = lines:gsub("\n$", "") ---@type string
 
@@ -94,6 +93,60 @@ T["lua"]["chooses correct declaration"] = function()
   child.bo.expandtab = true
   child.bo.shiftwidth = 2
   validate(lines, { 1, 0 }, expected_lines, " ae_", "foo2<cr>")
+end
+
+T["lua"]["to new file"] = function()
+  child.lua [[
+_G.autocmd = vim.api.nvim_create_autocmd('Filetype', {
+  pattern = 'lua',
+  command = 'setlocal expandtab shiftwidth=2'
+})
+]]
+
+  local input_lines = read_file "./tests/files/extract_func_to_new_file_before.lua"
+  local expected_input_lines = read_file "./tests/files/extract_func_to_new_file_after.lua"
+  local new_file = "new.lua"
+  child.cmd "edit tmp.lua"
+  validate(input_lines, { 1, 0 }, expected_input_lines, " aE_", ("%s<cr>"):format(new_file), "foo<cr>")
+
+  local expected_output_lines = read_file "./tests/files/extract_func_new_file.lua"
+  child.cmd(("edit %s"):format(new_file))
+  eq(get_lines(), vim.split(expected_output_lines, "\n"))
+
+  child.lua [[
+vim.api.nvim_del_autocmd(_G.autocmd)
+_G.autocmd = nil
+]]
+end
+
+T["lua"]["to existing file"] = function()
+  child.lua [[
+  -- TODO: move filetype related settings to `pre_case` hooks on each language
+_G.autocmd = vim.api.nvim_create_autocmd('Filetype', {
+  pattern = 'lua',
+  command = 'setlocal expandtab shiftwidth=2'
+})
+]]
+
+  local input_lines = read_file "./tests/files/extract_func_to_existing_file_before.lua"
+  local expected_input_lines = read_file "./tests/files/extract_func_to_existing_file_after.lua"
+  local existing_file = "existing.lua"
+  child.cmd(("edit %s"):format(existing_file))
+
+  local output_lines = read_file "./tests/files/extract_func_existing_file_before.lua"
+  set_lines(output_lines)
+
+  child.cmd "edit tmp.lua"
+  validate(input_lines, { 1, 0 }, expected_input_lines, " aE_", ("%s<cr>"):format(existing_file), "foo<cr>")
+
+  local expected_output_lines = read_file "./tests/files/extract_func_existing_file_after.lua"
+  child.cmd(("edit %s"):format(existing_file))
+  eq(get_lines(), vim.split(expected_output_lines, "\n"))
+
+  child.lua [[
+vim.api.nvim_del_autocmd(_G.autocmd)
+_G.autocmd = nil
+]]
 end
 
 T["java"] = MiniTest.new_set()

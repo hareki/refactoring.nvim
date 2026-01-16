@@ -474,25 +474,17 @@ function M.get_output_functions_info(buf, nested_lang_tree, query)
   local output_functions_info = {}
 
   for _, tree in ipairs(nested_lang_tree:trees()) do
-    for _, match, metadata in query:iter_matches(tree:root(), buf) do
+    for _, match in query:iter_matches(tree:root(), buf) do
       local output_function ---@type refactor.OutputFunctionInfo|nil
       for capture_id, nodes in pairs(match) do
         local name = query.captures[capture_id]
 
-        -- TODO: split input.info and output location
         if name == "output_function.comment" then
           output_function = output_function or {}
           output_function.comment = nodes
         elseif name == "output_function" then
           output_function = output_function or {}
           output_function.fn = nodes[1]
-          output_function.method = metadata.method ~= nil
-          output_function.singleton = metadata.singleton ~= nil
-
-          local struct_name = metadata.struct_name
-          if struct_name then output_function.struct_name = ts.get_node_text(match[struct_name][1], buf) end
-          local struct_var_name = metadata.struct_var_name
-          if struct_var_name then output_function.struct_var_name = ts.get_node_text(match[struct_var_name][1], buf) end
         end
       end
       if output_function then table.insert(output_functions_info, output_function) end
@@ -500,6 +492,39 @@ function M.get_output_functions_info(buf, nested_lang_tree, query)
   end
 
   return output_functions_info
+end
+
+---@param buf integer
+---@param nested_lang_tree vim.treesitter.LanguageTree
+---@param query vim.treesitter.Query
+---@return refactor.InputFunctionInfo[]
+function M.get_input_functions_info(buf, nested_lang_tree, query)
+  ---@type refactor.InputFunctionInfo[]
+  local input_functions_info = {}
+
+  for _, tree in ipairs(nested_lang_tree:trees()) do
+    for _, match, metadata in query:iter_matches(tree:root(), buf) do
+      local input_function ---@type refactor.InputFunctionInfo|nil
+      for capture_id, nodes in pairs(match) do
+        local name = query.captures[capture_id]
+
+        if name == "input_function" then
+          input_function = input_function or {}
+          input_function.fn = nodes[1]
+          input_function.method = metadata.method ~= nil
+          input_function.singleton = metadata.singleton ~= nil
+
+          local struct_name = metadata.struct_name
+          if struct_name then input_function.struct_name = ts.get_node_text(match[struct_name][1], buf) end
+          local struct_var_name = metadata.struct_var_name
+          if struct_var_name then input_function.struct_var_name = ts.get_node_text(match[struct_var_name][1], buf) end
+        end
+      end
+      if input_function then table.insert(input_functions_info, input_function) end
+    end
+  end
+
+  return input_functions_info
 end
 
 ---@param buf integer

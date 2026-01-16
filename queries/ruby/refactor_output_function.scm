@@ -4,9 +4,7 @@
       _*
       (comment)* @output_function.comment
       .
-      (singleton_method) @output_function))
-  (#set! method true)
-  (#set! singleton true))
+      (singleton_method) @output_function)))
 
 (program
   (class
@@ -14,8 +12,7 @@
       _*
       (comment)* @output_function.comment
       .
-      (method) @output_function))
-  (#set! method true))
+      (method) @output_function)))
 
 (program
   _*
@@ -27,5 +24,4 @@
   _*
   (comment)* @output_function.comment
   .
-  (singleton_method) @output_function
-  (#set! singleton true))
+  (singleton_method) @output_function)

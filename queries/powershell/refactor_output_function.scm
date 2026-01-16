@@ -11,5 +11,4 @@
       _*
       (comment)* @output_function.comment
       .
-      (class_method_definition) @output_function))
-  (#set! method true))
+      (class_method_definition) @output_function)))

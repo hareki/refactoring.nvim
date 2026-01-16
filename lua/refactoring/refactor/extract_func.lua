@@ -40,6 +40,9 @@ local M = {}
 ---@class refactor.OutputFunctionInfo
 ---@field comment TSNode[]?
 ---@field fn TSNode
+
+---@class refactor.InputFunctionInfo
+---@field fn TSNode
 ---@field method boolean?
 ---@field singleton boolean?
 ---@field struct_name string?
@@ -51,32 +54,51 @@ local function choose_output(o)
   return o.comment and o.comment[1] or o.fn
 end
 
----@param buf integer
+---@param in_buf integer
+---@param out_buf integer
+---@param lang string
 ---@param extracted_range vim.Range
 ---@return TSNode?
----@return {method: boolean?, singleton: boolean?, struct_name: string?, struct_var_name: string?}?
-local function get_output_node(buf, extracted_range)
+local function get_output_node(in_buf, out_buf, lang, extracted_range)
   local is_first_closer = require("refactoring.utils").is_first_closer
   local query_error = require("refactoring.utils").query_error
   local get_output_functions_info = require("refactoring.utils").get_output_functions_info
 
-  local extracted_range_ts =
-    { extracted_range.start_row, extracted_range.start_col, extracted_range.end_row, extracted_range.end_col }
-
-  local lang_tree, err1 = ts.get_parser(buf, nil, { error = false })
+  local lang_tree, err1 = ts.get_parser(out_buf, nil, { error = false })
   if not lang_tree then
     ---@cast err1 -nil
     vim.notify(err1, vim.log.levels.ERROR)
     return
   end
-  -- TODO: use async parsing
-  lang_tree:parse(true)
-  local nested_lang_tree = lang_tree:language_for_range(extracted_range_ts)
-  local lang = nested_lang_tree:lang()
+  if in_buf ~= out_buf then
+    -- TODO: use async parsing
+    lang_tree:parse(true)
+  end
+
+  local nested_lang_tree ---@type vim.treesitter.LanguageTree?
+  if in_buf == out_buf then
+    local extracted_range_ts =
+      { extracted_range.start_row, extracted_range.start_col, extracted_range.end_row, extracted_range.end_col }
+    nested_lang_tree = lang_tree:language_for_range(extracted_range_ts)
+  elseif lang_tree:lang() == lang then
+    nested_lang_tree = lang_tree
+  else
+    nested_lang_tree = iter(lang_tree:children()):find(
+      ---@param l string
+      function(l)
+        return l == lang
+      end
+    )
+  end
+  if not nested_lang_tree then return end
+
   local output_function_query = ts.query.get(lang, "refactor_output_function")
   if not output_function_query then return query_error("refactor_output_function", lang) end
 
-  local outputs = get_output_functions_info(buf, nested_lang_tree, output_function_query)
+  local outputs = get_output_functions_info(out_buf, nested_lang_tree, output_function_query)
+
+  if in_buf ~= out_buf and outputs[#outputs] then return choose_output(outputs[#outputs]) end
+  if in_buf ~= out_buf then return end
 
   local extracted_start_pos = pos(extracted_range.start_row, extracted_range.start_col, { buf = extracted_range.buf })
   ---@type refactor.OutputFunctionInfo|nil
@@ -86,7 +108,7 @@ local function get_output_node(buf, extracted_range)
       function(o)
         local n = choose_output(o)
         local srow, scol = n:start()
-        local n_start = pos(srow, scol, { buf = buf })
+        local n_start = pos(srow, scol, { buf = out_buf })
         return n_start < extracted_start_pos
       end
     )
@@ -99,10 +121,10 @@ local function get_output_node(buf, extracted_range)
 
         local n = choose_output(o)
         local n_srow, n_scol = n:start()
-        local o_start = pos(n_srow, n_scol, { buf = buf })
+        local o_start = pos(n_srow, n_scol, { buf = out_buf })
         local acc_n = choose_output(acc)
         local acc_srow, acc_scol = acc_n:start()
-        local acc_start = pos(acc_srow, acc_scol, { buf = buf })
+        local acc_start = pos(acc_srow, acc_scol, { buf = out_buf })
 
         local is_o_closer = is_first_closer(o_start, acc_start, extracted_start_pos)
         if is_o_closer then return o end
@@ -110,15 +132,86 @@ local function get_output_node(buf, extracted_range)
       end
     )
 
-  if not selected_output then return nil, {} end
+  if not selected_output then return end
 
-  return choose_output(selected_output),
-    {
-      method = selected_output.method,
-      singleton = selected_output.singleton,
-      struct_name = selected_output.struct_name,
-      struct_var_name = selected_output.struct_var_name,
-    }
+  return choose_output(selected_output)
+end
+
+---@param buf integer
+---@param nested_lang_tree vim.treesitter.LanguageTree
+---@param extracted_range vim.Range
+---@return refactor.InputFunctionInfo?
+local function get_input_info(buf, nested_lang_tree, extracted_range)
+  local query_error = require("refactoring.utils").query_error
+  local get_input_functions_info = require("refactoring.utils").get_input_functions_info
+  local is_first_closer = require("refactoring.utils").is_first_closer
+
+  local lang = nested_lang_tree:lang()
+  local output_function_query = ts.query.get(lang, "refactor_input_function")
+  if not output_function_query then return query_error("refactor_input_function", lang) end
+
+  local inputs = get_input_functions_info(buf, nested_lang_tree, output_function_query)
+
+  ---@type refactor.InputFunctionInfo|nil
+  local surrounding_input = iter(inputs)
+    :filter(
+      ---@param i refactor.InputFunctionInfo
+      function(i)
+        local srow, scol, erow, ecol = i.fn:range()
+        local n_range = range(srow, scol, erow, ecol, { buf = buf })
+        return n_range:has(extracted_range)
+      end
+    )
+    :fold(
+      nil,
+      ---@param acc refactor.InputFunctionInfo|nil
+      ---@param i refactor.InputFunctionInfo
+      function(acc, i)
+        if not acc then return i end
+
+        if i.fn:byte_length() < acc.fn:byte_length() then return i end
+        return acc
+      end
+    )
+
+  if surrounding_input then return surrounding_input end
+
+  local extracted_start_pos = pos(extracted_range.start_row, extracted_range.start_col, { buf = extracted_range.buf })
+  ---@type refactor.InputFunctionInfo|nil
+  local previous_input = iter(inputs)
+    :filter(
+      ---@param i refactor.InputFunctionInfo
+      function(i)
+        local srow, scol = i.fn:start()
+        local n_start = pos(srow, scol, { buf = buf })
+        return n_start < extracted_start_pos
+      end
+    )
+    :fold(
+      nil,
+      ---@param acc refactor.InputFunctionInfo|nil
+      ---@param i refactor.InputFunctionInfo
+      function(acc, i)
+        if not acc then return i end
+
+        local n_srow, n_scol = i.fn:start()
+        local i_start = pos(n_srow, n_scol, { buf = buf })
+        local acc_srow, acc_scol = acc.fn:start()
+        local acc_start = pos(acc_srow, acc_scol, { buf = buf })
+
+        local is_i_closer = is_first_closer(i_start, acc_start, extracted_start_pos)
+        if is_i_closer then return i end
+        return acc
+      end
+    )
+  if not previous_input then return end
+
+  -- NOTE: this information is only correct if input found is surrounding `extracted_range`
+  previous_input.method = nil
+  previous_input.singleton = nil
+  previous_input.struct_name = nil
+  previous_input.struct_var_name = nil
+  return previous_input
 end
 
 ---@class refactor.ReferenceInfo
@@ -162,9 +255,6 @@ local function extract_func(opts)
   local out_buf = opts.out_buf
   local fn_name = opts.fn_name
 
-  local extracted_range_ts =
-    { extracted_range.start_row, extracted_range.start_col, extracted_range.end_row, extracted_range.end_col }
-
   local lang_tree, err1 = ts.get_parser(in_buf, nil, { error = false })
   if not lang_tree then
     ---@cast err1 -nil
@@ -173,6 +263,8 @@ local function extract_func(opts)
   end
   -- TODO: use async parsing
   lang_tree:parse(true)
+  local extracted_range_ts =
+    { extracted_range.start_row, extracted_range.start_col, extracted_range.end_row, extracted_range.end_col }
   local nested_lang_tree = lang_tree:language_for_range(extracted_range_ts)
   local lang = nested_lang_tree:lang()
   local reference_query = ts.query.get(lang, "refactor_reference")
@@ -180,21 +272,19 @@ local function extract_func(opts)
   local scope_query = ts.query.get(lang, "refactor_scope")
   if not scope_query then return query_error("refactor_scope", lang) end
 
-  -- TODO: this doesn't work for `extract_func_to_file` (unless that, because
-  -- of a coincidence, the information is available in that file). Instead,
-  -- split `get_output_node` and `get_output/input_opts` to get it from
-  -- `in_buf` (that will always have the information available instead)
-  local output_node, output_opts = get_output_node(out_buf, extracted_range)
-  if not output_opts then output_opts = {} end
+  local input_info = get_input_info(in_buf, nested_lang_tree, extracted_range)
+  -- TODO: maybe use a different type? `input_info.fn` is no needed after `get_input_info`
+  if not input_info then input_info = {} end
+  local output_node = get_output_node(in_buf, out_buf, lang, extracted_range)
 
-  ---@type vim.Range
-  local output_range
+  local output_range ---@type vim.Range
   if output_node then
     local srow, scol = output_node:start()
     local output_start = pos(srow, scol, { buf = in_buf })
     local row, col = output_start:to_extmark()
     output_range = range.extmark(row, col, row, col, { buf = out_buf })
   elseif in_buf == out_buf then
+    -- TODO: Is this a good default possition when in_buf == out_buf? Which could be a better one?
     output_range = range(
       extracted_range.start_row,
       extracted_range.start_col,
@@ -203,6 +293,7 @@ local function extract_func(opts)
       { buf = extracted_range.buf }
     )
   else
+    -- TODO: Is this a good default possition when in_buf ~= out_buf? Which could be a better one?
     output_range = range.extmark(0, 0, 0, 0, { buf = out_buf })
   end
 
@@ -531,26 +622,26 @@ local function extract_func(opts)
   end
   local indent_width = vim.bo[in_buf].shiftwidth > 0 and vim.bo[in_buf].shiftwidth or vim.bo[in_buf].tabstop
   body = indent(expandtab, expandtab and 1 * indent_width or 1, body)
-  local function_definition = get_function_declaration {
+  local function_declaration = get_function_declaration {
     args = args,
     body = body,
     name = fn_name,
     return_values = return_values,
-    method = output_opts.method,
-    singleton = output_opts.singleton,
-    struct_name = output_opts.struct_name,
-    struct_var_name = output_opts.struct_var_name,
+    method = input_info.method,
+    singleton = input_info.singleton,
+    struct_name = input_info.struct_name,
+    struct_var_name = input_info.struct_var_name,
   } .. "\n\n"
-  function_definition = vim.text.indent((output_opts.method and 1 or 0) * indent_width, function_definition)
-  if not expandtab then function_definition:gsub("^(%s+)", function(spaces)
+  function_declaration = vim.text.indent((input_info.method and 1 or 0) * indent_width, function_declaration)
+  if not expandtab then function_declaration:gsub("^(%s+)", function(spaces)
     return ("\t"):rep(#spaces)
   end) end
   local function_call = get_function_call {
     args = args,
     name = fn_name,
     return_values = return_values,
-    method = output_opts.method,
-    struct_var_name = output_opts.struct_var_name,
+    method = input_info.method,
+    struct_var_name = input_info.struct_var_name,
   }
   function_call = indent(expandtab, body_indent, function_call)
 
@@ -559,8 +650,8 @@ local function extract_func(opts)
   text_edits_by_buf[in_buf] = {}
   table.insert(text_edits_by_buf[in_buf], { range = extracted_range, lines = vim.split(function_call, "\n") })
 
-  local function_definition_lines = vim.split(function_definition, "\n")
-  if output_opts.method then
+  local function_definition_lines = vim.split(function_declaration, "\n")
+  if input_info.method then
     -- NOTE: treesitter nodes don't include whitespace. So, output region's
     -- first line it's (probably) already indented
     function_definition_lines[1] = indent(expandtab, 0, function_definition_lines[1])
@@ -579,8 +670,10 @@ local function extract_func(opts)
   })
   apply_text_edits(text_edits_by_buf)
 
-  -- TODO: maybe use snippets to expand the generated function and
-  -- navigate through type placeholders?
+  -- TODO: maybe use snippets to expand the generated function and navigate
+  -- through type placeholders? Although, that won't work for multiple text
+  -- edits, snippets work for a single text edit. So, maybe use set the qf list
+  -- (optionally) to the locations that should be edited?
 end
 
 ---@param range_type 'v' | 'V' | ''
@@ -627,7 +720,7 @@ M.extract_func_to_file = function(range_type, config)
     local file_name = opts.input and table.remove(opts.input)
       or input {
         prompt = "New file name: ",
-        completion = "files",
+        completion = "file",
         default = vim.fn.expand "%:.:h" .. "/",
       }
     if not file_name then return end
@@ -635,8 +728,7 @@ M.extract_func_to_file = function(range_type, config)
     if not fn_name then return end
 
     -- TODO: open the buffer somehow (configurable?) or give feedback to the
-    -- user somehow? I the buffer didn't exist previously, saved it to allow
-    -- the user to access it?
+    -- user somehow?
     local out_buf = vim.fn.bufadd(file_name)
     if not api.nvim_buf_is_loaded(out_buf) then vim.fn.bufload(out_buf) end
     if not vim.bo[out_buf].buflisted then vim.bo[out_buf].buflisted = true end

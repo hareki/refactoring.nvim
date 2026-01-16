@@ -29,5 +29,4 @@
       _*
       (comment)* @output_function.comment
       .
-      (method_definition) @output_function))
-  (#set! method true))
+      (method_definition) @output_function)))

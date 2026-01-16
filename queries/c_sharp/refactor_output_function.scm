@@ -14,5 +14,4 @@
       [
         (method_declaration)
         (constructor_declaration)
-      ] @output_function))
-  (#set! method true))
+      ] @output_function)))

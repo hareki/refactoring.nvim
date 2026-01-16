@@ -47,9 +47,9 @@ end
 ---@param path string
 ---@return string
 local function read_file(path)
-  local before_file = io.open(path)
-  assert(before_file)
-  local lines = before_file:read "*a"
+  local file = io.open(path)
+  assert(file)
+  local lines = file:read "*a"
   -- NOTE: remove trailling newline to avoid issues when splitting by newlines
   lines = lines:gsub("\n$", "") ---@type string
 
