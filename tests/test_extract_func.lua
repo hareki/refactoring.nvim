@@ -187,6 +187,13 @@ T["go"]["works"] = function()
   validate(lines, { 21, 0 }, expected_lines, " aeip", "bar<cr>")
 end
 
+T["go"]["method"] = function()
+  local lines = read_file "./tests/files/extract_func_method_before.go"
+  local expected_lines = read_file "./tests/files/extract_func_method_after.go"
+  child.cmd "edit tmp.go"
+  validate(lines, { 8, 0 }, expected_lines, " ae_", "foo<cr>")
+end
+
 T["powershell"] = MiniTest.new_set {
   hooks = {
     pre_case = function()
