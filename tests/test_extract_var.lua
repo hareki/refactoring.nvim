@@ -56,14 +56,23 @@ local function read_file(path)
   return lines
 end
 
-T["lua"] = MiniTest.new_set()
+T["lua"] = MiniTest.new_set {
+  hooks = {
+    pre_case = function()
+      child.lua [[
+vim.api.nvim_create_autocmd('Filetype', {
+  pattern = 'lua',
+  command = 'setlocal expandtab shiftwidth=2'
+})
+]]
+    end,
+  },
+}
 
 T["lua"]["works"] = function()
   local lines = read_file "./tests/files/extract_var_works_before.lua"
   local expected_lines = read_file "./tests/files/extract_var_works_after.lua"
   child.cmd "edit tmp.lua"
-  child.bo.expandtab = true
-  child.bo.shiftwidth = 2
   validate(lines, { 2, 0 }, expected_lines, " avi)", "foo<cr>")
 end
 
@@ -71,8 +80,6 @@ T["lua"]["works for 1 scope"] = function()
   local lines = read_file "./tests/files/extract_var_works_for_1_scope_before.lua"
   local expected_lines = read_file "./tests/files/extract_var_works_for_1_scope_after.lua"
   child.cmd "edit tmp.lua"
-  child.bo.expandtab = true
-  child.bo.shiftwidth = 2
   validate(lines, { 1, 0 }, expected_lines, " avi)", "foo<cr>")
 end
 
@@ -80,8 +87,6 @@ T["lua"]["works for 1 nested scope"] = function()
   local lines = read_file "./tests/files/extract_var_works_for_1_nested_scope_before.lua"
   local expected_lines = read_file "./tests/files/extract_var_works_for_1_nested_scope_after.lua"
   child.cmd "edit tmp.lua"
-  child.bo.expandtab = true
-  child.bo.shiftwidth = 2
   validate(lines, { 2, 0 }, expected_lines, " avi)", "foo<cr>")
 end
 
@@ -89,8 +94,6 @@ T["lua"]["works for multiple scopes including global"] = function()
   local lines = read_file "./tests/files/extract_var_works_for_multiple_scopes_including_global_before.lua"
   local expected_lines = read_file "./tests/files/extract_var_works_for_multiple_scopes_including_global_after.lua"
   child.cmd "edit tmp.lua"
-  child.bo.expandtab = true
-  child.bo.shiftwidth = 2
   validate(lines, { 1, 0 }, expected_lines, " avi)", "foo<cr>")
 end
 
@@ -100,117 +103,206 @@ T["lua"]["uses closest point to highest extracted text with correct scope"] = fu
   local expected_lines =
     read_file "./tests/files/extract_var_uses_closest_point_to_highest_extracted_text_with_correct_scope_after.lua"
   child.cmd "edit tmp.lua"
-  child.bo.expandtab = true
-  child.bo.shiftwidth = 2
   validate(lines, { 6, 0 }, expected_lines, " avi)", "foo<cr>")
 end
 
-T["javascript"] = MiniTest.new_set()
+T["javascript"] = MiniTest.new_set {
+  hooks = {
+    pre_case = function()
+      child.lua [[
+vim.api.nvim_create_autocmd('Filetype', {
+  pattern = 'javascript',
+  command = 'setlocal expandtab shiftwidth=2'
+})
+]]
+    end,
+  },
+}
 
 T["javascript"]["works"] = function()
   local lines = read_file "./tests/files/extract_var_works_before.js"
   local expected_lines = read_file "./tests/files/extract_var_works_after.js"
   child.cmd "edit tmp.js"
-  child.bo.expandtab = true
-  child.bo.shiftwidth = 2
   validate(lines, { 2, 0 }, expected_lines, " avi)", "foo<cr>")
 end
 
-T["c"] = MiniTest.new_set()
+T["c"] = MiniTest.new_set {
+  hooks = {
+    pre_case = function()
+      child.lua [[
+vim.api.nvim_create_autocmd('Filetype', {
+  pattern = 'c',
+  command = 'setlocal expandtab shiftwidth=2'
+})
+]]
+    end,
+  },
+}
 
 T["c"]["works"] = function()
   local lines = read_file "./tests/files/extract_var_works_before.c"
   local expected_lines = read_file "./tests/files/extract_var_works_after.c"
   child.cmd "edit tmp.c"
-  child.bo.expandtab = true
-  child.bo.shiftwidth = 2
   validate(lines, { 4, 11 }, expected_lines, " avi)", "foo<cr>")
 end
 
-T["c#"] = MiniTest.new_set()
+T["c#"] = MiniTest.new_set {
+  hooks = {
+    pre_case = function()
+      child.lua [[
+vim.api.nvim_create_autocmd('Filetype', {
+  pattern = 'cs',
+  command = 'setlocal expandtab shiftwidth=4'
+})
+]]
+    end,
+  },
+}
 
 T["c#"]["works"] = function()
   local lines = read_file "./tests/files/extract_var_works_before.cs"
   local expected_lines = read_file "./tests/files/extract_var_works_after.cs"
   child.cmd "edit tmp.cs"
-  child.bo.expandtab = true
-  child.bo.shiftwidth = 4
   validate(lines, { 5, 0 }, expected_lines, " avi)", "foo<cr>")
 end
 
-T["go"] = MiniTest.new_set()
+T["go"] = MiniTest.new_set {
+  hooks = {
+    pre_case = function()
+      child.lua [[
+vim.api.nvim_create_autocmd('Filetype', {
+  pattern = 'go',
+  command = 'setlocal noexpandtab'
+})
+]]
+    end,
+  },
+}
 
 T["go"]["works"] = function()
   local lines = read_file "./tests/files/extract_var_works_before.go"
   local expected_lines = read_file "./tests/files/extract_var_works_after.go"
   child.cmd "edit tmp.go"
-  child.bo.expandtab = false
   validate(lines, { 6, 0 }, expected_lines, " avi)", "foo<cr>")
 end
 
-T["java"] = MiniTest.new_set()
+T["java"] = MiniTest.new_set {
+  hooks = {
+    pre_case = function()
+      child.lua [[
+vim.api.nvim_create_autocmd('Filetype', {
+  pattern = 'java',
+  command = 'setlocal expandtab shiftwidth=4'
+})
+]]
+    end,
+  },
+}
 
 T["java"]["works"] = function()
   local lines = read_file "./tests/files/extract_var_works_before.java"
   local expected_lines = read_file "./tests/files/extract_var_works_after.java"
   child.cmd "edit tmp.java"
-  child.bo.expandtab = true
-  child.bo.shiftwidth = 4
   validate(lines, { 7, 0 }, expected_lines, " avi)", "foo<cr>")
 end
 
-T["php"] = MiniTest.new_set()
+T["php"] = MiniTest.new_set {
+  hooks = {
+    pre_case = function()
+      child.lua [[
+vim.api.nvim_create_autocmd('Filetype', {
+  pattern = 'php',
+  command = 'setlocal expandtab shiftwidth=4'
+})
+]]
+    end,
+  },
+}
 
 T["php"]["works"] = function()
   local lines = read_file "./tests/files/extract_var_works_before.php"
   local expected_lines = read_file "./tests/files/extract_var_works_after.php"
   child.cmd "edit tmp.php"
-  child.bo.expandtab = true
-  child.bo.shiftwidth = 4
   validate(lines, { 5, 0 }, expected_lines, " avi)", "foo<cr>")
 end
 
-T["python"] = MiniTest.new_set()
+T["python"] = MiniTest.new_set {
+  hooks = {
+    pre_case = function()
+      child.lua [[
+vim.api.nvim_create_autocmd('Filetype', {
+  pattern = 'python',
+  command = 'setlocal expandtab shiftwidth=4'
+})
+]]
+    end,
+  },
+}
 
 T["python"]["works"] = function()
   local lines = read_file "./tests/files/extract_var_works_before.py"
   local expected_lines = read_file "./tests/files/extract_var_works_after.py"
   child.cmd "edit tmp.py"
-  child.bo.expandtab = true
-  child.bo.shiftwidth = 4
   validate(lines, { 2, 0 }, expected_lines, " avi)", "foo<cr>")
 end
 
-T["ruby"] = MiniTest.new_set()
+T["ruby"] = MiniTest.new_set {
+  hooks = {
+    pre_case = function()
+      child.lua [[
+vim.api.nvim_create_autocmd('Filetype', {
+  pattern = 'ruby',
+  command = 'setlocal expandtab shiftwidth=2'
+})
+]]
+    end,
+  },
+}
 
 T["ruby"]["works"] = function()
   local lines = read_file "./tests/files/extract_var_works_before.rb"
   local expected_lines = read_file "./tests/files/extract_var_works_after.rb"
   child.cmd "edit tmp.rb"
-  child.bo.expandtab = true
-  child.bo.shiftwidth = 4
   validate(lines, { 2, 0 }, expected_lines, 'f"', ' avf"', "foo<cr>")
 end
 
-T["vimscript"] = MiniTest.new_set()
+T["vimscript"] = MiniTest.new_set {
+  hooks = {
+    pre_case = function()
+      child.lua [[
+vim.api.nvim_create_autocmd('Filetype', {
+  pattern = 'vim',
+  command = 'setlocal expandtab shiftwidth=4'
+})
+]]
+    end,
+  },
+}
 
 T["vimscript"]["works"] = function()
   local lines = read_file "./tests/files/extract_var_works_before.vim"
   local expected_lines = read_file "./tests/files/extract_var_works_after.vim"
   child.cmd "edit tmp.vim"
-  child.bo.expandtab = true
-  child.bo.shiftwidth = 4
   validate(lines, { 2, 0 }, expected_lines, 'f"', ' avf"', "foo<cr>")
 end
 
-T["powershell"] = MiniTest.new_set()
+T["powershell"] = MiniTest.new_set {
+  hooks = {
+    pre_case = function()
+      child.lua [[
+vim.api.nvim_create_autocmd('Filetype', {
+  pattern = 'ps1',
+  command = 'setlocal expandtab shiftwidth=4'
+})
+]]
+    end,
+  },
+}
 
 T["powershell"]["works"] = function()
   local lines = read_file "./tests/files/extract_var_works_before.ps1"
   local expected_lines = read_file "./tests/files/extract_var_works_after.ps1"
   child.cmd "edit tmp.ps1"
-  child.bo.expandtab = true
-  child.bo.shiftwidth = 4
   validate(lines, { 2, 0 }, expected_lines, "f'", " avf'", "foo<cr>")
 end
 

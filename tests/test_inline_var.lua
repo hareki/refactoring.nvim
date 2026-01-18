@@ -64,7 +64,18 @@ local function read_file(path)
   return lines
 end
 
-T["lua"] = MiniTest.new_set()
+T["lua"] = MiniTest.new_set {
+  hooks = {
+    pre_case = function()
+      child.lua [[
+vim.api.nvim_create_autocmd('Filetype', {
+  pattern = 'lua',
+  command = 'setlocal expandtab shiftwidth=2'
+})
+]]
+    end,
+  },
+}
 
 T["lua"]["simple assignment"] = function()
   local lines = read_file "./tests/files/inline_var_simple_assignment_before.lua"
@@ -100,7 +111,18 @@ T["lua"]["orders reference's text edits backwards"] = function()
   validate(lines, { 1, 6 }, expected_lines)
 end
 
-T["c"] = MiniTest.new_set()
+T["c"] = MiniTest.new_set {
+  hooks = {
+    pre_case = function()
+      child.lua [[
+vim.api.nvim_create_autocmd('Filetype', {
+  pattern = 'c',
+  command = 'setlocal expandtab shiftwidth=2'
+})
+]]
+    end,
+  },
+}
 
 T["c"]["multiple assignment"] = function()
   local lines = read_file "./tests/files/inline_var_multiple_assignment_before.c"

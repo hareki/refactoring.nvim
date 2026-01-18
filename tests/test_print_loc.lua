@@ -56,14 +56,23 @@ local function read_file(path)
   return lines
 end
 
-T["lua"] = MiniTest.new_set()
+T["lua"] = MiniTest.new_set {
+  hooks = {
+    pre_case = function()
+      child.lua [[
+vim.api.nvim_create_autocmd('Filetype', {
+  pattern = 'lua',
+  command = 'setlocal expandtab shiftwidth=2'
+})
+]]
+    end,
+  },
+}
 
 T["lua"]["works below"] = function()
   local lines = read_file "./tests/files/print_loc_works_below_before.lua"
   local expected_lines = read_file "./tests/files/print_loc_works_below_after.lua"
   child.cmd "edit tmp.lua"
-  child.bo.expandtab = true
-  child.bo.shiftwidth = 2
   validate(lines, { 8, 8 }, expected_lines, " pp")
 end
 
@@ -71,8 +80,6 @@ T["lua"]["works above"] = function()
   local lines = read_file "./tests/files/print_loc_works_above_before.lua"
   local expected_lines = read_file "./tests/files/print_loc_works_above_after.lua"
   child.cmd "edit tmp.lua"
-  child.bo.expandtab = true
-  child.bo.shiftwidth = 2
   validate(lines, { 7, 6 }, expected_lines, " pP")
 end
 
