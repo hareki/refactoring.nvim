@@ -615,6 +615,10 @@ local function extract_func(opts)
   local get_function_call = code_generation.function_call[lang]
   if not get_function_call then return code_gen_error("function_call", lang) end
   if #return_values > 0 then
+    -- TODO: instead, create two statements: one to declare all variables
+    -- declared inside on the body of the function and also returned, a second
+    -- one to call the function **without** declaring any of the variables,
+    -- only assigning to them
     local return_statement = get_return_statement {
       return_values = return_values,
     }

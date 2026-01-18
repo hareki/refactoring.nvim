@@ -324,13 +324,17 @@ function M.inline_var(_, config)
         )
     else
       local srow, scol, erow, ecol = declaration_node:range()
-      -- NOTE: deletes whole line instead of leaving an empty line
-      if ecol > 0 and ecol == #api.nvim_buf_get_lines(0, erow, erow + 1, true)[1] then
+      local declaration_line = api.nvim_buf_get_lines(0, erow, erow + 1, true)[1]
+
+      local should_delete_trailling_newline = ecol > 0 and ecol == #declaration_line
+      if should_delete_trailling_newline then
         erow = erow + 1
         ecol = 0
       end
-      local declaration_range = range(srow, scol, erow, ecol, { buf = definition_buf })
+      local should_delete_leading_whitespace = scol > 0 and declaration_line:sub(1, scol):match "^%s+$" ~= nil
+      if should_delete_leading_whitespace then scol = 0 end
 
+      local declaration_range = range(srow, scol, erow, ecol, { buf = definition_buf })
       text_edits_by_buf[definition_buf] = text_edits_by_buf[definition_buf] or {}
       table.insert(text_edits_by_buf[definition_buf], { range = declaration_range, lines = {} })
     end
