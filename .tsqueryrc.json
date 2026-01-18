@@ -11,6 +11,9 @@
         "refactor_comment": {
             "comment": "Comment. Used to search markers"
         },
+        "refactor_input_function": {
+            "input_function": "Input function. Used to determine surrounding function and its properties."
+        },
         "refactor_output_function": {
             "output_function": "Output function. Reference point where extracted function can be inserted before of.",
             "output_function.comment": "Comment. Optional comment above and attached to `output_function`."
