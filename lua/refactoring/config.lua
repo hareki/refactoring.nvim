@@ -18,6 +18,7 @@ local M = {}
 ---@field cleanup refactor.debug.cleanup.Opts
 ---@field print_var refactor.debug.print_var.Opts
 ---@field print_loc refactor.debug.print_loc.Opts
+---@field print_exp refactor.debug.print_exp.Opts
 
 ---@class refactor.debug.UserConfig
 ---@field cleanup? refactor.debug.cleanup.UserOpts
@@ -811,7 +812,6 @@ print_var_code_generation.print_var.cpp = print_var_code_generation.print_var.c
 print_var_code_generation.print_var.typescript = print_var_code_generation.print_var.javascript
 print_var_code_generation.print_var.tsx = print_var_code_generation.print_var.javascript
 
--- TODO: add support for all of the languages in print_var (the queries are already there)
 ---@type refactor.print_loc.CodeGeneration
 local print_loc_code_generation = {
   print_loc = {
@@ -835,6 +835,49 @@ local print_loc_code_generation = {
     end,
     go = function(opts)
       return ([[fmt.Println("%s")]]):format(opts.debug_path)
+    end,
+  },
+}
+
+-- TODO: escape `opts.expression` inside of literal string
+---@type refactor.print_exp.CodeGeneration
+local print_exp_code_generation = {
+  print_exp = {
+    lua = function(opts)
+      local prefix = opts.debug_path == "" and ("%s:"):format(opts.expression)
+        or ("%s %s:"):format(opts.debug_path, opts.expression)
+      return ("print([==[%s]==], vim.inspect(%s))"):format(prefix, opts.expression)
+    end,
+    c = function(opts)
+      local prefix = opts.debug_path == "" and ("%s:"):format(opts.expression)
+        or ("%s %s:"):format(opts.debug_path, opts.expression)
+      return ([[printf("%s %%s \n", %s);]]):format(prefix, opts.expression)
+    end,
+    javascript = function(opts)
+      local prefix = opts.debug_path == "" and ("%s:"):format(opts.expression)
+        or ("%s %s:"):format(opts.debug_path, opts.expression)
+      prefix = prefix:gsub('"', '\\"')
+      return ([[console.log("%s", %s)]]):format(prefix, opts.expression)
+    end,
+    powershell = function(opts)
+      local prefix = opts.debug_path == "" and ("%s:"):format(opts.expression)
+        or ("%s %s:"):format(opts.debug_path, opts.expression)
+      return ([[Write-Host '%s' %s ]]):format(prefix, opts.expression)
+    end,
+    python = function(opts)
+      local prefix = opts.debug_path == "" and ("%s:"):format(opts.expression)
+        or ("%s %s:"):format(opts.debug_path, opts.expression)
+      return ([[print(f"%s {str(%s)}")]]):format(prefix, opts.expression)
+    end,
+    vim = function(opts)
+      local prefix = opts.debug_path == "" and ("%s:"):format(opts.expression)
+        or ("%s %s:"):format(opts.debug_path, opts.expression)
+      return ([[echom '%s' %s|]]):format(prefix, opts.expression)
+    end,
+    go = function(opts)
+      local prefix = opts.debug_path == "" and ("%s:"):format(opts.expression)
+        or ("%s %s:"):format(opts.debug_path, opts.expression)
+      return ([[fmt.Println(fmt.Sprintf("%s %%v", %s))]]):format(prefix, opts.expression)
     end,
   },
 }
@@ -868,6 +911,11 @@ local default_config = {
       markers = markers,
       output_location = "below",
       code_generation = print_loc_code_generation,
+    },
+    print_exp = {
+      markers = markers,
+      output_location = "below",
+      code_generation = print_exp_code_generation,
     },
   },
 }

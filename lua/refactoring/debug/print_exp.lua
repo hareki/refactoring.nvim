@@ -5,29 +5,20 @@ local pos = require "refactoring.pos"
 
 local M = {}
 
----@class refactor.print_loc.code_generation.Opts
+---@class refactor.print_exp.code_generation.Opts
+---@field expression string
 ---@field debug_path string
 
----@class refactor.print_loc.CodeGeneration
----@field print_loc {[string]: nil|fun(opts: refactor.print_loc.code_generation.Opts): string}
+---@class refactor.print_exp.CodeGeneration
+---@field print_exp {[string]: nil|fun(opts: refactor.print_exp.code_generation.Opts): string}
 
----@class refactor.print_loc.UserCodeGeneration
----@field print_loc? {[string]: nil|fun(opts: refactor.print_loc.code_generation.Opts): string}
+---@class refactor.print_exp.UserCodeGeneration
+---@field print_exp? {[string]: nil|fun(opts: refactor.print_exp.code_generation.Opts): string}
 
----@class refactor.DebugPathSegmentInfo
----@field debug_path_segment TSNode
----@field text string
-
----@class refactor.OutputStatementInfo
----@field output_statement TSNode
----@field inside TSNode|nil
-
--- TODO: maybe extract common parts of `print_loc`, `print_exp` and `print_var`
--- into a single function and simply call it with differrent params?
 -- TODO: support count
 ---@param range_type 'v' | 'V' | ''
 ---@param config refactor.Config
-function M.print_loc(range_type, config)
+function M.print_exp(range_type, config)
   local get_extracted_range = require("refactoring.utils").get_extracted_range
   local code_gen_error = require("refactoring.utils").code_gen_error
   local indent = require("refactoring.utils").indent
@@ -37,11 +28,14 @@ function M.print_loc(range_type, config)
   local get_debug_path_for_range = require("refactoring.utils").get_debug_path_for_range
   local get_statement_output_range = require("refactoring.debug.utils").get_statement_output_range
 
-  local opts = config.debug.print_loc
+  local opts = config.debug.print_exp
   local code_generation = opts.code_generation
 
   local buf = api.nvim_get_current_buf()
   local extracted_range = get_extracted_range(buf, range_type)
+  local lines = vim.fn.getregion(vim.fn.getpos "'[", vim.fn.getpos "']", { type = range_type })
+  -- TODO: is there a better way to handle multliple lines?
+  local expression = lines[1]
 
   local task = async.run(function()
     local lang_tree, err1 = ts.get_parser(buf, nil, { error = false })
@@ -63,8 +57,8 @@ function M.print_loc(range_type, config)
     local output_statement_query = ts.query.get(lang, "refactor_output_statement")
     if not output_statement_query then return query_error("refactor_output_statement", lang) end
 
-    local get_print_loc = code_generation.print_loc[lang]
-    if not get_print_loc then return code_gen_error("print_loc", lang) end
+    local get_print_exp = code_generation.print_exp[lang]
+    if not get_print_exp then return code_gen_error("print_exp", lang) end
 
     local output_statements = get_output_statements_info(buf, nested_lang_tree, output_statement_query)
 
@@ -83,31 +77,31 @@ function M.print_loc(range_type, config)
     local debug_path_for_range = get_debug_path_for_range(buf, nested_lang_tree, output_range)
     if not debug_path_for_range then return end
 
-    local start_marker = opts.markers.print_loc.start
-    local end_marker = opts.markers.print_loc["end"]
+    local start_marker = opts.markers.print_exp.start
+    local end_marker = opts.markers.print_exp["end"]
     -- TODO: commenstring isn't the correct one for injected languages
     local commentstring = vim.bo[buf].commentstring
-    local print_loc_lines = {
+    local print_exp_lines = {
       commentstring:format(start_marker),
-      get_print_loc { debug_path = debug_path_for_range } .. commentstring:format(end_marker),
+      get_print_exp { debug_path = debug_path_for_range, expression = expression } .. commentstring:format(end_marker),
     }
 
     local o_srow = output_range:to_extmark()
     local expandtab = vim.bo[buf].expandtab
     local _, indent_amount = indent(expandtab, 0, api.nvim_buf_get_lines(buf, o_srow, o_srow + 1, true)[1])
-    local print_text = table.concat(print_loc_lines, "\n")
+    local print_text = table.concat(print_exp_lines, "\n")
     print_text = indent(expandtab, indent_amount, print_text)
-    print_loc_lines = vim.split(print_text, "\n")
-    if inserted_at == "end" then table.insert(print_loc_lines, 1, "") end
+    print_exp_lines = vim.split(print_text, "\n")
+    if inserted_at == "end" then table.insert(print_exp_lines, 1, "") end
     if inserted_at == "start" then
-      print_loc_lines[1] = indent(expandtab, 0, print_loc_lines[1])
-      table.insert(print_loc_lines, (expandtab and " " or "\t"):rep(indent_amount))
+      print_exp_lines[1] = indent(expandtab, 0, print_exp_lines[1])
+      table.insert(print_exp_lines, (expandtab and " " or "\t"):rep(indent_amount))
     end
 
     ---@type {[integer]: refactor.TextEdit[]}
     local text_edits_by_buf = {}
     text_edits_by_buf[buf] = {}
-    table.insert(text_edits_by_buf[buf], { range = output_range, lines = print_loc_lines })
+    table.insert(text_edits_by_buf[buf], { range = output_range, lines = print_exp_lines })
 
     apply_text_edits(text_edits_by_buf)
   end)

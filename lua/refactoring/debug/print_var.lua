@@ -7,12 +7,6 @@ local pos = require "refactoring.pos"
 
 local M = {}
 
--- TODO: when rewriting `print_var` and `printf`, distinguish between
--- `print_expression` operator to print everything inside the selected region
--- and `print_var` operator to print ever variable inside the selected region
--- in the [some scope, I haven't think it through. Try to avoid loops and
--- things like that unless necessary. Maybe as close as possible to the last
--- declaration of the variables]
 -- TODO: add some way to list/search/travel across all inserted statements
 
 ---@class refactor.print_var.code_generation.Opts

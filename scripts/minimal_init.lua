@@ -86,3 +86,10 @@ end, { expr = true })
 vim.keymap.set("n", "<leader>pP", function()
   return require("refactoring.debug").print_loc { output_location = "above" }
 end, { expr = true })
+
+vim.keymap.set("n", "<leader>pe", function()
+  return require("refactoring.debug").print_exp { output_location = "below" }
+end, { desc = "Debug print exp below", expr = true })
+vim.keymap.set("n", "<leader>pE", function()
+  return require("refactoring.debug").print_exp { output_location = "above" }
+end, { desc = "Debug print exp above", expr = true })
