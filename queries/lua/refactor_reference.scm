@@ -57,13 +57,37 @@
   table: (identifier) @reference.identifier
   (#set! reference_type read))
 
+(bracket_index_expression
+  table: [
+    (dot_index_expression)
+    (bracket_index_expression)
+  ] @reference.identifier
+  (#set! reference_type read)
+  (#set! field true))
+
 (dot_index_expression
   table: (identifier) @reference.identifier
   (#set! reference_type read))
 
+(dot_index_expression
+  table: [
+    (dot_index_expression)
+    (bracket_index_expression)
+  ] @reference.identifier
+  (#set! reference_type read)
+  (#set! field true))
+
 (method_index_expression
   table: (identifier) @reference.identifier
   (#set! reference_type read))
+
+(method_index_expression
+  table: [
+    (dot_index_expression)
+    (bracket_index_expression)
+  ] @reference.identifier
+  (#set! reference_type read)
+  (#set! field true))
 
 (arguments
   (identifier) @reference.identifier
