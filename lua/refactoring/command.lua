@@ -36,15 +36,15 @@ local required_input = {
 local function preview(opts, ns)
   if #opts.fargs == 0 then return DO_NOT_PREVIEW end
   local refactor = opts.fargs[1]
-  local input = opts.fargs[2] and { opts.fargs[2], opts.fargs[3] }
+  local input = { opts.fargs[2], opts.fargs[3] }
 
-  if required_input[refactor] == nil or #input < required_input[refactor] then return DO_NOT_PREVIEW end
+  if not required_input[refactor] or #input < required_input[refactor] then return DO_NOT_PREVIEW end
 
   local refactor_opts = { input = input, preview_ns = ns }
 
-  -- TODO: enable preview for inline_var/inline_func when it's working. For
-  -- some reason (async? LSP?) it does not show anything right now. Maybe the
-  -- event loop is blocked and does not process async events when in preview?
+  -- TODO: `:h command-preview` seems to be broken with async code (it doesn't
+  -- show async updates to buffers and may crash Neovim (when modiying buffers
+  -- with outdated information?)). Look more into it and open an issue upstream
   -- if refactor == "inline_var" then vim.cmd.normal(require("refactoring").inline_var(refactor_opts)) end
   if refactor == "extract_var" then vim.cmd.normal("gv" .. require("refactoring").extract_var(refactor_opts)) end
   -- if refactor == "inline_func" then vim.cmd.normal(require("refactoring").inline_func(refactor_opts)) end
