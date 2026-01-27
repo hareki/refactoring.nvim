@@ -7,5 +7,5 @@ print(foo)
 print(bar)
 print(bar)
 -- __PRINT_VAR_START
-print([==[bar:]==], vim.inspect(bar))
-print([==[foo:]==], vim.inspect(foo))-- __PRINT_VAR_END
+print([==[┆┆ ╎bar╎ ┊1┊:]==], vim.inspect(bar))
+print([==[┆┆ ╎foo╎ ┊1┊:]==], vim.inspect(foo))-- __PRINT_VAR_END

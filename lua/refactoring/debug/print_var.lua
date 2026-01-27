@@ -11,7 +11,9 @@ local M = {}
 
 ---@class refactor.print_var.code_generation.Opts
 ---@field identifier string
+---@field identifier_str string
 ---@field debug_path string
+---@field count string
 
 ---@class refactor.print_var.CodeGeneration
 ---@field print_var {[string]: nil|fun(opts: refactor.print_var.code_generation.Opts): string}
@@ -19,10 +21,69 @@ local M = {}
 ---@class refactor.print_var.UserCodeGeneration
 ---@field print_var? {[string]: nil|fun(opts: refactor.print_var.code_generation.Opts): string}
 
--- TODO: support for count of each occurrence (can I use treesitter with
--- a query of any node (1 or more times) between two comment nodes that match
--- the start and end pattern?). Or maybe don't support count at all and only
--- support it in `printf`?
+---@param a TSNode
+---@param b TSNode
+---@return boolean
+local function node_comp_asc(a, b)
+  local a_row, a_col, a_bytes = a:start()
+  local b_row, b_col, b_bytes = b:start()
+  if a_row ~= b_row then return a_row < b_row end
+
+  return (a_col < b_col or a_col + a_bytes < b_col + b_bytes)
+end
+
+---@param buf integer
+---@param nested_lang_tree vim.treesitter.LanguageTree
+---@param start_marker string
+---@param end_marker string
+local function get_all_print_var(buf, nested_lang_tree, start_marker, end_marker)
+  local query_error = require("refactoring.utils").query_error
+  local get_comments = require("refactoring.utils").get_comments
+
+  local lang = nested_lang_tree:lang()
+
+  local comment_query = ts.query.get(lang, "refactor_comment")
+  if not comment_query then return query_error("refactor_comment", lang) end
+
+  local comments = get_comments(buf, nested_lang_tree, comment_query)
+  table.sort(comments, node_comp_asc)
+  ---@type vim.Range[]
+  return iter(comments)
+    :map(
+      ---@param comment TSNode
+      function(comment)
+        local text = ts.get_node_text(comment, buf)
+        local srow, _, erow, _ = comment:range()
+
+        local is_start = text:find(start_marker) ~= nil
+        if is_start then return "start", pos(srow, 0, { buf = buf }) end
+        local is_end = text:find(end_marker) ~= nil
+        if is_end then return "end", pos(erow + 1, 0, { buf = buf }) end
+      end
+    )
+    :filter(
+      ---@param kind 'start'|'end'|nil
+      function(kind)
+        return kind ~= nil
+      end
+    )
+    :fold(
+      {},
+      ---@param acc vim.Range|{current_start: vim.Pos}
+      ---@param kind 'start'|'end'
+      ---@param position vim.Pos
+      function(acc, kind, position)
+        if kind == "start" then acc.current_start = position end
+        if kind == "end" and acc.current_start ~= nil then
+          table.insert(acc, range(acc.current_start, position))
+          acc.current_start = nil
+        end
+
+        return acc
+      end
+    )
+end
+
 ---@param range_type 'v' | 'V' | ''
 ---@param config refactor.Config
 function M.print_var(range_type, config)
@@ -80,15 +141,14 @@ function M.print_var(range_type, config)
     local output_statements = get_output_statements_info(buf, nested_lang_tree, output_statement_query)
     local scopes_info = get_scopes_info(buf, nested_lang_tree, scope_query)
 
-    local extracted_range_api = { extracted_range:to_extmark() }
     -- NOTE: treesitter nodes usualy do not include leading whitespace
-    local extracted_range_start_line =
-      api.nvim_buf_get_lines(buf, extracted_range_api[1], extracted_range_api[1] + 1, true)[1]
-    local _, extracted_range_start_line_first_non_white = extracted_range_start_line:find "^%s*"
-    extracted_range_start_line_first_non_white = extracted_range_start_line_first_non_white or 0
+    local e_srow = extracted_range:to_extmark()
+    local extracted_range_start_line = api.nvim_buf_get_lines(buf, e_srow, e_srow + 1, true)[1]
+    local _, extracted_start_line_first_non_white = extracted_range_start_line:find "^%s*"
+    extracted_start_line_first_non_white = extracted_start_line_first_non_white or 0
     local extracted_reference_pos = opts.output_location == "below"
         and pos(extracted_range.end_row, extracted_range.end_col)
-      or pos(extracted_range.start_row, extracted_range_start_line_first_non_white)
+      or pos(extracted_range.start_row, extracted_start_line_first_non_white)
     local output_range, inserted_at =
       get_statement_output_range(buf, output_statements, opts.output_location, extracted_range, extracted_reference_pos)
     if not output_range or not inserted_at then return end
@@ -134,6 +194,32 @@ function M.print_var(range_type, config)
 
     local debug_path_for_range = get_debug_path_for_range(buf, nested_lang_tree, output_range)
     if not debug_path_for_range then return end
+    debug_path_for_range = ("┆%s┆"):format(debug_path_for_range)
+
+    local start_marker = opts.markers.print_var.start
+    local end_marker = opts.markers.print_var["end"]
+
+    local all_print_var = get_all_print_var(buf, nested_lang_tree, start_marker, end_marker)
+    if not all_print_var then return end
+    ---@type {[string]: vim.Range[]|nil}
+    local print_var_by_path_and_identifier = iter(all_print_var):fold(
+      {},
+      ---@param acc {[string]: vim.Range[]}
+      ---@param r vim.Range
+      function(acc, r)
+        local srow, scol, erow, ecol = r:to_extmark()
+        local r_lines = api.nvim_buf_get_text(buf, srow, scol, erow, ecol, {})
+        local r_text = table.concat(r_lines, "\n")
+        local path = r_text:match "┆([^┆]*)┆"
+        local identifier = r_text:match "╎([^╎]*)╎"
+
+        local key = ("%s_%s"):format(path, identifier)
+        acc[key] = acc[key] or {}
+        table.insert(acc[key], r)
+
+        return acc
+      end
+    )
 
     ---@type {[string]: refactor.ReferenceInfo}
     local selected_references_by_start = iter(references)
@@ -173,35 +259,49 @@ function M.print_var(range_type, config)
 
       return a_range < b_range
     end)
-    ---@type string[]
-    local print_lines = iter(selected_references)
+    ---@type refactor.ReferenceInfo[]
+    local filtered_references = iter(selected_references)
+      :filter(is_unique(
+        ---@param r refactor.ReferenceInfo
+        function(r)
+          return ts.get_node_text(r.identifier, buf)
+        end
+      ))
       :filter(
         ---@param r refactor.ReferenceInfo
         function(r)
-          local r_srow, r_scol, r_erow, r_ecol = r.identifier:range()
-          local r_range = range(r_srow, r_scol, r_erow, r_ecol, { buf = buf })
-          return extracted_range:has(r_range)
-        end
-      )
-      :map(
-        ---@param r refactor.ReferenceInfo
-        function(r)
-          return ts.get_node_text(r.identifier, buf), r
-        end
-      )
-      :filter(is_unique())
-      :filter(
-        ---@param identifier string
-        ---@param r refactor.ReferenceInfo
-        function(identifier, r)
+          local identifier = ts.get_node_text(r.identifier, buf)
           return not r.function_call_identifier
             and (r.field or vim.list_contains(declarations_before_output_range, identifier))
         end
       )
+      :totable()
+    ---@type string[]
+    local print_lines = iter(filtered_references)
       :map(
-        ---@param identifier string
-        function(identifier)
-          return get_print_var { identifier = identifier, debug_path = debug_path_for_range }
+        ---@param r refactor.ReferenceInfo
+        function(r)
+          local identifier = ts.get_node_text(r.identifier, buf)
+
+          local p = debug_path_for_range:match "┆([^┆]*)┆"
+          local key = ("%s_%s"):format(p, identifier)
+
+          local matching_print_var = print_var_by_path_and_identifier[key] or {}
+          local print_var_before = iter(matching_print_var)
+            :filter(
+              ---@param r vim.Range
+              function(r)
+                return r < output_range
+              end
+            )
+            :totable()
+
+          return get_print_var {
+            identifier = identifier,
+            identifier_str = ("╎%s╎"):format(identifier),
+            debug_path = debug_path_for_range,
+            count = ("┊%d┊"):format(#print_var_before + 1),
+          }
         end
       )
       :totable()
@@ -211,8 +311,6 @@ function M.print_var(range_type, config)
         vim.log.levels.ERROR
       )
     end
-    local start_marker = opts.markers.print_var.start
-    local end_marker = opts.markers.print_var["end"]
     -- TODO: commenstring isn't the correct one for injected languages
     local commentstring = vim.bo[buf].commentstring
     table.insert(print_lines, 1, commentstring:format(start_marker))
@@ -234,6 +332,64 @@ function M.print_var(range_type, config)
     local text_edits_by_buf = {}
     text_edits_by_buf[buf] = {}
     table.insert(text_edits_by_buf[buf], { range = output_range, lines = print_lines })
+
+    iter(filtered_references):each(
+      ---@param r refactor.ReferenceInfo
+      function(r)
+        local identifier = ts.get_node_text(r.identifier, buf)
+
+        local p = debug_path_for_range:match "┆([^┆]*)┆"
+        local key = ("%s_%s"):format(p, identifier)
+
+        local matching_print_var = print_var_by_path_and_identifier[key]
+        if not matching_print_var then return end
+
+        iter(ipairs(matching_print_var))
+          :filter(
+            ---@param r vim.Range
+            function(_, r)
+              return r > output_range
+            end
+          )
+          :each(
+            ---@param old_count integer
+            ---@param ra vim.Range
+            function(old_count, ra)
+              local srow, scol, erow, ecol = ra:to_extmark()
+              if ecol == 0 then
+                erow = erow - 1
+                ecol = #api.nvim_buf_get_lines(buf, erow, erow + 1, true)[1]
+              end
+              local r_lines = api.nvim_buf_get_text(buf, srow, scol, erow, ecol, {})
+              ---@type integer?, string?, integer?
+              local i, line, debug_path_end = iter(ipairs(r_lines))
+                :map(
+                  ---@param i integer
+                  ---@param line string
+                  function(i, line)
+                    local _, e = line:find(debug_path_for_range, 1, true)
+                    return i, line, e
+                  end
+                )
+                :find(function(_, _, e)
+                  return e ~= nil
+                end)
+              if not i or not line or not debug_path_end then return end
+
+              local count_start, count_end = line:find(("┊%d┊"):format(old_count), debug_path_end)
+              if not count_start or not count_end then return end
+
+              local update_count_srow = srow + i - 1
+              local update_count_range =
+                range(update_count_srow, count_start - 1, update_count_srow, count_end, { buf = buf })
+              table.insert(
+                text_edits_by_buf[buf],
+                { range = update_count_range, lines = { ("┊%d┊"):format(old_count + 1) } }
+              )
+            end
+          )
+      end
+    )
 
     apply_text_edits(text_edits_by_buf)
   end)

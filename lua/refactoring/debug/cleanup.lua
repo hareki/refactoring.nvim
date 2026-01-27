@@ -58,7 +58,6 @@ function M.cleanup(range_type, config)
     if not comment_query then return query_error("refactor_comment", lang) end
 
     local comments = get_comments(buf, nested_lang_tree, comment_query)
-
     table.sort(comments, node_comp_asc)
     ---@type vim.Range[]
     local ranges_to_cleanup = iter(comments)

@@ -7,7 +7,7 @@ local a, b =
       for _, value in ipairs(some_table) do
         print "a"
         -- __PRINT_LOC_START
-        print([==[b#if#for]==])-- __PRINT_LOC_END
+        print([==[┆b#if#for┆ ┊1┊]==])-- __PRINT_LOC_END
       end
     elseif false then
       print "elseif"

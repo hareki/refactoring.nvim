@@ -771,40 +771,50 @@ local inline_func_code_generation = {
 local print_var_code_generation = {
   print_var = {
     lua = function(opts)
-      local prefix = opts.debug_path == "" and ("%s:"):format(opts.identifier)
-        or ("%s %s:"):format(opts.debug_path, opts.identifier)
-      return ("print([==[%s]==], vim.inspect(%s))"):format(prefix, opts.identifier)
+      return ("print([==[%s %s %s:]==], vim.inspect(%s))"):format(
+        opts.debug_path,
+        opts.identifier_str,
+        opts.count,
+        opts.identifier
+      )
     end,
     c = function(opts)
-      local prefix = opts.debug_path == "" and ("%s:"):format(opts.identifier)
-        or ("%s %s:"):format(opts.debug_path, opts.identifier)
-      return ([[printf("%s %%s \n", %s);]]):format(prefix, opts.identifier)
+      return ([[printf("%s %s %s: %%s \n", %s);]]):format(
+        opts.debug_path,
+        opts.identifier_str,
+        opts.count,
+        opts.identifier
+      )
     end,
     javascript = function(opts)
-      local prefix = opts.debug_path == "" and ("%s:"):format(opts.identifier)
-        or ("%s %s:"):format(opts.debug_path, opts.identifier)
-      prefix = prefix:gsub('"', '\\"')
-      return ([[console.log("%s", %s)]]):format(prefix, opts.identifier)
+      return ([[console.log("%s %s %s:", %s)]]):format(
+        opts.debug_path:gsub('"', '\\"'),
+        opts.identifier_str:gsub('"', '\\"'),
+        opts.count,
+        opts.identifier
+      )
     end,
     powershell = function(opts)
-      local prefix = opts.debug_path == "" and ("%s:"):format(opts.identifier)
-        or ("%s %s:"):format(opts.debug_path, opts.identifier)
-      return ([[Write-Host '%s' %s ]]):format(prefix, opts.identifier)
+      return ([[Write-Host '%s %s %s:' %s ]]):format(opts.debug_path, opts.identifier_str, opts.count, opts.identifier)
     end,
     python = function(opts)
-      local prefix = opts.debug_path == "" and ("%s:"):format(opts.identifier)
-        or ("%s %s:"):format(opts.debug_path, opts.identifier)
-      return ([[print(f"%s {str(%s)}")]]):format(prefix, opts.identifier)
+      return ([[print(f"%s %s %s: {str(%s)}")]]):format(
+        opts.debug_path,
+        opts.identifier_str,
+        opts.count,
+        opts.identifier
+      )
     end,
     vim = function(opts)
-      local prefix = opts.debug_path == "" and ("%s:"):format(opts.identifier)
-        or ("%s %s:"):format(opts.debug_path, opts.identifier)
-      return ([[echom '%s' %s|]]):format(prefix, opts.identifier)
+      return ([[echom '%s %s %s:' %s|]]):format(opts.debug_path, opts.identifier_str, opts.count, opts.identifier)
     end,
     go = function(opts)
-      local prefix = opts.debug_path == "" and ("%s:"):format(opts.identifier)
-        or ("%s %s:"):format(opts.debug_path, opts.identifier)
-      return ([[fmt.Println(fmt.Sprintf("%s %%v", %s))]]):format(prefix, opts.identifier)
+      return ([[fmt.Println(fmt.Sprintf("%s %s %s: %%v", %s))]]):format(
+        opts.debug_path,
+        opts.identifier_str,
+        opts.count,
+        opts.identifier
+      )
     end,
   },
 }
@@ -816,68 +826,78 @@ print_var_code_generation.print_var.tsx = print_var_code_generation.print_var.ja
 local print_loc_code_generation = {
   print_loc = {
     lua = function(opts)
-      return ([[print([==[%s]==])]]):format(opts.debug_path)
+      return ([[print([==[%s %s]==])]]):format(opts.debug_path, opts.count)
     end,
     c = function(opts)
-      return ([[printf("%s\n");]]):format(opts.debug_path)
+      return ([[printf("%s %s\n");]]):format(opts.debug_path, opts.count)
     end,
     javascript = function(opts)
-      return ([[console.log("%s")]]):format(opts.debug_path)
+      return ([[console.log("%s %s")]]):format(opts.debug_path, opts.count)
     end,
     powershell = function(opts)
-      return ([[Write-Host '%s']]):format(opts.debug_path)
+      return ([[Write-Host '%s %s']]):format(opts.debug_path, opts.count)
     end,
     python = function(opts)
-      return ([[print(f"%s")]]):format(opts.debug_path)
+      return ([[print(f"%s %s")]]):format(opts.debug_path, opts.count)
     end,
     vim = function(opts)
-      return ([[echom '%s'|]]):format(opts.debug_path)
+      return ([[echom '%s %s'|]]):format(opts.debug_path, opts.count)
     end,
     go = function(opts)
-      return ([[fmt.Println("%s")]]):format(opts.debug_path)
+      return ([[fmt.Println("%s %s")]]):format(opts.debug_path, opts.count)
     end,
   },
 }
 
--- TODO: escape `opts.expression` inside of literal string
+-- TODO: escape `opts.expression` inside of literal string for all languages
 ---@type refactor.print_exp.CodeGeneration
 local print_exp_code_generation = {
   print_exp = {
     lua = function(opts)
-      local prefix = opts.debug_path == "" and ("%s:"):format(opts.expression)
-        or ("%s %s:"):format(opts.debug_path, opts.expression)
-      return ("print([==[%s]==], vim.inspect(%s))"):format(prefix, opts.expression)
+      return ("print([==[%s %s %s:]==], vim.inspect(%s))"):format(
+        opts.debug_path,
+        opts.expression_str,
+        opts.count,
+        opts.expression
+      )
     end,
     c = function(opts)
-      local prefix = opts.debug_path == "" and ("%s:"):format(opts.expression)
-        or ("%s %s:"):format(opts.debug_path, opts.expression)
-      return ([[printf("%s %%s \n", %s);]]):format(prefix, opts.expression)
+      return ([[printf("%s %s %s: %%s \n", %s);]]):format(
+        opts.debug_path,
+        opts.expression_str,
+        opts.count,
+        opts.expression
+      )
     end,
     javascript = function(opts)
-      local prefix = opts.debug_path == "" and ("%s:"):format(opts.expression)
-        or ("%s %s:"):format(opts.debug_path, opts.expression)
-      prefix = prefix:gsub('"', '\\"')
-      return ([[console.log("%s", %s)]]):format(prefix, opts.expression)
+      return ([[console.log("%s %s %s:", %s)]]):format(
+        opts.debug_path:gsub('"', '\\"'),
+        opts.expression_str:gsub('"', '\\"'),
+        opts.count,
+        opts.expression
+      )
     end,
     powershell = function(opts)
-      local prefix = opts.debug_path == "" and ("%s:"):format(opts.expression)
-        or ("%s %s:"):format(opts.debug_path, opts.expression)
-      return ([[Write-Host '%s' %s ]]):format(prefix, opts.expression)
+      return ([[Write-Host '%s %s %s:' %s ]]):format(opts.debug_path, opts.expression_str, opts.count, opts.expression)
     end,
     python = function(opts)
-      local prefix = opts.debug_path == "" and ("%s:"):format(opts.expression)
-        or ("%s %s:"):format(opts.debug_path, opts.expression)
-      return ([[print(f"%s {str(%s)}")]]):format(prefix, opts.expression)
+      return ([[print(f"%s %s %s: {str(%s)}")]]):format(
+        opts.debug_path,
+        opts.expression_str,
+        opts.count,
+        opts.expression
+      )
     end,
     vim = function(opts)
-      local prefix = opts.debug_path == "" and ("%s:"):format(opts.expression)
-        or ("%s %s:"):format(opts.debug_path, opts.expression)
-      return ([[echom '%s' %s|]]):format(prefix, opts.expression)
+      return ([[echom '%s %s %s:' %s|]]):format(opts.debug_path, opts.expression_str, opts.count, opts.expression)
     end,
     go = function(opts)
-      local prefix = opts.debug_path == "" and ("%s:"):format(opts.expression)
-        or ("%s %s:"):format(opts.debug_path, opts.expression)
-      return ([[fmt.Println(fmt.Sprintf("%s %%v", %s))]]):format(prefix, opts.expression)
+      return ([[fmt.Println(fmt.Sprintf("%s %s %s: %%v", %s))]]):format(
+        opts.debug_path,
+        opts.expression_str,
+        opts.count,
+        opts.expression
+      )
     end,
   },
 }
