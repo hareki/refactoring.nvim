@@ -120,3 +120,17 @@
   (simple_name) @reference.identifier
   (#set! reference_type write)
   (#set! declaration true))
+
+(expandable_string_literal
+  (variable) @reference.identifier
+  (#set! reference_type read))
+
+(expandable_here_string_literal
+  (variable) @reference.identifier
+  (#set! reference_type read))
+
+; -not $foo
+(expression_with_unary_operator
+  (unary_expression
+    (variable) @reference.identifier)
+  (#set! reference_type read))
