@@ -48,7 +48,7 @@ local function get_all_print_var(buf, nested_lang_tree, start_marker, end_marker
   local comments = get_comments(buf, nested_lang_tree, comment_query)
   table.sort(comments, node_comp_asc)
   ---@type vim.Range[]
-  return iter(comments)
+  local all_print_var = iter(comments)
     :map(
       ---@param comment TSNode
       function(comment)
@@ -278,6 +278,12 @@ function M.print_var(range_type, config)
         end
       )
       :totable()
+    if #filtered_references == 0 then
+      return vim.notify(
+        "Couldn't found any reference inside of the extracted range with a declartion above output range using Treesitter",
+        vim.log.levels.ERROR
+      )
+    end
     ---@type string[]
     local print_lines = iter(filtered_references)
       :map(
@@ -307,12 +313,6 @@ function M.print_var(range_type, config)
         end
       )
       :totable()
-    if #print_lines == 0 then
-      return vim.notify(
-        "Couldn't found any reference inside of the extracted range with a declartion above output range using Treesitter",
-        vim.log.levels.ERROR
-      )
-    end
     -- TODO: commenstring isn't the correct one for injected languages
     local commentstring = vim.bo[buf].commentstring
     table.insert(print_lines, 1, commentstring:format(start_marker))
