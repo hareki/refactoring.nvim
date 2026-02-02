@@ -82,6 +82,8 @@ local function get_all_print_var(buf, nested_lang_tree, start_marker, end_marker
         return acc
       end
     )
+  all_print_var.current_start = nil
+  return all_print_var
 end
 
 ---@param range_type 'v' | 'V' | ''

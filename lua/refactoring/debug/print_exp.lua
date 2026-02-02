@@ -48,7 +48,7 @@ local function get_all_print_exp(buf, nested_lang_tree, start_marker, end_marker
   local comments = get_comments(buf, nested_lang_tree, comment_query)
   table.sort(comments, node_comp_asc)
   ---@type vim.Range[]
-  return iter(comments)
+  local all_print_exp = iter(comments)
     :map(
       ---@param comment TSNode
       function(comment)
@@ -82,6 +82,8 @@ local function get_all_print_exp(buf, nested_lang_tree, start_marker, end_marker
         return acc
       end
     )
+  all_print_exp.current_start = nil
+  return all_print_exp
 end
 
 ---@param range_type 'v' | 'V' | ''

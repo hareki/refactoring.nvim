@@ -52,7 +52,7 @@ local function get_all_print_loc(buf, nested_lang_tree, start_marker, end_marker
   local comments = get_comments(buf, nested_lang_tree, comment_query)
   table.sort(comments, node_comp_asc)
   ---@type vim.Range[]
-  return iter(comments)
+  local all_print_loc = iter(comments)
     :map(
       ---@param comment TSNode
       function(comment)
@@ -86,6 +86,8 @@ local function get_all_print_loc(buf, nested_lang_tree, start_marker, end_marker
         return acc
       end
     )
+  all_print_loc.current_start = nil
+  return all_print_loc
 end
 
 -- TODO: maybe extract common parts of `print_loc`, `print_exp` and `print_var`
