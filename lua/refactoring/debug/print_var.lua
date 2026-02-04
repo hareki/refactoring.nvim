@@ -280,7 +280,7 @@ function M.print_var(range_type, config)
       :totable()
     if #filtered_references == 0 then
       return vim.notify(
-        "Couldn't found any reference inside of the extracted range with a declartion above output range using Treesitter",
+        "Couldn't found any reference inside of the extracted range with a declaration above output range using Treesitter",
         vim.log.levels.ERROR
       )
     end
