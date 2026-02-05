@@ -160,7 +160,7 @@ T["python"]["works"] = function()
   local lines = read_file "./tests/files/print_var_works_before.py"
   local expected_lines = read_file "./tests/files/print_var_works_after.py"
   child.cmd "edit tmp.py"
-  validate(lines, { 3, 4 }, expected_lines, " pV_")
+  validate(lines, { 2, 0 }, expected_lines, " pv_")
 end
 
 T["vimscript"] = MiniTest.new_set {

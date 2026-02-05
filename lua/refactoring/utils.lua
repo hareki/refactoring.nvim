@@ -279,9 +279,11 @@ end
 
 ---@param buf integer
 ---@param all_scopes refactor.ScopeInfo[]
----@param contained_range vim.Range
+---@param reference_range vim.Range
 ---@return refactor.ScopeInfo[]
-function M.scopes_for_range(buf, all_scopes, contained_range)
+function M.scopes_for_range(buf, all_scopes, reference_range)
+  local reference_start = pos(reference_range.start_row, reference_range.start_col, { buf = buf })
+  local reference_end = pos(reference_range.end_row, reference_range.end_col, { buf = buf })
   return iter(all_scopes)
     :filter(
       ---@param si refactor.ScopeInfo
@@ -291,7 +293,9 @@ function M.scopes_for_range(buf, all_scopes, contained_range)
           function(s)
             local srow, scol, erow, ecol = s:range()
             local scope_range = range(srow, scol, erow, ecol, { buf = buf })
-            return scope_range:has(contained_range)
+            return scope_range:has(reference_start)
+              or scope_range:has(reference_end)
+              or reference_range:has(scope_range)
           end
         )
       end
