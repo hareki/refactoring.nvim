@@ -134,3 +134,8 @@
   (unary_expression
     (variable) @reference.identifier)
   (#set! reference_type read))
+
+(foreach_statement
+  (variable) @reference.identifier
+  (#set! reference_type write)
+  (#set! declaration true))
