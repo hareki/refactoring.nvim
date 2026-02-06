@@ -223,8 +223,8 @@ function M.print_var(range_type, config)
       end
     )
 
-    ---@type {[string]: refactor.ReferenceInfo}
-    local selected_references_by_start = iter(references)
+    ---@type refactor.ReferenceInfo[]
+    local selected_references = iter(references)
       :filter(
         ---@param r refactor.ReferenceInfo
         function(r)
@@ -233,25 +233,6 @@ function M.print_var(range_type, config)
           return extracted_range:has(r_range)
         end
       )
-      :fold(
-        {},
-        ---@param acc {[string]: refactor.ReferenceInfo}
-        ---@param r refactor.ReferenceInfo
-        function(acc, r)
-          local start_row, start_col = r.identifier:start()
-          local key = ("%s%s"):format(start_row, start_col)
-          local previous = acc[key]
-          if not previous then acc[key] = r end
-          if previous and r.identifier:byte_length() > previous.identifier:byte_length() then acc[key] = r end
-
-          return acc
-        end
-      )
-    ---@type refactor.ReferenceInfo[]
-    local selected_references = iter(selected_references_by_start)
-      :map(function(_, r)
-        return r
-      end)
       :totable()
     table.sort(selected_references, function(a, b)
       local a_srow, a_scol, a_erow, a_ecol = a.identifier:range()
@@ -280,7 +261,7 @@ function M.print_var(range_type, config)
       :totable()
     if #filtered_references == 0 then
       return vim.notify(
-        "Couldn't found any reference inside of the extracted range with a declaration above output range using Treesitter",
+        "Couldn't find any reference inside of the extracted range with a declaration above output range using Treesitter",
         vim.log.levels.ERROR
       )
     end
