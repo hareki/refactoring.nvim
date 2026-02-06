@@ -15,42 +15,38 @@ local M = {}
 ---@field print_exp? refactor.debug.Marker
 
 ---@class refactor.debug.cleanup.Opts
----@field markers refactor.debug.Markers
 ---@field types ('print_var'|'print_loc'|'print_exp')[]
 ---@field restore_view boolean Does not work with dot-repeat
 
 ---@class refactor.debug.cleanup.UserOpts
----@field markers? refactor.debug.Markers
+---@field markers? refactor.debug.UserMarkers
 ---@field types? ('print_var'|'print_loc'|'print_exp')[]
 ---@field restore_view? boolean
 
 ---@class refactor.debug.print_var.Opts
----@field markers refactor.debug.Markers
 ---@field output_location 'above'|'below'
 ---@field code_generation refactor.print_var.CodeGeneration
 
 ---@class refactor.debug.print_var.UserOpts
----@field markers? refactor.debug.UserMarkers
+---@field marker? refactor.debug.Marker
 ---@field output_location? 'above'|'below'
 ---@field code_generation? refactor.print_var.UserCodeGeneration
 
 ---@class refactor.debug.print_loc.Opts
----@field markers refactor.debug.Markers
 ---@field output_location 'above'|'below'
 ---@field code_generation refactor.print_loc.CodeGeneration
 
 ---@class refactor.debug.print_loc.UserOpts
----@field markers? refactor.debug.UserMarkers
+---@field marker? refactor.debug.Marker
 ---@field output_location? 'above'|'below'
 ---@field code_generation? refactor.print_loc.UserCodeGeneration
 
 ---@class refactor.debug.print_exp.Opts
----@field markers refactor.debug.Markers
 ---@field output_location 'above'|'below'
 ---@field code_generation refactor.print_exp.CodeGeneration
 
 ---@class refactor.debug.print_exp.UserOpts
----@field markers? refactor.debug.Markers
+---@field marker? refactor.debug.Marker
 ---@field output_location? 'above'|'below'
 ---@field code_generation? refactor.print_exp.CodeGeneration
 
@@ -69,7 +65,12 @@ end
 
 ---@param opts refactor.debug.print_var.UserOpts?
 function M.print_var(opts)
-  local config = require("refactoring.config").get_config(0, { debug = { print_var = opts } })
+  local config = require("refactoring.config").get_config(0, {
+    debug = {
+      markers = opts and { print_var = opts.marker },
+      print_var = opts,
+    },
+  })
 
   vim.o.operatorfunc = "v:lua.require'refactoring.debug'.debug_operatorfunc"
   last_debug = require("refactoring.debug.print_var").print_var
@@ -81,7 +82,12 @@ M._last_view = nil ---@type vim.fn.winsaveview.ret|nil
 
 ---@param opts refactor.debug.cleanup.UserOpts?
 function M.cleanup(opts)
-  local config = require("refactoring.config").get_config(0, { debug = { cleanup = opts } })
+  local config = require("refactoring.config").get_config(0, {
+    debug = {
+      markers = opts and opts.markers,
+      cleanup = opts,
+    },
+  })
 
   vim.o.operatorfunc = "v:lua.require'refactoring.debug'.debug_operatorfunc"
   last_debug = require("refactoring.debug.cleanup").cleanup
@@ -92,7 +98,12 @@ end
 
 ---@param opts refactor.debug.print_loc.UserOpts?
 function M.print_loc(opts)
-  local config = require("refactoring.config").get_config(0, { debug = { print_loc = opts } })
+  local config = require("refactoring.config").get_config(0, {
+    debug = {
+      markers = opts and { print_loc = opts.marker },
+      print_loc = opts,
+    },
+  })
 
   vim.o.operatorfunc = "v:lua.require'refactoring.debug'.debug_operatorfunc"
   last_debug = require("refactoring.debug.print_loc").print_loc
@@ -102,7 +113,12 @@ end
 
 ---@param opts refactor.debug.print_exp.UserOpts?
 function M.print_exp(opts)
-  local config = require("refactoring.config").get_config(0, { debug = { print_exp = opts } })
+  local config = require("refactoring.config").get_config(0, {
+    debug = {
+      markers = opts and { print_exp = opts.marker },
+      print_exp = opts,
+    },
+  })
 
   vim.o.operatorfunc = "v:lua.require'refactoring.debug'.debug_operatorfunc"
   last_debug = require("refactoring.debug.print_exp").print_exp

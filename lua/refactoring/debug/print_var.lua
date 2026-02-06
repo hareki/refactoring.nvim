@@ -198,8 +198,8 @@ function M.print_var(range_type, config)
     if not debug_path_for_range then return end
     debug_path_for_range = ("┆%s┆"):format(debug_path_for_range)
 
-    local start_marker = opts.markers.print_var.start
-    local end_marker = opts.markers.print_var["end"]
+    local start_marker = config.debug.markers.print_var.start
+    local end_marker = config.debug.markers.print_var["end"]
 
     local all_print_var = get_all_print_var(buf, nested_lang_tree, start_marker, end_marker)
     if not all_print_var then return end

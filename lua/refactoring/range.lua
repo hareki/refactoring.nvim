@@ -203,7 +203,7 @@ function Range.has(outer, inner)
   return cmp_pos(outer.start_row, outer.start_col, inner.start_row, inner.start_col) ~= 1
     and cmp_pos(outer.end_row, outer.end_col, inner.end_row, inner.end_col) ~= -1
     -- NOTE: neccesary because of ranges where start == end (valid on both treesitter and api)
-    -- TODO: upstream this
+    -- TODO: upstream this. Or maybe take a look to the new `is_empty` method, maybe its useful
     and cmp_pos(outer.start_row, outer.start_col, inner_inclusive_end_row, inner_inclusive_end_col) ~= 1
     and cmp_pos(outer_inclusive_end_row, outer_inclusive_end_col, inner.start_row, inner.start_col) ~= -1
 end

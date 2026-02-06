@@ -78,14 +78,14 @@ function M.cleanup(range_type, config)
           local is_start = iter(opts.types):any(
             ---@param name 'print_var'|'print_loc'|'print_exp'
             function(name)
-              return text:find(opts.markers[name].start) ~= nil
+              return text:find(config.debug.markers[name].start) ~= nil
             end
           )
           if is_start then return "start", pos(srow, 0, { buf = buf }) end
           local is_end = iter(opts.types):any(
             ---@param name 'print_var'|'print_loc'|'print_exp'
             function(name)
-              return text:find(opts.markers[name]["end"]) ~= nil
+              return text:find(config.debug.markers[name]["end"]) ~= nil
             end
           )
           if is_end then return "end", pos(erow + 1, 0, { buf = buf }) end

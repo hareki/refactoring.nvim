@@ -15,12 +15,14 @@ local M = {}
 ---@field inline_var? refactor.refactor.inline_var.UserOpts
 
 ---@class refactor.debug.Config
+---@field markers refactor.debug.Markers
 ---@field cleanup refactor.debug.cleanup.Opts
 ---@field print_var refactor.debug.print_var.Opts
 ---@field print_loc refactor.debug.print_loc.Opts
 ---@field print_exp refactor.debug.print_exp.Opts
 
 ---@class refactor.debug.UserConfig
+---@field markers? refactor.debug.UserMarkers
 ---@field cleanup? refactor.debug.cleanup.UserOpts
 ---@field print_var? refactor.debug.print_var.UserOpts
 ---@field print_loc? refactor.debug.print_loc.UserOpts
@@ -32,15 +34,6 @@ local M = {}
 ---@class refactor.UserConfig
 ---@field refactor? refactor.refactor.UserConfig
 ---@field debug? refactor.debug.UserConfig
-
--- TODO: should I move markers into a single option instead of having separated
--- markers for both `print_var` and `clenup`? That would mean dividing opts
--- from config
-local markers = {
-  print_var = { start = "__PRINT_VAR_START", ["end"] = "__PRINT_VAR_END" },
-  print_exp = { start = "__PRINT_EXP_START", ["end"] = "__PRINT_EXP_END" },
-  print_loc = { start = "__PRINT_LOC_START", ["end"] = "__PRINT_LOC_END" },
-}
 
 ---@type refactor.extract_var.CodeGeneration
 local extract_var_code_generation = {
@@ -917,23 +910,24 @@ local default_config = {
     inline_var = {},
   },
   debug = {
+    markers = {
+      print_var = { start = "__PRINT_VAR_START", ["end"] = "__PRINT_VAR_END" },
+      print_exp = { start = "__PRINT_EXP_START", ["end"] = "__PRINT_EXP_END" },
+      print_loc = { start = "__PRINT_LOC_START", ["end"] = "__PRINT_LOC_END" },
+    },
     print_var = {
-      markers = markers,
       output_location = "below",
       code_generation = print_var_code_generation,
     },
     cleanup = {
-      markers = markers,
       types = { "print_var", "print_loc", "print_exp" },
       restore_view = true,
     },
     print_loc = {
-      markers = markers,
       output_location = "below",
       code_generation = print_loc_code_generation,
     },
     print_exp = {
-      markers = markers,
       output_location = "below",
       code_generation = print_exp_code_generation,
     },
