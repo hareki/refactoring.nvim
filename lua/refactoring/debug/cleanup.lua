@@ -28,7 +28,7 @@ end
 ---@param range_type 'v' | 'V' | ''
 ---@param config refactor.Config
 function M.cleanup(range_type, config)
-  local get_extracted_range = require("refactoring.utils").get_extracted_range
+  local get_selected_range = require("refactoring.utils").get_selected_range
   local apply_text_edits = require("refactoring.utils").apply_text_edits
   local get_comments = require("refactoring.utils").get_comments
   local query_error = require("refactoring.utils").query_error
@@ -36,7 +36,7 @@ function M.cleanup(range_type, config)
   local opts = config.debug.cleanup
 
   local buf = api.nvim_get_current_buf()
-  local extracted_range = get_extracted_range(buf, range_type)
+  local selected_range = get_selected_range(buf, range_type)
 
   local task = async.run(function()
     local lang_tree, err1 = ts.get_parser(buf, nil, { error = false })
@@ -48,10 +48,10 @@ function M.cleanup(range_type, config)
     -- TODO: use async parsing
     lang_tree:parse(true)
     local nested_lang_tree = lang_tree:language_for_range {
-      extracted_range.start_row,
-      extracted_range.start_col,
-      extracted_range.end_row,
-      extracted_range.end_col,
+      selected_range.start_row,
+      selected_range.start_col,
+      selected_range.end_row,
+      selected_range.end_col,
     }
     local lang = nested_lang_tree:lang()
     local comment_query = ts.query.get(lang, "refactor_comment")
@@ -66,7 +66,7 @@ function M.cleanup(range_type, config)
         function(comment)
           local srow, scol, erow, ecol = comment:range()
           local comment_range = range(srow, scol, erow, ecol, { buf = buf })
-          return extracted_range:has(comment_range)
+          return selected_range:has(comment_range)
         end
       )
       :map(

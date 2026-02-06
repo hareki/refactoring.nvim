@@ -59,7 +59,7 @@ end
 ---@param range_type 'v' | 'V' | ''
 ---@param config refactor.Config
 function M.extract_var(range_type, config)
-  local get_extracted_range = require("refactoring.utils").get_extracted_range
+  local get_selected_range = require("refactoring.utils").get_selected_range
   local apply_text_edits = require("refactoring.utils").apply_text_edits
   local input = require("refactoring.utils").input
   local code_gen_error = require("refactoring.utils").code_gen_error
@@ -70,7 +70,7 @@ function M.extract_var(range_type, config)
   local code_generation = opts.code_generation
 
   local buf = api.nvim_get_current_buf()
-  local extracted_range = get_extracted_range(buf, range_type)
+  local selected_range = get_selected_range(buf, range_type)
 
   local task = async.run(function()
     local var_name = opts.input and table.remove(opts.input, 1) or input { prompt = "Variable name: " }
@@ -84,11 +84,11 @@ function M.extract_var(range_type, config)
     end
     -- TODO: use async parsing
     lang_tree:parse(true)
-    local extracted_range_ts =
-      { extracted_range.start_row, extracted_range.start_col, extracted_range.end_row, extracted_range.end_col }
-    local nested_lang_tree = lang_tree:language_for_range(extracted_range_ts)
+    local selected_range_ts =
+      { selected_range.start_row, selected_range.start_col, selected_range.end_row, selected_range.end_col }
+    local nested_lang_tree = lang_tree:language_for_range(selected_range_ts)
     local lang = nested_lang_tree:lang()
-    local encompassing_node = nested_lang_tree:node_for_range(extracted_range_ts)
+    local encompassing_node = nested_lang_tree:node_for_range(selected_range_ts)
     if not encompassing_node then
       vim.notify("Couldn't find a Treesitter node that contains the selected range", vim.log.levels.WARN)
       return
@@ -99,7 +99,7 @@ function M.extract_var(range_type, config)
     local get_variable_declaration = code_generation.variable_declaration[lang]
     if not get_variable_declaration then return code_gen_error("variable_declaration", lang) end
 
-    local extracted_text = ts.get_node_text(encompassing_node, buf)
+    local selected_text = ts.get_node_text(encompassing_node, buf)
 
     local ok, maybe_encompasing_query = pcall(ts.query.parse, lang, ("%s @tmp_query"):format(encompassing_node:sexpr()))
     if not ok then
@@ -113,12 +113,12 @@ function M.extract_var(range_type, config)
     local scope_query = ts.query.get(lang, "refactor_scope")
     if not scope_query then return query_error("refactor_scope", lang) end
 
-    local extracted_significant_text = significant_text(encompassing_node, buf)
+    local selected_significant_text = significant_text(encompassing_node, buf)
     local matching_nodes = {} ---@type TSNode[]
     for _, tree in ipairs(nested_lang_tree:trees()) do
       for _, node in encompasing_query:iter_captures(tree:root(), buf) do
         local node_significant_text = significant_text(node, buf)
-        if node_significant_text == extracted_significant_text then table.insert(matching_nodes, node) end
+        if node_significant_text == selected_significant_text then table.insert(matching_nodes, node) end
       end
     end
     local scopes_info = get_scopes_info(buf, nested_lang_tree, scope_query)
@@ -272,7 +272,7 @@ function M.extract_var(range_type, config)
 
     local variable_declaration = get_variable_declaration {
       name = var_name,
-      value = extracted_text,
+      value = selected_text,
     }
     local variable_declaration_lines = vim.split(variable_declaration, "\n")
     local output_srow = output_range:to_extmark()

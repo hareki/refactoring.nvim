@@ -99,9 +99,9 @@ end
 
 T["lua"]["uses closest point to highest extracted text with correct scope"] = function()
   local lines =
-    read_file "./tests/files/extract_var_uses_closest_point_to_highest_extracted_text_with_correct_scope_before.lua"
+    read_file "./tests/files/extract_var_uses_closest_point_to_highest_selected_text_with_correct_scope_before.lua"
   local expected_lines =
-    read_file "./tests/files/extract_var_uses_closest_point_to_highest_extracted_text_with_correct_scope_after.lua"
+    read_file "./tests/files/extract_var_uses_closest_point_to_highest_selected_text_with_correct_scope_after.lua"
   child.cmd "edit tmp.lua"
   validate(lines, { 6, 0 }, expected_lines, " avi)", "foo<cr>")
 end

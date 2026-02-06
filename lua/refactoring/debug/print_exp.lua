@@ -89,7 +89,7 @@ end
 ---@param range_type 'v' | 'V' | ''
 ---@param config refactor.Config
 function M.print_exp(range_type, config)
-  local get_extracted_range = require("refactoring.utils").get_extracted_range
+  local get_selected_range = require("refactoring.utils").get_selected_range
   local code_gen_error = require("refactoring.utils").code_gen_error
   local indent = require("refactoring.utils").indent
   local apply_text_edits = require("refactoring.utils").apply_text_edits
@@ -102,7 +102,7 @@ function M.print_exp(range_type, config)
   local code_generation = opts.code_generation
 
   local buf = api.nvim_get_current_buf()
-  local extracted_range = get_extracted_range(buf, range_type)
+  local selected_range = get_selected_range(buf, range_type)
   local lines = vim.fn.getregion(vim.fn.getpos "'[", vim.fn.getpos "']", { type = range_type })
   -- TODO: is there a better way to handle multliple lines?
   local expression = lines[1]
@@ -118,10 +118,10 @@ function M.print_exp(range_type, config)
     -- TODO: use async parsing
     lang_tree:parse(true)
     local nested_lang_tree = lang_tree:language_for_range {
-      extracted_range.start_row,
-      extracted_range.start_col,
-      extracted_range.end_row,
-      extracted_range.end_col,
+      selected_range.start_row,
+      selected_range.start_col,
+      selected_range.end_row,
+      selected_range.end_col,
     }
     local lang = nested_lang_tree:lang()
     local output_statement_query = ts.query.get(lang, "refactor_output_statement")
@@ -133,15 +133,15 @@ function M.print_exp(range_type, config)
     local output_statements = get_output_statements_info(buf, nested_lang_tree, output_statement_query)
 
     -- NOTE: treesitter nodes usualy do not include leading whitespace
-    local e_srow = extracted_range:to_extmark()
-    local extracted_range_start_line = api.nvim_buf_get_lines(buf, e_srow, e_srow + 1, true)[1]
-    local _, extracted_start_line_first_non_white = extracted_range_start_line:find "^%s*"
+    local e_srow = selected_range:to_extmark()
+    local selected_range_start_line = api.nvim_buf_get_lines(buf, e_srow, e_srow + 1, true)[1]
+    local _, extracted_start_line_first_non_white = selected_range_start_line:find "^%s*"
     extracted_start_line_first_non_white = extracted_start_line_first_non_white or 0
     local extracted_reference_pos = opts.output_location == "below"
-        and pos(extracted_range.end_row, extracted_range.end_col)
-      or pos(extracted_range.start_row, extracted_start_line_first_non_white)
+        and pos(selected_range.end_row, selected_range.end_col)
+      or pos(selected_range.start_row, extracted_start_line_first_non_white)
     local output_range, inserted_at =
-      get_statement_output_range(buf, output_statements, opts.output_location, extracted_range, extracted_reference_pos)
+      get_statement_output_range(buf, output_statements, opts.output_location, selected_range, extracted_reference_pos)
     if not output_range or not inserted_at then return end
 
     local debug_path_for_range = get_debug_path_for_range(buf, nested_lang_tree, output_range)

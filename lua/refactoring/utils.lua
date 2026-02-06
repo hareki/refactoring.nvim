@@ -303,13 +303,10 @@ function M.scopes_for_range(buf, all_scopes, reference_range)
     :totable()
 end
 
--- TODO: rename this everywhere (and the resulting var) to a more general name.
--- `extracted_range` comes from the `extratc_func` refactor, but it's now used
--- in multiple (all?) refactors
 ---@param buf integer
 ---@param range_type 'v' | 'V' | ''
 ---@return vim.Range
-function M.get_extracted_range(buf, range_type)
+function M.get_selected_range(buf, range_type)
   local range_start = api.nvim_buf_get_mark(buf, "[")
   range_start[1] = range_start[1] - 1
   local range_end = api.nvim_buf_get_mark(buf, "]")

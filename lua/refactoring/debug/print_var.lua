@@ -86,10 +86,24 @@ local function get_all_print_var(buf, nested_lang_tree, start_marker, end_marker
   return all_print_var
 end
 
+-- TODO: think about making `refactor_output_statement` queries behave like
+-- `refactor_scope` (an scope can have multiple, disjointed, nodes).
+-- Or think, in general, of a way to distinguish between "this is a parameter,
+-- I want `below` to mean 'inside the function'" and "this is a function name,
+-- I want `below` to mean 'after the function definition'".
+-- This also should take into account how the `reference_pos` is computed,
+-- a statement like `vim.keymap.set('n', '<F4>', function() ...` where the
+-- function continues in the next line will end in a function definition, so
+-- `bellow` will be inside of the function definition. Maybe it's a better
+-- idea to compute both start/end reference_pos individually for each
+-- variable found in the `selected_range` (and hence, its containing
+-- statement). This would change the semantics of how `print_xxx` functions
+-- work. Instead of a big blob printing all of the variables, they would
+-- generate many small blobs, one for each variable
 ---@param range_type 'v' | 'V' | ''
 ---@param config refactor.Config
 function M.print_var(range_type, config)
-  local get_extracted_range = require("refactoring.utils").get_extracted_range
+  local get_selected_range = require("refactoring.utils").get_selected_range
   local is_unique = require("refactoring.utils").is_unique
   local code_gen_error = require("refactoring.utils").code_gen_error
   local apply_text_edits = require("refactoring.utils").apply_text_edits
@@ -108,7 +122,7 @@ function M.print_var(range_type, config)
   local code_generation = opts.code_generation
 
   local buf = api.nvim_get_current_buf()
-  local extracted_range = get_extracted_range(buf, range_type)
+  local selected_range = get_selected_range(buf, range_type)
 
   local task = async.run(function()
     local lang_tree, err1 = ts.get_parser(buf, nil, { error = false })
@@ -123,10 +137,10 @@ function M.print_var(range_type, config)
     -- returns false when `range` is `true`)
     lang_tree:parse(true)
     local nested_lang_tree = lang_tree:language_for_range {
-      extracted_range.start_row,
-      extracted_range.start_col,
-      extracted_range.end_row,
-      extracted_range.end_col,
+      selected_range.start_row,
+      selected_range.start_col,
+      selected_range.end_row,
+      selected_range.end_col,
     }
     local lang = nested_lang_tree:lang()
     local reference_query = ts.query.get(lang, "refactor_reference")
@@ -144,21 +158,21 @@ function M.print_var(range_type, config)
     local scopes_info = get_scopes_info(buf, nested_lang_tree, scope_query)
 
     -- NOTE: treesitter nodes usualy do not include leading whitespace
-    local e_srow = extracted_range:to_extmark()
-    local extracted_range_start_line = api.nvim_buf_get_lines(buf, e_srow, e_srow + 1, true)[1]
-    local _, extracted_start_line_first_non_white = extracted_range_start_line:find "^%s*"
-    extracted_start_line_first_non_white = extracted_start_line_first_non_white or 0
-    local extracted_reference_pos = opts.output_location == "below"
-        and pos(extracted_range.end_row, extracted_range.end_col)
-      or pos(extracted_range.start_row, extracted_start_line_first_non_white)
+    local e_srow = selected_range:to_extmark()
+    local selected_range_start_line = api.nvim_buf_get_lines(buf, e_srow, e_srow + 1, true)[1]
+    local _, selected_start_line_first_non_white = selected_range_start_line:find "^%s*"
+    selected_start_line_first_non_white = selected_start_line_first_non_white or 0
+    local selected_reference_pos = opts.output_location == "below"
+        and pos(selected_range.end_row, selected_range.end_col)
+      or pos(selected_range.start_row, selected_start_line_first_non_white)
     local output_range, inserted_at =
-      get_statement_output_range(buf, output_statements, opts.output_location, extracted_range, extracted_reference_pos)
+      get_statement_output_range(buf, output_statements, opts.output_location, selected_range, selected_reference_pos)
     if not output_range or not inserted_at then return end
 
     -- TODO: I also compute `declarations_before_output_range` in
     -- `extract_func`. Is there a cleaner wat to do all this in both places?
     local declarations_by_scope = get_declarations_by_scope(references, scopes_info, buf)
-    local scopes_for_extracted_range = scopes_for_range(buf, scopes_info, extracted_range)
+    local scopes_for_selected_range = scopes_for_range(buf, scopes_info, selected_range)
     local reference_to_text =
       ---@param reference refactor.ReferenceInfo
       function(reference)
@@ -178,7 +192,7 @@ function M.print_var(range_type, config)
 
           local is_in_scope = false
           if declaration_scope then
-            is_in_scope = iter(scopes_for_extracted_range):any(
+            is_in_scope = iter(scopes_for_selected_range):any(
               ---@param si refactor.ScopeInfo
               function(si)
                 return si == declaration_scope
@@ -230,7 +244,7 @@ function M.print_var(range_type, config)
         function(r)
           local r_srow, r_scol, r_erow, r_ecol = r.identifier:range()
           local r_range = range(r_srow, r_scol, r_erow, r_ecol, { buf = buf })
-          return extracted_range:has(r_range)
+          return selected_range:has(r_range)
         end
       )
       :totable()

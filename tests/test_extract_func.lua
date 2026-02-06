@@ -77,16 +77,16 @@ T["lua"]["works"] = function()
 end
 
 T["lua"]["defaults to extracted location"] = function()
-  local lines = read_file "./tests/files/extract_func_defaults_to_extracted_location_before.lua"
-  local expected_lines = read_file "./tests/files/extract_func_defaults_to_extracted_location_after.lua"
+  local lines = read_file "./tests/files/extract_func_defaults_to_selected_location_before.lua"
+  local expected_lines = read_file "./tests/files/extract_func_defaults_to_selected_location_after.lua"
   child.cmd "edit tmp.lua"
   validate(lines, { 1, 0 }, expected_lines, " aeip", "bar<cr>")
 end
 
 T["lua"]["identifies references outside extracted range scope"] = function()
-  local lines = read_file "./tests/files/extract_func_identifies_references_outside_extracted_range_scope_before.lua"
+  local lines = read_file "./tests/files/extract_func_identifies_references_outside_selected_range_scope_before.lua"
   local expected_lines =
-    read_file "./tests/files/extract_func_identifies_references_outside_extracted_range_scope_after.lua"
+    read_file "./tests/files/extract_func_identifies_references_outside_selected_range_scope_after.lua"
   child.cmd "edit tmp.lua"
   validate(lines, { 1, 0 }, expected_lines, " ae_", "foo2<cr>")
 end
