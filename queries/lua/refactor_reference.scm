@@ -65,6 +65,10 @@
   (#set! reference_type read)
   (#set! field true))
 
+(bracket_index_expression
+  field: (identifier) @reference.identifier
+  (#set! reference_type read))
+
 (dot_index_expression
   table: (identifier) @reference.identifier
   (#set! reference_type read))
