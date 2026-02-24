@@ -26,10 +26,12 @@ local M = {}
 ---@class refactor.refactor.inline_var.Opts
 ---@field input string[]?
 ---@field preview_ns integer?
+---@field code_generation refactor.inline_var.CodeGeneration
 
 ---@class refactor.refactor.inline_var.UserOpts
 ---@field input string[]?
 ---@field preview_ns integer?
+---@field code_generation? refactor.inline_var.UserCodeGeneration
 
 ---@class refactor.refactor.inline_func.Opts
 ---@field input string[]?

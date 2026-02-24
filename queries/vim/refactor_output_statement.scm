@@ -1,5 +1,4 @@
 [
-  (function_definition)
   (let_statement)
   (unlet_statement)
   (const_statement)
@@ -67,3 +66,6 @@
   (substitute_statement)
   (user_command)
 ] @output_statement
+
+(function_definition
+  (body) @output_statement.inside) @output_statement

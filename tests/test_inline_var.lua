@@ -103,9 +103,9 @@ T["lua"]["filters LSP definitions without a Treesitter match"] = function()
   validate(lines, { 2, 6 }, expected_lines)
 end
 
-T["lua"]["orders reference's text edits backwards"] = function()
-  local lines = read_file "./tests/files/inline_var_orders_reference's_text_edits_backwards_before.lua"
-  local expected_lines = read_file "./tests/files/inline_var_orders_reference's_text_edits_backwards_after.lua"
+T["lua"]["orders references text edits backwards"] = function()
+  local lines = read_file "./tests/files/inline_var_orders_references_text_edits_backwards_before.lua"
+  local expected_lines = read_file "./tests/files/inline_var_orders_references_text_edits_backwards_after.lua"
 
   child.cmd "edit tmp.lua"
   validate(lines, { 1, 6 }, expected_lines)

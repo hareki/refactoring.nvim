@@ -895,6 +895,33 @@ local print_exp_code_generation = {
   },
 }
 
+---@type refactor.inline_var.CodeGeneration
+local inline_var_code_generation = {
+  group_expression = {
+    lua = function(opts)
+      return ("(%s)"):format(opts.expression)
+    end,
+    c = function(opts)
+      return ("(%s)"):format(opts.expression)
+    end,
+    javascript = function(opts)
+      return ("(%s)"):format(opts.expression)
+    end,
+    powershell = function(opts)
+      return ("(%s)"):format(opts.expression)
+    end,
+    python = function(opts)
+      return ("(%s)"):format(opts.expression)
+    end,
+    vim = function(opts)
+      return ("(%s)"):format(opts.expression)
+    end,
+    go = function(opts)
+      return ("(%s)"):format(opts.expression)
+    end,
+  },
+}
+
 ---@type refactor.Config
 local default_config = {
   refactor = {
@@ -907,7 +934,9 @@ local default_config = {
     extract_var = {
       code_generation = extract_var_code_generation,
     },
-    inline_var = {},
+    inline_var = {
+      code_generation = inline_var_code_generation,
+    },
   },
   debug = {
     markers = {

@@ -184,11 +184,20 @@ function Range.__eq(r1, r2)
     and cmp_pos(r1.end_row, r1.end_col, r2.end_row, r2.end_col) == 0
 end
 
---- Checks whether {outer} range contains {inner} range.
+--- Checks whether the given range is empty; i.e., start >= end.
+---
+---@return boolean `true` if the given range is empty
+function Range:is_empty()
+  local inclusive_end_row, inclusive_end_col = to_inclusive_pos(self.end_row, self.end_col, self.buf)
+
+  return cmp_pos(self.start_row, self.start_col, inclusive_end_row, inclusive_end_col) ~= -1
+end
+
+--- Checks whether {outer} range contains {inner} range or position.
 ---
 ---@param outer vim.Range
 ---@param inner vim.Range|vim.Pos
----@return boolean `true` if {outer} range fully contains {inner} range.
+---@return boolean `true` if {outer} range fully contains {inner} range or position.
 function Range.has(outer, inner)
   if getmetatable(inner) == pos then
     ---@cast inner -vim.Range
@@ -202,8 +211,8 @@ function Range.has(outer, inner)
 
   return cmp_pos(outer.start_row, outer.start_col, inner.start_row, inner.start_col) ~= 1
     and cmp_pos(outer.end_row, outer.end_col, inner.end_row, inner.end_col) ~= -1
-    -- NOTE: neccesary because of ranges where start == end (valid on both treesitter and api)
-    -- TODO: upstream this. Or maybe take a look to the new `is_empty` method, maybe its useful
+    -- accounts for empty ranges at the start/end of `outer` that per Neovim API and LSP logic
+    -- insert the text outside `outer`
     and cmp_pos(outer.start_row, outer.start_col, inner_inclusive_end_row, inner_inclusive_end_col) ~= 1
     and cmp_pos(outer_inclusive_end_row, outer_inclusive_end_col, inner.start_row, inner.start_col) ~= -1
 end

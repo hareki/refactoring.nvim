@@ -173,11 +173,6 @@ function M.print_var(range_type, config)
     -- `extract_func`. Is there a cleaner wat to do all this in both places?
     local declarations_by_scope = get_declarations_by_scope(references, scopes_info, buf)
     local scopes_for_selected_range = scopes_for_range(buf, scopes_info, selected_range)
-    local reference_to_text =
-      ---@param reference refactor.ReferenceInfo
-      function(reference)
-        return ts.get_node_text(reference.identifier, buf)
-      end
     local declarations_before_output_range = iter(references)
       :filter(
         ---@param r refactor.ReferenceInfo
@@ -205,7 +200,12 @@ function M.print_var(range_type, config)
           return r_range < output_range and is_in_scope
         end
       )
-      :map(reference_to_text)
+      :map(
+        ---@param reference refactor.ReferenceInfo
+        function(reference)
+          return ts.get_node_text(reference.identifier, buf)
+        end
+      )
       :totable()
 
     local debug_path_for_range = get_debug_path_for_range(buf, nested_lang_tree, output_range)

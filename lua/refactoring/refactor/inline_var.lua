@@ -7,6 +7,15 @@ local range = require "refactoring.range"
 
 local M = {}
 
+---@class refactor.inline_var.code_generation.group_expression.Opts
+---@field expression string
+
+---@class refactor.inline_var.CodeGeneration
+---@field group_expression {[string]: nil|fun(opts: refactor.inline_var.code_generation.group_expression.Opts): string}
+
+---@class refactor.inline_var.UserCodeGeneration
+---@field group_expression? {[string]: nil|fun(opts: refactor.inline_var.code_generation.group_expression.Opts): string}
+
 ---@param definition refactor.QfItem
 ---@param variables_info refactor.VariableInfo[]
 ---@return nil|refactor.ProcessedVariableInfo
@@ -145,8 +154,10 @@ function M.inline_var(_, config)
   local select = require("refactoring.utils").select
   local get_definitions = require("refactoring.utils").get_definitions
   local get_references = require("refactoring.utils").get_references
+  local code_gen_error = require("refactoring.utils").code_gen_error
 
   local opts = config.refactor.inline_var
+  local code_generation = opts.code_generation
 
   local lang_tree, err1 = ts.get_parser(nil, nil, { error = false })
   if not lang_tree then
@@ -175,6 +186,9 @@ function M.inline_var(_, config)
 
     local match_info_by_buf = get_match_info(definitions, references, lang)
     if not match_info_by_buf then return end
+
+    local get_grouped_expression = code_generation.group_expression[lang]
+    if not get_grouped_expression then return code_gen_error("group_expression", lang) end
 
     ---@type {definition: refactor.QfItem, info: refactor.ProcessedVariableInfo}[]
     local definitions_with_info = iter(definitions)
@@ -279,6 +293,7 @@ function M.inline_var(_, config)
     local value_node = definition_info.value
 
     local value_text = ts.get_node_text(value_node, definition_buf)
+    local grouped_value_text = get_grouped_expression { expression = value_text }
 
     ---@type {[integer]: refactor.TextEdit[]}
     local text_edits_by_buf = {}
@@ -293,7 +308,7 @@ function M.inline_var(_, config)
         text_edits_by_buf[buf] = text_edits_by_buf[buf] or {}
         table.insert(text_edits_by_buf[buf], {
           range = identifier_range,
-          lines = vim.split(value_text, "\n"),
+          lines = vim.split(grouped_value_text, "\n"),
         })
       end
     )

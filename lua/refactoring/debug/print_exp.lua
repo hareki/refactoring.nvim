@@ -135,13 +135,13 @@ function M.print_exp(range_type, config)
     -- NOTE: treesitter nodes usualy do not include leading whitespace
     local e_srow = selected_range:to_extmark()
     local selected_range_start_line = api.nvim_buf_get_lines(buf, e_srow, e_srow + 1, true)[1]
-    local _, extracted_start_line_first_non_white = selected_range_start_line:find "^%s*"
-    extracted_start_line_first_non_white = extracted_start_line_first_non_white or 0
-    local extracted_reference_pos = opts.output_location == "below"
+    local _, selected_start_line_first_non_white = selected_range_start_line:find "^%s*"
+    selected_start_line_first_non_white = selected_start_line_first_non_white or 0
+    local selected_reference_pos = opts.output_location == "below"
         and pos(selected_range.end_row, selected_range.end_col)
-      or pos(selected_range.start_row, extracted_start_line_first_non_white)
+      or pos(selected_range.start_row, selected_start_line_first_non_white)
     local output_range, inserted_at =
-      get_statement_output_range(buf, output_statements, opts.output_location, selected_range, extracted_reference_pos)
+      get_statement_output_range(buf, output_statements, opts.output_location, selected_range, selected_reference_pos)
     if not output_range or not inserted_at then return end
 
     local debug_path_for_range = get_debug_path_for_range(buf, nested_lang_tree, output_range)
