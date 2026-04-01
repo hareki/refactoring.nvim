@@ -1,7 +1,20 @@
 ; table.sort(function() end)
-((function_definition
-  body: (block) @scope.inside) @scope @scope.outside
-  (#not-has-parent? @scope expression_list))
+(function_call
+  (arguments
+    (function_definition
+      body: (block) @scope.inside) @scope)) @scope.outside
+
+(while_statement
+  (function_definition
+    body: (block) @scope.inside) @scope) @scope.outside
+
+(repeat_statement
+  (function_definition
+    body: (block) @scope.inside) @scope) @scope.outside
+
+(if_statement
+  (function_definition
+    body: (block) @scope.inside) @scope) @scope.outside
 
 ; foo = function() end
 ((assignment_statement

@@ -1,11 +1,6 @@
 -- TODO: handle extra logic for extracting var into class scope
 local M = {}
 
--- TODO: when extracting a varible from multiple table.sort({}, function() ...
--- end), the range outside the first nested scope inside of the smallest
--- common scope is not correct
--- TODO: is the scope check working? I feel like it isn't in the above case
-
 local async = require "async"
 local range = require "refactoring.range"
 local pos = require "refactoring.pos"
