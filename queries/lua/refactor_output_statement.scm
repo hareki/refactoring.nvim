@@ -1,6 +1,5 @@
 [
   (empty_statement)
-  (assignment_statement)
   (label_statement)
   (break_statement)
   (goto_statement)
@@ -40,3 +39,6 @@
 
 (chunk
   (function_call) @output_statement)
+
+((assignment_statement) @output_statement
+  (#not-has-parent? @output_statement variable_declaration))
