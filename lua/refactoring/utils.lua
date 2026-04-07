@@ -51,21 +51,6 @@ function M.query_error(missing_query, lang)
   vim.notify(("There is no `%s` query file for language %s"):format(missing_query, lang), vim.log.levels.ERROR)
 end
 
----@param get_key nil|fun(value: any): any
----@return fun(value: any): boolean
-function M.is_unique(get_key)
-  ---@type {[string]: boolean}
-  local already_seen = {}
-
-  ---@param value any
-  return function(value)
-    local key = get_key and get_key(value) or value
-    if already_seen[key] then return false end
-    already_seen[key] = true
-    return true
-  end
-end
-
 -- NOTE: the indent logic in `vim.text.indent` counts each char as 1 indent
 -- level. the indent logic in `vim.fn.indent` takes into account `expandtab`,
 -- `tabstop` and `shiftwidth`.

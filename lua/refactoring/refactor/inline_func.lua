@@ -23,7 +23,6 @@ local M = {}
 ---@param lang string
 ---@return nil|{[integer]: refactor.inline_func.ProcessedMatchInfo}
 local function get_processed_match_info(definitions, references, lang)
-  local is_unique = require("refactoring.utils").is_unique
   local get_functions_info = require("refactoring.utils").get_functions_info
   local get_function_calls_info = require("refactoring.utils").get_function_calls_info
   local query_error = require("refactoring.utils").query_error
@@ -44,7 +43,7 @@ local function get_processed_match_info(definitions, references, lang)
         return buf
       end
     )
-    :filter(is_unique())
+    :unique()
     :map(
       ---@param buf integer
       function(buf)

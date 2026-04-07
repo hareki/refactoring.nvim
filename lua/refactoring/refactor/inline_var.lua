@@ -80,7 +80,6 @@ end
 ---@param lang string
 ---@return nil|{[integer]: refactor.inline_var.MatchInfo}
 local function get_match_info(definitions, references, lang)
-  local is_unique = require("refactoring.utils").is_unique
   local get_references_info = require("refactoring.utils").get_references_info
   local get_variables_info = require("refactoring.utils").get_variables_info
   local query_error = require("refactoring.utils").query_error
@@ -101,7 +100,7 @@ local function get_match_info(definitions, references, lang)
         return buf
       end
     )
-    :filter(is_unique())
+    :unique()
     :map(
       ---@param buf integer
       function(buf)
@@ -150,7 +149,6 @@ end
 ---@param config refactor.Config
 function M.inline_var(_, config)
   local apply_text_edits = require("refactoring.utils").apply_text_edits
-  local is_unique = require("refactoring.utils").is_unique
   local select = require("refactoring.utils").select
   local get_definitions = require("refactoring.utils").get_definitions
   local get_references = require("refactoring.utils").get_references
@@ -232,12 +230,12 @@ function M.inline_var(_, config)
 
     ---@type {reference: refactor.QfItem, info: refactor.ReferenceInfo|nil}[]
     local references_with_info = iter(references)
-      :filter(is_unique(
+      :unique(
         ---@param r refactor.QfItem
         function(r)
           return ("%d-%d-%d-%d"):format(r.lnum, r.col, r.end_lnum, r.end_col)
         end
-      ))
+      )
       :filter(
         ---@param r refactor.QfItem
         function(r)

@@ -238,7 +238,6 @@ end
 local function extract_func(opts)
   local apply_text_edits = require("refactoring.utils").apply_text_edits
   local code_gen_error = require("refactoring.utils").code_gen_error
-  local is_unique = require("refactoring.utils").is_unique
   local indent = require("refactoring.utils").indent
   local get_declarations_by_scope = require("refactoring.utils").get_declarations_by_scope
   local scopes_for_range = require("refactoring.utils").scopes_for_range
@@ -461,12 +460,12 @@ local function extract_func(opts)
   ---@type refactor.Variable[]
   local variables_inside_selected_range = iter(references_inside_selected_range)
     :map(reference_to_variable)
-    :filter(is_unique(
+    :unique(
       ---@param v refactor.Variable
       function(v)
         return v.identifier
       end
-    ))
+    )
     :totable()
 
   local reference_to_text =
@@ -483,7 +482,7 @@ local function extract_func(opts)
       end
     )
     :map(reference_to_text)
-    :filter(is_unique())
+    :unique()
     :totable()
 
   ---@type string[]
@@ -586,12 +585,12 @@ local function extract_func(opts)
       end
     )
     :map(reference_to_variable)
-    :filter(is_unique(
+    :unique(
       ---@param v refactor.Variable
       function(v)
         return v.identifier
       end
-    ))
+    )
     :totable()
   ---@type refactor.Variable[]
   local return_values = iter(variables_after_selected_range)

@@ -104,7 +104,6 @@ end
 ---@param config refactor.Config
 function M.print_var(range_type, config)
   local get_selected_range = require("refactoring.utils").get_selected_range
-  local is_unique = require("refactoring.utils").is_unique
   local code_gen_error = require("refactoring.utils").code_gen_error
   local apply_text_edits = require("refactoring.utils").apply_text_edits
   local get_declarations_by_scope = require("refactoring.utils").get_declarations_by_scope
@@ -258,12 +257,12 @@ function M.print_var(range_type, config)
     end)
     ---@type refactor.ReferenceInfo[]
     local filtered_references = iter(selected_references)
-      :filter(is_unique(
+      :unique(
         ---@param r refactor.ReferenceInfo
         function(r)
           return ts.get_node_text(r.identifier, buf)
         end
-      ))
+      )
       :filter(
         ---@param r refactor.ReferenceInfo
         function(r)
