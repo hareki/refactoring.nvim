@@ -21,4 +21,4 @@
   body: (declaration_list
     (_) @scope.inside) @scope) @scope.outside
 
-(compilation_unit) @scope @scope.outside
+(compilation_unit) @scope.inside @scope @scope.outside

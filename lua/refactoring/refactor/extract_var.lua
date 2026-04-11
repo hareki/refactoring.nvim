@@ -60,6 +60,7 @@ function M.extract_var(range_type, config)
   local code_gen_error = require("refactoring.utils").code_gen_error
   local get_scopes_info = require("refactoring.utils").get_scopes_info
   local query_error = require("refactoring.utils").query_error
+  local get_output_statements_info = require("refactoring.utils").get_output_statements_info
 
   local opts = config.refactor.extract_var
   local code_generation = opts.code_generation
@@ -107,6 +108,8 @@ function M.extract_var(range_type, config)
     local encompasing_query = maybe_encompasing_query
     local scope_query = ts.query.get(lang, "refactor_scope")
     if not scope_query then return query_error("refactor_scope", lang) end
+    local output_statement_query = ts.query.get(lang, "refactor_output_statement")
+    if not output_statement_query then return query_error("refactor_output_statement", lang) end
 
     local selected_significant_text = significant_text(encompassing_node, buf)
     local matching_nodes = {} ---@type TSNode[]
@@ -117,6 +120,7 @@ function M.extract_var(range_type, config)
       end
     end
     local scopes_info = get_scopes_info(buf, nested_lang_tree, scope_query)
+    local output_statements = get_output_statements_info(buf, nested_lang_tree, output_statement_query)
 
     ---@type {[integer]: refactor.TextEdit[]}
     local text_edits_by_buf = {}
@@ -179,91 +183,78 @@ function M.extract_var(range_type, config)
 
     local srow, scol, erow, ecol = smallest_common_scope.inside:range()
     local smallest_common_inside_scope_range = range(srow, scol, erow, ecol, { buf = buf })
-    ---@type refactor.ScopeInfo|nil
-    local highest_nested_containing_scope = iter(scopes_info)
+
+    ---@type vim.Range[]
+    local nested_scope_ranges = iter(scopes_info)
       :filter(
         ---@param si refactor.ScopeInfo
         function(si)
           if si == smallest_common_scope then return false end
 
-          local scope = si.outside
-          local s_srow, s_scol, s_erow, s_ecol = scope:range()
-          local scope_range = range(s_srow, s_scol, s_erow, s_ecol, { buf = buf })
+          local si_srow, si_scol, si_erow, si_ecol = si.inside:range()
+          local si_range = range(si_srow, si_scol, si_erow, si_ecol, { buf = buf })
 
-          return smallest_common_inside_scope_range:has(scope_range)
-            and iter(matching_nodes):any(
+          return smallest_common_inside_scope_range:has(si_range)
+        end
+      )
+      :map(
+        ---@param si refactor.ScopeInfo
+        function(si)
+          local si_srow, si_scol, si_erow, si_ecol = si.inside:range()
+          return range(si_srow, si_scol, si_erow, si_ecol, { buf = buf })
+        end
+      )
+      :totable()
+
+    -- TODO: copy this for other refactor that need to find an output statement
+    -- (likely inline_func and extract_func)
+    -- TODO: I still need to compute where the declaration for all references
+    -- inside the extracted_text are and make sure that `output_range` is below
+    -- all of them (this may exclude possible candidates for `matching_nodes`),
+    -- so I'll need to use it to find the correct scope inside of which all of
+    -- `matching_nodes` should be
+    ---@type nil|refactor.OutputStatementInfo
+    local output_statement = iter(output_statements)
+      :filter(
+        ---@param os refactor.OutputStatementInfo
+        function(os)
+          local os_srow, os_scol, os_erow, os_ecol = os.output_statement:range()
+          local os_range = range(os_srow, os_scol, os_erow, os_ecol, { buf = buf })
+          local os_start_pos = pos(os_srow, os_scol, { buf = buf })
+          return smallest_common_inside_scope_range:has(os_range)
+            and not iter(nested_scope_ranges):any(
+              ---@param ns_range vim.Range
+              function(ns_range)
+                return ns_range:has(os_range)
+              end
+            )
+            and iter(matching_nodes):all(
               ---@param n TSNode
               function(n)
-                local n_srow, n_scol, n_erow, n_ecol = n:range()
-                local node_range = range(n_srow, n_scol, n_erow, n_ecol, { buf = buf })
-                return scope_range:has(node_range)
+                local n_srow, n_scol = n:start()
+                local node_start_pos = pos(n_srow, n_scol, { buf = buf })
+                return os_start_pos <= node_start_pos
               end
             )
         end
       )
       :fold(
         nil,
-        ---@param acc refactor.ScopeInfo|nil
-        ---@param s refactor.ScopeInfo
-        function(acc, s)
-          if not acc then return s end
-
-          local s_srow, s_scol = s.outside:start()
-          local s_start = pos(s_srow, s_scol, { buf = buf })
-          local acc_srow, acc_scol = acc.outside:start()
-          local acc_start = pos(acc_srow, acc_scol, { buf = buf })
-          if s_start < acc_start then return s end
-
+        ---@param acc nil|refactor.OutputStatementInfo
+        ---@param os refactor.OutputStatementInfo
+        function(acc, os)
+          if not acc then return os end
+          local acc_srow, acc_scol = acc.output_statement:start()
+          local acc_start_pos = pos(acc_srow, acc_scol, { buf = buf })
+          local os_srow, os_scol = os.output_statement:start()
+          local os_start_pos = pos(os_srow, os_scol, { buf = buf })
+          if os_start_pos > acc_start_pos then return os end
           return acc
         end
       )
-
-    ---@type TSNode?
-    local highest_matching_node = iter(matching_nodes):fold(
-      nil,
-      ---@param acc TSNode|nil
-      ---@param n TSNode
-      function(acc, n)
-        if not acc then return n end
-
-        local n_srow, n_scol = n:start()
-        local n_start = pos(n_srow, n_scol, { buf = buf })
-        local acc_srow, acc_scol = acc:start()
-        local acc_start = pos(acc_srow, acc_scol, { buf = buf })
-        if n_start < acc_start then return n end
-
-        return acc
-      end
-    )
-    assert(highest_matching_node)
-    local highest_matching_node_start_row = highest_matching_node:start()
-    local highest_matching_node_start_line =
-      api.nvim_buf_get_lines(buf, highest_matching_node_start_row, highest_matching_node_start_row + 1, true)[1]
-    local _, highest_matching_node_start_first_non_blank = highest_matching_node_start_line:find "^%s+"
-
-    -- TODO: I still need to compute where the declaration for all references
-    -- inside the extracte_text are and make sure that `output_range` is below
-    -- all of them (this may exclude possible candidates for `matching_nodes`),
-    -- so I'll need to use it to found the correct scope inside of which all of
-    -- `matching_nodes` should be
-    local output_range = range.extmark(
-      highest_matching_node_start_row,
-      highest_matching_node_start_first_non_blank or 0,
-      highest_matching_node_start_row,
-      highest_matching_node_start_first_non_blank or 0,
-      { buf = buf }
-    )
-    if highest_nested_containing_scope then
-      local cs_srow, cs_scol = highest_nested_containing_scope.outside:start()
-      local highest_nested_containing_scope_start = pos(cs_srow, cs_scol, { buf = buf })
-      if
-        highest_nested_containing_scope_start
-        < pos(output_range.start_row, output_range.start_col, { buf = output_range.buf })
-      then
-        local api_srow, api_scol = highest_nested_containing_scope_start:to_extmark()
-        output_range = range.extmark(api_srow, api_scol, api_srow, api_scol, { buf = buf })
-      end
-    end
+    assert(output_statement)
+    local os_srow, os_scol = output_statement.output_statement:start()
+    local output_range = range.extmark(os_srow, os_scol, os_srow, os_scol, { buf = buf })
 
     local variable_declaration = get_variable_declaration {
       name = var_name,

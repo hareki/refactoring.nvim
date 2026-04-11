@@ -106,6 +106,13 @@ T["lua"]["uses closest point to highest extracted text with correct scope"] = fu
   validate(lines, { 6, 0 }, expected_lines, " avi)", "foo<cr>")
 end
 
+T["lua"]["works for deeply nested expressions"] = function()
+  local lines = read_file "./tests/files/works_for_deeply_nested_expressions_before.lua"
+  local expected_lines = read_file "./tests/files/works_for_deeply_nested_expressions_after.lua"
+  child.cmd "edit tmp.lua"
+  validate(lines, { 2, 0 }, expected_lines, " ava'", "foo<cr>")
+end
+
 T["javascript"] = MiniTest.new_set {
   hooks = {
     pre_case = function()
