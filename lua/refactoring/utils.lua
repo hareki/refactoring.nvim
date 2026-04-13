@@ -345,8 +345,12 @@ function M.get_output_statements_info(buf, nested_lang_tree, query)
   local output_statements_info = {}
 
   for _, tree in ipairs(nested_lang_tree:trees()) do
-    for _, match in query:iter_matches(tree:root(), buf) do
+    for _, match, metadata in query:iter_matches(tree:root(), buf) do
       local output_statement ---@type nil|refactor.OutputStatementInfo
+      if metadata then
+        output_statement = output_statement or {}
+        output_statement.inside_only = metadata.inside_only
+      end
       for capture_id, nodes in pairs(match) do
         local name = query.captures[capture_id]
 

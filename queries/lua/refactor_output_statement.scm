@@ -32,7 +32,8 @@
   body: (_) @output_statement.inside) @output_statement
 
 (function_definition
-  body: (_) @output_statement.inside) @output_statement
+  body: (_) @output_statement.inside
+  (#set! inside_only)) @output_statement
 
 (block
   (function_call) @output_statement)

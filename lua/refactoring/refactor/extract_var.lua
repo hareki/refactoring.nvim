@@ -221,7 +221,8 @@ function M.extract_var(range_type, config)
           local os_srow, os_scol, os_erow, os_ecol = os.output_statement:range()
           local os_range = range(os_srow, os_scol, os_erow, os_ecol, { buf = buf })
           local os_start_pos = pos(os_srow, os_scol, { buf = buf })
-          return smallest_common_inside_scope_range:has(os_range)
+          return not os.inside_only
+            and smallest_common_inside_scope_range:has(os_range)
             and not iter(nested_scope_ranges):any(
               ---@param ns_range vim.Range
               function(ns_range)

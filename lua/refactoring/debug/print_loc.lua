@@ -24,6 +24,7 @@ local M = {}
 ---@class refactor.OutputStatementInfo
 ---@field output_statement TSNode
 ---@field inside TSNode|nil
+---@field inside_only boolean|nil
 
 ---@param a TSNode
 ---@param b TSNode
