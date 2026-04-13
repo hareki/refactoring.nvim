@@ -9,4 +9,4 @@
         (method_declaration)
         (constructor_declaration)
       ] @input_function))
-  (#set! method true))
+  (#set! method))

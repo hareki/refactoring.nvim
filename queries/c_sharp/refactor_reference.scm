@@ -10,14 +10,14 @@
       name: (_) @reference.identifier))*)
   (#set-type! c_sharp @_type @reference.identifier)
   (#set! reference_type write)
-  (#set! declaration true))
+  (#set! declaration))
 
 (parameter
   type: (_) @_type
   name: (_) @reference.identifier
   (#set-type! c_sharp @_type @reference.identifier)
   (#set! reference_type write)
-  (#set! declaration true))
+  (#set! declaration))
 
 ; foo = 1
 (assignment_expression
@@ -43,14 +43,14 @@
 (invocation_expression
   function: (_) @reference.identifier
   (#set! reference_type read)
-  (#set! function_call_identifier true))
+  (#set! function_call_identifier))
 
 (method_declaration
   name: (_) @reference.identifier
-  (#set! declaration true)
+  (#set! declaration)
   (#set! reference_type write))
 
 (local_function_statement
   name: (_) @reference.identifier
-  (#set! declaration true)
+  (#set! declaration)
   (#set! reference_type write))

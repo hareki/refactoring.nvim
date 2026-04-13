@@ -1,11 +1,11 @@
 (parameters
   (identifier) @reference.identifier
-  (#set! declaration true))
+  (#set! declaration))
 
 (parameters
   (default_parameter
     (identifier) @reference.identifier)
-  (#set! declaration true))
+  (#set! declaration))
 
 (unlet_statement
   (identifier) @reference.identifier
@@ -17,12 +17,12 @@
     (argument)
   ] @reference.identifier
   (#set! reference_type read)
-  (#set! field true))
+  (#set! field))
 
 (let_statement
   (identifier) @reference.identifier
   (#set! reference_type write)
-  (#set! declaration true))
+  (#set! declaration))
 
 (let_statement
   [
@@ -30,14 +30,14 @@
     (argument)
   ] @reference.identifier
   (#set! reference_type write)
-  (#set! declaration true)
-  (#set! field true))
+  (#set! declaration)
+  (#set! field))
 
 (let_statement
   (list_assignment
     (identifier) @reference.identifier)
   (#set! reference_type write)
-  (#set! declaration true))
+  (#set! declaration))
 
 (let_statement
   (list_assignment
@@ -46,8 +46,8 @@
       (argument)
     ] @reference.identifier)
   (#set! reference_type write)
-  (#set! declaration true)
-  (#set! field true))
+  (#set! declaration)
+  (#set! field))
 
 (binary_operation
   (identifier) @reference.identifier
@@ -59,7 +59,7 @@
     (argument)
   ] @reference.identifier
   (#set! reference_type read)
-  (#set! field true))
+  (#set! field))
 
 (unary_operation
   (identifier) @reference.identifier
@@ -71,7 +71,7 @@
     (argument)
   ] @reference.identifier
   (#set! reference_type read)
-  (#set! field true))
+  (#set! field))
 
 (if_statement
   (identifier) @reference.identifier
@@ -83,7 +83,7 @@
     (argument)
   ] @reference.identifier
   (#set! reference_type read)
-  (#set! field true))
+  (#set! field))
 
 (return_statement
   (identifier) @reference.identifier
@@ -95,12 +95,12 @@
     (argument)
   ] @reference.identifier
   (#set! reference_type read)
-  (#set! field true))
+  (#set! field))
 
 (call_expression
   (identifier) @reference.identifier
   (#set! reference_type read)
-  (#set! function_call_identifier true))
+  (#set! function_call_identifier))
 
 (call_expression
   [
@@ -108,8 +108,8 @@
     (argument)
   ] @reference.identifier
   (#set! reference_type read)
-  (#set! function_call_identifier true)
-  (#set! field true))
+  (#set! function_call_identifier)
+  (#set! field))
 
 (field_expression
   value: (identifier) @reference.identifier
@@ -121,7 +121,7 @@
     (argument)
   ] @reference.identifier
   (#set! reference_type read)
-  (#set! field true))
+  (#set! field))
 
 (dictionnary_entry
   (identifier) @reference.identifier
@@ -133,7 +133,7 @@
     (argument)
   ] @reference.identifier
   (#set! reference_type read)
-  (#set! field true))
+  (#set! field))
 
 (index_expression
   (identifier) @reference.identifier
@@ -145,12 +145,12 @@
     (argument)
   ] @reference.identifier
   (#set! reference_type read)
-  (#set! field true))
+  (#set! field))
 
 (for_loop
   variable: (identifier) @reference.identifier
   (#set! reference_type write)
-  (#set! declaration true))
+  (#set! declaration))
 
 (for_loop
   variable: [
@@ -158,8 +158,8 @@
     (argument)
   ] @reference.identifier
   (#set! reference_type write)
-  (#set! declaration true)
-  (#set! field true))
+  (#set! declaration)
+  (#set! field))
 
 (for_loop
   iter: (identifier) @reference.identifier
@@ -171,7 +171,7 @@
     (argument)
   ] @reference.identifier
   (#set! reference_type read)
-  (#set! field true))
+  (#set! field))
 
 (while_loop
   condition: (identifier) @reference.identifier
@@ -183,7 +183,7 @@
     (argument)
   ] @reference.identifier
   (#set! reference_type read)
-  (#set! field true))
+  (#set! field))
 
 (echo_statement
   (identifier) @reference.identifier
@@ -195,7 +195,7 @@
     (argument)
   ] @reference.identifier
   (#set! reference_type read)
-  (#set! field true))
+  (#set! field))
 
 (echomsg_statement
   (identifier) @reference.identifier
@@ -207,16 +207,16 @@
     (argument)
   ] @reference.identifier
   (#set! reference_type read)
-  (#set! field true))
+  (#set! field))
 
 (function_declaration
   name: (identifier) @reference.identifier
-  (#set! declaration true))
+  (#set! declaration))
 
 (function_declaration
   name: [
     (scoped_identifier)
     (argument)
   ] @reference.identifier
-  (#set! declaration true)
-  (#set! field true))
+  (#set! declaration)
+  (#set! field))

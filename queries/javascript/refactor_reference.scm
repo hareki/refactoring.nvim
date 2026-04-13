@@ -4,7 +4,7 @@
 (variable_declarator
   name: (identifier) @reference.identifier
   (#set! reference_type write)
-  (#set! declaration true))
+  (#set! declaration))
 
 ; let foo = 1
 (variable_declarator
@@ -12,14 +12,14 @@
   value: (_) @_value
   (#infer-type! javascript @_value)
   (#set! reference_type write)
-  (#set! declaration true))
+  (#set! declaration))
 
 (formal_parameters
   (identifier) @reference.identifier
   (#set! reference_type write)
-  (#set! declaration true))
+  (#set! declaration))
 
 (field_definition
   (property_identifier) @reference.identifier
-  (#set! declaration true)
+  (#set! declaration)
   (#set! reference_type write))

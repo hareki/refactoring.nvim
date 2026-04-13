@@ -3,7 +3,7 @@
   type: (type_identifier) @_type
   (#set-type! go @_type @reference.identifier)
   (#set! reference_type write)
-  (#set! declaration true))
+  (#set! declaration))
 
 ; var foo int
 (var_spec
@@ -11,7 +11,7 @@
   type: (_) @_type
   (#set-type! go @_type @reference.identifier)
   (#set! reference_type write)
-  (#set! declaration true))
+  (#set! declaration))
 
 ; var foo int = bar
 (var_spec
@@ -35,7 +35,7 @@
       (_) @_value)*)
   (#infer-type! go @_value)
   (#set! reference_type write)
-  (#set! declaration true))
+  (#set! declaration))
 
 ; foo := bar
 (short_var_declaration
@@ -53,7 +53,7 @@
     (index_expression)
   ] @reference.identifier
   (#set! reference_type read)
-  (#set! field true))
+  (#set! field))
 
 (inc_statement
   (identifier) @reference.identifier
@@ -65,7 +65,7 @@
     (index_expression)
   ] @reference.identifier
   (#set! reference_type write)
-  (#set! field true))
+  (#set! field))
 
 (argument_list
   (identifier) @reference.identifier
@@ -77,7 +77,7 @@
     (index_expression)
   ] @reference.identifier
   (#set! reference_type read)
-  (#set! field true))
+  (#set! field))
 
 (selector_expression
   operand: (identifier) @reference.identifier
@@ -89,7 +89,7 @@
     (index_expression)
   ] @reference.identifier
   (#set! reference_type read)
-  (#set! field true))
+  (#set! field))
 
 (return_statement
   (expression_list
@@ -102,7 +102,7 @@
       (selector_expression)
       (index_expression)
     ] @reference.identifier
-    (#set! field true))
+    (#set! field))
   (#set! reference_type read))
 
 (assignment_statement
@@ -116,7 +116,7 @@
       (selector_expression)
       (index_expression)
     ] @reference.identifier
-    (#set! field true))
+    (#set! field))
   (#set! reference_type write))
 
 (assignment_statement
@@ -130,7 +130,7 @@
       (selector_expression)
       (index_expression)
     ] @reference.identifier
-    (#set! field true))
+    (#set! field))
   (#set! reference_type read))
 
 (index_expression
@@ -143,12 +143,12 @@
     (index_expression)
   ] @reference.identifier
   (#set! reference_type read)
-  (#set! field true))
+  (#set! field))
 
 (call_expression
   function: (identifier) @reference.identifier
   (#set! reference_type read)
-  (#set! function_call_identifier true))
+  (#set! function_call_identifier))
 
 (call_expression
   function: [
@@ -156,8 +156,8 @@
     (index_expression)
   ] @reference.identifier
   (#set! reference_type read)
-  (#set! field true)
-  (#set! function_call_identifier true))
+  (#set! field)
+  (#set! function_call_identifier))
 
 (if_statement
   condition: (identifier) @reference.identifier
@@ -169,11 +169,11 @@
     (index_expression)
   ] @reference.identifier
   (#set! reference_type read)
-  (#set! field true))
+  (#set! field))
 
 ; NOTE: method_declaration is purposefully not included because it doesn't
 ; create a top.level identifier
 (function_declaration
   name: (_) @reference.identifier
   (#set! reference_type write)
-  (#set! declaration true))
+  (#set! declaration))

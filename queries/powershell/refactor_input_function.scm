@@ -6,4 +6,4 @@
   (statement_list
     (class_statement
       (class_method_definition) @input_function))
-  (#set! method true))
+  (#set! method))

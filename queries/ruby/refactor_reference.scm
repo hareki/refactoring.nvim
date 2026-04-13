@@ -1,12 +1,12 @@
 (method_parameters
   (identifier) @reference.identifier
-  (#set! declaration true))
+  (#set! declaration))
 
 ; foo = ...
 (assignment
   left: (identifier) @reference.identifier
   (#set! reference_type write)
-  (#set! declaration true))
+  (#set! declaration))
 
 ; ... = foo
 (assignment
@@ -18,7 +18,7 @@
   left: (left_assignment_list
     (identifier) @reference.identifier)
   (#set! reference_type write)
-  (#set! declaration true))
+  (#set! declaration))
 
 (array
   (identifier) @reference.identifier
@@ -39,7 +39,7 @@
 (operator_assignment
   left: (identifier) @reference.identifier
   (#set! reference_type write)
-  (#set! declaration true))
+  (#set! declaration))
 
 (binary
   (identifier) @reference.identifier
@@ -52,7 +52,7 @@
 (for
   pattern: (identifier) @reference.identifier
   (#set! reference_type write)
-  (#set! declaration true))
+  (#set! declaration))
 
 (for
   value: (in
@@ -69,7 +69,7 @@
   arguments: (argument_list
     (identifier) @reference.identifier)
   (#set! reference_type read)
-  (#set! function_call_identifier true))
+  (#set! function_call_identifier))
 
 (element_reference
   object: (identifier) @reference.identifier
@@ -107,4 +107,4 @@
 (method
   name: (_) @reference.identifier
   (#set! reference_type write)
-  (#set! declaration true))
+  (#set! declaration))

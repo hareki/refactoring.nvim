@@ -389,9 +389,9 @@ function M.get_references_info(buf, nested_lang_tree, query)
               identifier = node,
               reference_type = metadata.reference_type,
               type = metadata.types and metadata.types[i],
-              declaration = metadata.declaration ~= nil,
-              field = metadata.field ~= nil,
-              function_call_identifier = metadata.function_call_identifier ~= nil,
+              declaration = metadata.declaration,
+              field = metadata.field,
+              function_call_identifier = metadata.function_call_identifier,
             })
           end
         end
@@ -501,8 +501,8 @@ function M.get_input_functions_info(buf, nested_lang_tree, query)
         if name == "input_function" then
           input_function = input_function or {}
           input_function.fn = nodes[1]
-          input_function.method = metadata.method ~= nil
-          input_function.singleton = metadata.singleton ~= nil
+          input_function.method = metadata.method
+          input_function.singleton = metadata.singleton
 
           local struct_name = metadata.struct_name
           if struct_name then input_function.struct_name = ts.get_node_text(match[struct_name][1], buf) end

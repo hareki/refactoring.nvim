@@ -5,7 +5,7 @@
 (assignment_expression
   left: (member_expression) @reference.identifier
   (#set! reference_type write)
-  (#set! field true))
+  (#set! field))
 
 (assignment_expression
   right: (identifier) @reference.identifier
@@ -14,7 +14,7 @@
 (assignment_expression
   right: (member_expression) @reference.identifier
   (#set! reference_type read)
-  (#set! field true))
+  (#set! field))
 
 (binary_expression
   (identifier) @reference.identifier
@@ -23,7 +23,7 @@
 (binary_expression
   (member_expression) @reference.identifier
   (#set! reference_type read)
-  (#set! field true))
+  (#set! field))
 
 (update_expression
   (identifier) @reference.identifier
@@ -32,7 +32,7 @@
 (update_expression
   (member_expression) @reference.identifier
   (#set! reference_type write)
-  (#set! field true))
+  (#set! field))
 
 (augmented_assignment_expression
   (identifier) @reference.identifier
@@ -41,7 +41,7 @@
 (augmented_assignment_expression
   (member_expression) @reference.identifier
   (#set! reference_type write)
-  (#set! field true))
+  (#set! field))
 
 (arguments
   (identifier) @reference.identifier
@@ -50,7 +50,7 @@
 (arguments
   (member_expression) @reference.identifier
   (#set! reference_type read)
-  (#set! field true))
+  (#set! field))
 
 (return_statement
   (identifier) @reference.identifier
@@ -59,7 +59,7 @@
 (return_statement
   (member_expression) @reference.identifier
   (#set! reference_type read)
-  (#set! field true))
+  (#set! field))
 
 (member_expression
   object: (identifier) @reference.identifier
@@ -67,58 +67,58 @@
 
 (member_expression
   (#set! reference_type read)
-  (#set! field true)) @reference.identifier
+  (#set! field)) @reference.identifier
 
 (call_expression
   function: (identifier) @reference.identifier
   (#set! reference_type read)
-  (#set! function_call_identifier true))
+  (#set! function_call_identifier))
 
 (call_expression
   function: (member_expression) @reference.identifier
   (#set! reference_type read)
-  (#set! field true)
-  (#set! function_call_identifier true))
+  (#set! field)
+  (#set! function_call_identifier))
 
 (function_declaration
   name: (_) @reference.identifier
-  (#set! declaration true)
+  (#set! declaration)
   (#set! reference_type write))
 
 (method_definition
   name: (_) @reference.identifier
-  (#set! declaration true)
+  (#set! declaration)
   (#set! reference_type write))
 
 (pair
   value: (identifier) @reference.identifier
   (#set! reference_type read)
-  (#set! function_call_identifier true))
+  (#set! function_call_identifier))
 
 (pair
   value: (member_expression) @reference.identifier
   (#set! reference_type read)
-  (#set! function_call_identifier true)
-  (#set! field true))
+  (#set! function_call_identifier)
+  (#set! field))
 
 (array
   (identifier) @reference.identifier
   (#set! reference_type read)
-  (#set! function_call_identifier true))
+  (#set! function_call_identifier))
 
 (array
   (member_expression) @reference.identifier
   (#set! reference_type read)
-  (#set! function_call_identifier true)
-  (#set! field true))
+  (#set! function_call_identifier)
+  (#set! field))
 
 (spread_element
   (identifier) @reference.identifier
   (#set! reference_type read)
-  (#set! function_call_identifier true))
+  (#set! function_call_identifier))
 
 (spread_element
   (member_expression) @reference.identifier
   (#set! reference_type read)
-  (#set! function_call_identifier true)
-  (#set! field true))
+  (#set! function_call_identifier)
+  (#set! field))

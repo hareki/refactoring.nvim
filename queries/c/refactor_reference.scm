@@ -3,7 +3,7 @@
   declarator: (identifier) @reference.identifier
   (#set-type! c @_type @reference.identifier)
   (#set! reference_type write)
-  (#set! declaration true))
+  (#set! declaration))
 
 ; int foo = 1;
 (declaration
@@ -18,7 +18,7 @@
       declarator: (_) @reference.identifier))*
   (#set-type! c @_type @reference.identifier)
   (#set! reference_type write)
-  (#set! declaration true))
+  (#set! declaration))
 
 ; int foo;
 (declaration
@@ -31,7 +31,7 @@
     (identifier) @reference.identifier)*
   (#set-type! c @_type @reference.identifier)
   (#set! reference_type write)
-  (#set! declaration true))
+  (#set! declaration))
 
 ; int foo;
 (declaration
@@ -44,8 +44,8 @@
     (field_expression) @reference.identifier)*
   (#set-type! c @_type @reference.identifier)
   (#set! reference_type write)
-  (#set! declaration true)
-  (#set! field true))
+  (#set! declaration)
+  (#set! field))
 
 (binary_expression
   (identifier) @reference.identifier
@@ -54,7 +54,7 @@
 (binary_expression
   (field_expression) @reference.identifier
   (#set! reference_type read)
-  (#set! field true))
+  (#set! field))
 
 (update_expression
   (identifier) @reference.identifier
@@ -63,7 +63,7 @@
 (update_expression
   (field_expression) @reference.identifier
   (#set! reference_type write)
-  (#set! field true))
+  (#set! field))
 
 (assignment_expression
   left: (identifier) @reference.identifier
@@ -72,7 +72,7 @@
 (assignment_expression
   left: (field_expression) @reference.identifier
   (#set! reference_type write)
-  (#set! field true))
+  (#set! field))
 
 (assignment_expression
   right: (identifier) @reference.identifier
@@ -81,7 +81,7 @@
 (assignment_expression
   right: (field_expression) @reference.identifier
   (#set! reference_type read)
-  (#set! field true))
+  (#set! field))
 
 (argument_list
   (identifier) @reference.identifier
@@ -90,7 +90,7 @@
 (argument_list
   (field_expression) @reference.identifier
   (#set! reference_type read)
-  (#set! field true))
+  (#set! field))
 
 (return_statement
   (identifier) @reference.identifier
@@ -99,21 +99,21 @@
 (return_statement
   (field_expression) @reference.identifier
   (#set! reference_type read)
-  (#set! field true))
+  (#set! field))
 
 (call_expression
   (identifier) @reference.identifier
   (#set! reference_type read)
-  (#set! function_call_identifier true))
+  (#set! function_call_identifier))
 
 (call_expression
   (field_expression) @reference.identifier
   (#set! reference_type read)
-  (#set! field true)
-  (#set! function_call_identifier true))
+  (#set! field)
+  (#set! function_call_identifier))
 
 (function_definition
   declarator: (function_declarator
     declarator: (identifier) @reference.identifier)
-  (#set! declaration true)
+  (#set! declaration)
   (#set! reference_type write))

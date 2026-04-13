@@ -11,4 +11,4 @@
         (function_definition)
         (decorated_definition)
       ] @input_function))
-  (#set! method true))
+  (#set! method))

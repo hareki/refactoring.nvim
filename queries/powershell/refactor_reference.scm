@@ -1,7 +1,7 @@
 (script_parameter
   (variable) @reference.identifier
   (#set! reference_type write)
-  (#set! declaration true))
+  (#set! declaration))
 
 ; $foo = "foo"
 (pipeline
@@ -33,7 +33,7 @@
                     (unary_expression
                       (variable) @reference.identifier))))))))))
   (#set! reference_type write)
-  (#set! declaration true))
+  (#set! declaration))
 
 ; $foo -lt 5
 (comparison_expression
@@ -66,21 +66,21 @@
       (variable) @reference.identifier)
   ]
   (#set! reference_type write)
-  (#set! declaration true))
+  (#set! declaration))
 
 ; ++$foo
 (pre_increment_expression
   (unary_expression
     (variable) @reference.identifier)
   (#set! reference_type write)
-  (#set! declaration true))
+  (#set! declaration))
 
 ; --$foo
 (pre_decrement_expression
   (unary_expression
     (variable) @reference.identifier)
   (#set! reference_type write)
-  (#set! declaration true))
+  (#set! declaration))
 
 ; $foo[0]
 (unary_expression
@@ -104,7 +104,7 @@
   (invokation_expression
     (variable) @reference.identifier)
   (#set! reference_type read)
-  (#set! function_call_identifier true))
+  (#set! function_call_identifier))
 
 (range_argument_expression
   (unary_expression
@@ -114,12 +114,12 @@
 (function_statement
   (function_name) @reference.identifier
   (#set! reference_type write)
-  (#set! declaration true))
+  (#set! declaration))
 
 (class_method_definition
   (simple_name) @reference.identifier
   (#set! reference_type write)
-  (#set! declaration true))
+  (#set! declaration))
 
 (expandable_string_literal
   (variable) @reference.identifier
@@ -138,4 +138,4 @@
 (foreach_statement
   (variable) @reference.identifier
   (#set! reference_type write)
-  (#set! declaration true))
+  (#set! declaration))

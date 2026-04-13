@@ -2,16 +2,16 @@
   (identifier) @reference.identifier
   type: (_) @_type
   (#set-type! python @_type @reference.identifier)
-  (#set! declaration true))
+  (#set! declaration))
 
 (parameters
   (identifier) @reference.identifier
-  (#set! declaration true))
+  (#set! declaration))
 
 (assignment
   left: (identifier) @reference.identifier
   (#set! reference_type write)
-  (#set! declaration true))
+  (#set! declaration))
 
 (assignment
   right: (identifier) @reference.identifier
@@ -22,7 +22,7 @@
   left: (_
     (identifier) @reference.identifier)
   (#set! reference_type write)
-  (#set! declaration true))
+  (#set! declaration))
 
 (binary_operator
   (identifier) @reference.identifier
@@ -31,7 +31,7 @@
 (for_statement
   left: (identifier) @reference.identifier
   (#set! reference_type write)
-  (#set! declaration true))
+  (#set! declaration))
 
 (for_statement
   right: (identifier) @reference.identifier
@@ -56,7 +56,7 @@
 (augmented_assignment
   left: (identifier) @reference.identifier
   (#set! reference_type write)
-  (#set! declaration true))
+  (#set! declaration))
 
 (augmented_assignment
   right: (identifier) @reference.identifier
@@ -77,9 +77,9 @@
 (call
   function: (identifier) @reference.identifier
   (#set! reference_type read)
-  (#set! function_call_identifier true))
+  (#set! function_call_identifier))
 
 (function_definition
   name: (_) @reference.identifier
   (#set! reference_type write)
-  (#set! declaration true))
+  (#set! declaration))

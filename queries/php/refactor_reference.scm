@@ -7,7 +7,7 @@
   right: (_) @_value
   (#infer-type! php @_value)
   (#set! reference_type write)
-  (#set! declaration true))
+  (#set! declaration))
 
 ; [$foo, $bar] = ...
 (assignment_expression
@@ -18,7 +18,7 @@
       .
       (variable_name) @reference.identifier)*)
   (#set! reference_type write)
-  (#set! declaration true))
+  (#set! declaration))
 
 ; [$foo, $bar] = ['foo', 'bar']
 (assignment_expression
@@ -39,18 +39,18 @@
         (_) @_value)))
   (#infer-type! php @_value)
   (#set! reference_type write)
-  (#set! declaration true))
+  (#set! declaration))
 
 ; $i;
 (expression_statement
   (variable_name) @reference.identifier
-  (#set! declaration true))
+  (#set! declaration))
 
 (simple_parameter
   type: (_) @_type
   name: (variable_name) @reference.identifier
   (#set-type! php @_type @reference.identifier)
-  (#set! declaration true))
+  (#set! declaration))
 
 (binary_expression
   (variable_name) @reference.identifier
@@ -104,14 +104,14 @@
 (member_call_expression
   (variable_name) @reference.identifier
   (#set! reference_type read)
-  (#set! function_call_identifier true))
+  (#set! function_call_identifier))
 
 (function_call_expression
   function: (variable_name) @reference.identifier
   (#set! reference_type read)
-  (#set! function_call_identifier true))
+  (#set! function_call_identifier))
 
 (function_definition
   name: (_) @reference.identifier
   (#set! reference_type write)
-  (#set! declaration true))
+  (#set! declaration))

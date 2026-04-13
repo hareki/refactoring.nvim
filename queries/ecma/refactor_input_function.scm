@@ -18,4 +18,4 @@
   (class_declaration
     (class_body
       (method_definition) @input_function))
-  (#set! method true))
+  (#set! method))

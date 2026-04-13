@@ -10,7 +10,7 @@
       name: (identifier) @reference.identifier))*
   (#set-type! java @_type @reference.identifier)
   (#set! reference_type write)
-  (#set! declaration true))
+  (#set! declaration))
 
 (argument_list
   [
@@ -67,7 +67,7 @@
     (field_access)
   ] @reference.identifier
   (#set! reference_type read)
-  (#set! function_call_identifier true))
+  (#set! function_call_identifier))
 
 ; if/while/do while
 (_
@@ -89,10 +89,10 @@
   type: (_) @_type
   name: (identifier) @reference.identifier
   (#set-type! java @_type @reference.identifier)
-  (#set! declaration true)
+  (#set! declaration)
   (#set! reference_type write))
 
 (method_declaration
   name: (_) @reference.identifier
-  (#set! declaration true)
+  (#set! declaration)
   (#set! reference_type write))

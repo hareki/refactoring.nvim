@@ -29,7 +29,7 @@
       value: (_) @_value)*)
   (#infer-type! lua @_value)
   (#set! reference_type write)
-  (#set! field true))
+  (#set! field))
 
 ; local foo = bar
 (variable_declaration
@@ -44,14 +44,14 @@
         value: (_) @_value)*)
     (#infer-type! lua @_value)
     (#set! reference_type write)
-    (#set! declaration true)))
+    (#set! declaration)))
 
 ; local foo
 (variable_declaration
   (variable_list
     name: (identifier) @reference.identifier)
   (#set! reference_type write)
-  (#set! declaration true))
+  (#set! declaration))
 
 (bracket_index_expression
   table: (identifier) @reference.identifier
@@ -63,7 +63,7 @@
     (bracket_index_expression)
   ] @reference.identifier
   (#set! reference_type read)
-  (#set! field true))
+  (#set! field))
 
 (bracket_index_expression
   field: (identifier) @reference.identifier
@@ -79,7 +79,7 @@
     (bracket_index_expression)
   ] @reference.identifier
   (#set! reference_type read)
-  (#set! field true))
+  (#set! field))
 
 (method_index_expression
   table: (identifier) @reference.identifier
@@ -91,7 +91,7 @@
     (bracket_index_expression)
   ] @reference.identifier
   (#set! reference_type read)
-  (#set! field true))
+  (#set! field))
 
 (arguments
   (identifier) @reference.identifier
@@ -103,17 +103,17 @@
     (bracket_index_expression)
   ] @reference.identifier
   (#set! reference_type read)
-  (#set! field true))
+  (#set! field))
 
 (parameters
   (identifier) @reference.identifier
   (#set! reference_type write)
-  (#set! declaration true))
+  (#set! declaration))
 
 (function_call
   name: (identifier) @reference.identifier
   (#set! reference_type read)
-  (#set! function_call_identifier true))
+  (#set! function_call_identifier))
 
 (function_call
   name: [
@@ -121,8 +121,8 @@
     (bracket_index_expression)
   ] @reference.identifier
   (#set! reference_type read)
-  (#set! field true)
-  (#set! function_call_identifier true))
+  (#set! field)
+  (#set! function_call_identifier))
 
 (expression_list
   (identifier) @reference.identifier
@@ -134,7 +134,7 @@
     (bracket_index_expression)
   ] @reference.identifier
   (#set! reference_type read)
-  (#set! field true))
+  (#set! field))
 
 (binary_expression
   (identifier) @reference.identifier
@@ -146,18 +146,18 @@
     (bracket_index_expression)
   ] @reference.identifier
   (#set! reference_type read)
-  (#set! field true))
+  (#set! field))
 
 (for_generic_clause
   (variable_list
     name: (identifier) @reference.identifier)
   (#set! reference_type write)
-  (#set! declaration true))
+  (#set! declaration))
 
 (for_numeric_clause
   name: (identifier) @reference.identifier
   (#set! reference_type write)
-  (#set! declaration true))
+  (#set! declaration))
 
 (for_numeric_clause
   end: (identifier) @reference.identifier
@@ -169,7 +169,7 @@
     (bracket_index_expression)
   ] @reference.identifier
   (#set! reference_type read)
-  (#set! field true))
+  (#set! field))
 
 (for_numeric_clause
   start: (identifier) @reference.identifier
@@ -181,7 +181,7 @@
     (bracket_index_expression)
   ] @reference.identifier
   (#set! reference_type read)
-  (#set! field true))
+  (#set! field))
 
 ; repeat until/while/if
 (_
@@ -194,11 +194,11 @@
     (bracket_index_expression)
   ] @reference.identifier
   (#set! reference_type read)
-  (#set! field true))
+  (#set! field))
 
 (function_declaration
   name: (_) @reference.identifier
-  (#set! declaration true)
+  (#set! declaration)
   (#set! reference_type write))
 
 (field
@@ -211,7 +211,7 @@
     (bracket_index_expression)
   ] @reference.identifier
   (#set! reference_type read)
-  (#set! field true))
+  (#set! field))
 
 (unary_expression
   operand: (identifier) @reference.identifier
@@ -223,4 +223,4 @@
     (bracket_index_expression)
   ] @reference.identifier
   (#set! reference_type read)
-  (#set! field true))
+  (#set! field))
