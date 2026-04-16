@@ -220,22 +220,24 @@ function M.extract_var(range_type, config)
           local os_srow, os_scol, os_erow, os_ecol = os.output_statement:range()
           local os_range = range(os_srow, os_scol, os_erow, os_ecol, { buf = buf })
           local os_start_pos = pos(os_srow, os_scol, { buf = buf })
+          local is_in_nested_scope = iter(nested_scope_ranges):any(
+            ---@param ns_range vim.Range
+            function(ns_range)
+              return ns_range:has(os_range)
+            end
+          )
+          local is_before_matching_nodes = iter(matching_nodes):all(
+            ---@param n TSNode
+            function(n)
+              local n_srow, n_scol = n:start()
+              local node_start_pos = pos(n_srow, n_scol, { buf = buf })
+              return os_start_pos <= node_start_pos
+            end
+          )
           return not os.inside_only
             and smallest_common_inside_scope_range:has(os_range)
-            and not iter(nested_scope_ranges):any(
-              ---@param ns_range vim.Range
-              function(ns_range)
-                return ns_range:has(os_range)
-              end
-            )
-            and iter(matching_nodes):all(
-              ---@param n TSNode
-              function(n)
-                local n_srow, n_scol = n:start()
-                local node_start_pos = pos(n_srow, n_scol, { buf = buf })
-                return os_start_pos <= node_start_pos
-              end
-            )
+            and not is_in_nested_scope
+            and is_before_matching_nodes
         end
       )
       :fold(
