@@ -1,6 +1,6 @@
-(script_file) @scope.inside @scope @scope.outside
+(script_file) @scope.inside @scope
 
 (function_definition
   (function_declaration
     parameters: (_) @scope)
-  (body) @scope.inside @scope) @scope.outside
+  (body) @scope.inside @scope)

@@ -422,9 +422,6 @@ function M.get_scopes_info(buf, nested_lang_tree, query)
         elseif name == "scope.inside" then
           scope_info = scope_info or {}
           scope_info.inside = nodes[1]
-        elseif name == "scope.outside" then
-          scope_info = scope_info or {}
-          scope_info.outside = nodes[1]
         end
       end
       if scope_info then table.insert(scopes_info, scope_info) end

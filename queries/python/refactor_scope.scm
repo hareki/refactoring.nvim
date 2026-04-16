@@ -1,14 +1,14 @@
-(module) @scope.inside @scope @scope.outside
+(module) @scope.inside @scope
 
 (class_definition
-  body: (_) @scope.inside @scope) @scope.outside
+  body: (_) @scope.inside @scope)
 
 (function_definition
   parameters: (_) @scope
-  body: (block) @scope.inside @scope) @scope.outside
+  body: (block) @scope.inside @scope)
 
-(dictionary_comprehension) @scope.inside @scope @scope.outside
+(dictionary_comprehension) @scope.inside @scope
 
-(list_comprehension) @scope.inside @scope @scope.outside
+(list_comprehension) @scope.inside @scope
 
-(set_comprehension) @scope.inside @scope @scope.outside
+(set_comprehension) @scope.inside @scope

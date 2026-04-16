@@ -23,8 +23,7 @@
         },
         "refactor_scope": {
             "scope": "Scope. Should contain all identifiers available in the scope (including parameters).",
-            "scope.inside": "Inside of a scope. Optional reference point where text can be inserted inside of a scope.",
-            "scope.outside": "Outside of a scope. Optional reference point where text can be inserted outside of a scope."
+            "scope.inside": "Inside of a scope. Optional reference point where text can be inserted inside of a scope."
         },
         "refactor_function": {
             "function": "Function.",

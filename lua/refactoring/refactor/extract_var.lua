@@ -49,7 +49,6 @@ end
 ---@class refactor.ScopeInfo
 ---@field scope TSNode[]
 ---@field inside TSNode
----@field outside TSNode
 
 ---@param range_type 'v' | 'V' | ''
 ---@param config refactor.Config
