@@ -1,98 +1,134 @@
-local Pipeline = require("refactoring.pipeline")
-local tasks = require("refactoring.tasks")
-local Region = require("refactoring.region")
-local text_edits_utils = require("refactoring.text_edits_utils")
-local notify = require("refactoring.notify")
+local api = vim.api
+local iter = vim.iter
+local async = require "async"
+local range = require "refactoring.range"
+local pos = require "refactoring.pos"
+local ts = vim.treesitter
 
----@param bufnr integer
----@param config refactor.Config
-local function cleanup(bufnr, config)
-    local seed = tasks.refactor_seed(bufnr, nil, config)
-    Pipeline
-        :from_task(
-            ---@param refactor refactor.Refactor
-            function(refactor)
-                local opts = refactor.config:get()
-                local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-                refactor.text_edits = {}
+-- TODO: Search inside strings (using treesitter) on `printf` (and
+-- maybe also `print_var`) when updating the count. That would mean
+-- decoupling the `code_generation` for the content of the string and
+-- the whole print statement
 
-                if opts.printf == nil then
-                    opts.printf = true
-                end
+local M = {}
 
-                if opts.print_var == nil then
-                    opts.print_var = true
-                end
+---@param a TSNode
+---@param b TSNode
+---@return boolean
+local function node_comp_asc(a, b)
+  local a_row, a_col, a_bytes = a:start()
+  local b_row, b_col, b_bytes = b:start()
+  if a_row ~= b_row then return a_row < b_row end
 
-                for row_num, line in ipairs(lines) do
-                    if opts.printf then
-                        if
-                            line:find("__AUTO_GENERATED_PRINTF_END__$")
-                            ~= nil
-                        then
-                            for searched_row_num = row_num, 1, -1 do
-                                local searched_line = lines[searched_row_num]
-
-                                if
-                                    searched_line:find(
-                                        "__AUTO_GENERATED_PRINTF_START__$"
-                                    )
-                                    ~= nil
-                                then
-                                    local region = Region:from_values(
-                                        bufnr,
-                                        searched_row_num,
-                                        1,
-                                        row_num + 1,
-                                        0
-                                    )
-                                    table.insert(
-                                        refactor.text_edits,
-                                        text_edits_utils.delete_text(region)
-                                    )
-                                    break
-                                end
-                            end
-                        end
-                    end
-
-                    if opts.print_var then
-                        if
-                            line:find("__AUTO_GENERATED_PRINT_VAR_END__$")
-                            ~= nil
-                        then
-                            for searched_row_num = row_num, 1, -1 do
-                                local searched_line = lines[searched_row_num]
-
-                                if
-                                    searched_line:find(
-                                        "__AUTO_GENERATED_PRINT_VAR_START__$"
-                                    )
-                                    ~= nil
-                                then
-                                    local region = Region:from_values(
-                                        bufnr,
-                                        searched_row_num,
-                                        1,
-                                        row_num + 1,
-                                        0
-                                    )
-                                    table.insert(
-                                        refactor.text_edits,
-                                        text_edits_utils.delete_text(region)
-                                    )
-                                    break
-                                end
-                            end
-                        end
-                    end
-                end
-
-                return true, refactor
-            end
-        )
-        :after(tasks.post_refactor)
-        :run(nil, notify.error, seed)
+  return (a_col < b_col or a_col + a_bytes < b_col + b_bytes)
 end
 
-return cleanup
+-- TODO: add some kind of success message of how many statements where cleared
+-- like in inline_var/extract_var
+---@param range_type 'v' | 'V' | ''
+---@param config refactor.Config
+function M.cleanup(range_type, config)
+  local get_selected_range = require("refactoring.utils").get_selected_range
+  local apply_text_edits = require("refactoring.utils").apply_text_edits
+  local get_comments = require("refactoring.utils").get_comments
+  local query_error = require("refactoring.utils").query_error
+
+  local opts = config.debug.cleanup
+
+  local buf = api.nvim_get_current_buf()
+  local selected_range = get_selected_range(buf, range_type)
+
+  local task = async.run(function()
+    local lang_tree, err1 = ts.get_parser(buf, nil, { error = false })
+    if not lang_tree then
+      ---@cast err1 -nil
+      vim.notify(err1, vim.log.levels.ERROR)
+      return
+    end
+    -- TODO: use async parsing
+    lang_tree:parse(true)
+    local nested_lang_tree = lang_tree:language_for_range {
+      selected_range.start_row,
+      selected_range.start_col,
+      selected_range.end_row,
+      selected_range.end_col,
+    }
+    local lang = nested_lang_tree:lang()
+    local comment_query = ts.query.get(lang, "refactor_comment")
+    if not comment_query then return query_error("refactor_comment", lang) end
+
+    local comments = get_comments(buf, nested_lang_tree, comment_query)
+    table.sort(comments, node_comp_asc)
+    ---@type vim.Range[]
+    local ranges_to_cleanup = iter(comments)
+      :filter(
+        ---@param comment TSNode
+        function(comment)
+          local srow, scol, erow, ecol = comment:range()
+          local comment_range = range(srow, scol, erow, ecol, { buf = buf })
+          return selected_range:has(comment_range)
+        end
+      )
+      :map(
+        ---@param comment TSNode
+        function(comment)
+          local text = ts.get_node_text(comment, buf)
+          local srow, _, erow, _ = comment:range()
+
+          local is_start = iter(opts.types):any(
+            ---@param name 'print_var'|'print_loc'|'print_exp'
+            function(name)
+              return text:find(config.debug.markers[name].start) ~= nil
+            end
+          )
+          if is_start then return "start", pos(srow, 0, { buf = buf }) end
+          local is_end = iter(opts.types):any(
+            ---@param name 'print_var'|'print_loc'|'print_exp'
+            function(name)
+              return text:find(config.debug.markers[name]["end"]) ~= nil
+            end
+          )
+          if is_end then return "end", pos(erow + 1, 0, { buf = buf }) end
+        end
+      )
+      :filter(
+        ---@param kind 'start'|'end'|nil
+        function(kind)
+          return kind ~= nil
+        end
+      )
+      :fold(
+        {},
+        ---@param acc vim.Range|{current_start: vim.Pos}
+        ---@param kind 'start'|'end'
+        ---@param position vim.Pos
+        function(acc, kind, position)
+          if kind == "start" then acc.current_start = position end
+          if kind == "end" and acc.current_start ~= nil then
+            table.insert(acc, range(acc.current_start, position))
+            acc.current_start = nil
+          end
+
+          return acc
+        end
+      )
+
+    ---@type {[integer]: refactor.TextEdit[]}
+    local text_edits_by_buf = {}
+    text_edits_by_buf[buf] = {}
+    iter(ipairs(ranges_to_cleanup)):each(
+      ---@param r vim.Range
+      function(_, r)
+        table.insert(text_edits_by_buf[buf], { range = r, lines = {} })
+      end
+    )
+
+    apply_text_edits(text_edits_by_buf)
+
+    local last_view = require("refactoring.debug")._last_view
+    if opts.restore_view and last_view then vim.fn.winrestview(last_view) end
+  end)
+  task:raise_on_error()
+end
+
+return M

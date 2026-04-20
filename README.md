@@ -1,412 +1,227 @@
 <div align="center">
-
   <h1>refactoring.nvim</h1>
   <h5>The Refactoring library based off the Refactoring book by Martin Fowler</h5>
   <h6>'If I use an environment that has good automated refactorings, I can trust those refactorings' - Martin Fowler</h6>
-
-[![Lua](https://img.shields.io/badge/Lua-blue.svg?style=for-the-badge&logo=lua)](http://www.lua.org)
-[![Neovim 0.10](https://img.shields.io/badge/Neovim%200.10-green.svg?style=for-the-badge&logo=neovim)](https://neovim.io)
-![Work In Progress](https://img.shields.io/badge/Work%20In%20Progress-orange?style=for-the-badge)
-
 </div>
 
-## Table of Contents
+### Tree-sitter and LSP powered refactoring
 
-- [Installation](#installation)
-  - [Requirements](#requirements)
-  - [Setup Using Packer](#packer)
-  - [Setup Using Lazy](#lazy)
-  - [Quickstart](#quickstart)
-- [Features](#features)
-  - [Supported Languages](#supported-languages)
-  - [Refactoring Features](#refactoring-features)
-  - [Debug Features](#debug-features)
-- [Configuration](#configuration)
-  - [Configuration for Refactoring Operations](#config-refactoring)
-    - [Ex Commands](#config-refactoring-command)
-    - [Lua API](#config-refactoring-direct)
-    - [Using Built-In Neovim Selection](#config-refactoring-builtin)
-    - [Using Telescope](#config-refactoring-telescope)
-  - [Configuration for Debug Operations](#config-debug)
-    - [Customizing Printf and Print Var Statements](#config-debug-stringification)
-      - [Customizing Printf Statements](#config-debug-stringification-printf)
-      - [Customizing Print Var Statements](#config-debug-stringification-print-var)
-  - [Customizing Extract Variable Statements](#config-119-custom)
-  - [Configuration for Type Prompt Operations](#config-prompt)
+- Provides refactoring and print-debugging operators (see `:h operator`) powered by LSP and tree-sitter.
+- Supports dot-repeat and any textobject.
+- Allows fine-grained customization while providing reasonable defaults.
 
-## Installation<a name="installation"></a>
+More details on [Features](#features)
 
-### Requirements<a name="requirements"></a>
+---
 
-- **Neovim 0.10**
-- Treesitter
-- Plenary
+## Demo
 
-### Setup Using Packer<a name="packer"></a>
+https://github.com/user-attachments/assets/70b15d18-197a-4135-abe0-1fb4a6c06319
+
+## Features
+
+- Inline variable:
+  - Inline the definition of the variable under cursor into **all** its references.
+  - Requires:
+    - LSP server with support for `textDocument/references` and `textDocument/definition`
+    - Tree-sitter parser and queries (`refactor_reference` and `refactor_variable`)
+- Extract variable:
+  - Extract an expression, and **all** its usages in a buffer, into a variable.
+  - Requires:
+    - Tree-sitter parser and queries (`refactor_scope` and `refactor_output_statement`)
+- Inline function:
+  - Inline the definition of the function under cursor into **all** its references (only supports functions with a single return statement).
+  - Requires:
+    - LSP server with support for `textDocument/references` and `textDocument/definition`
+    - Tree-sitter parser and queries (`refactor_function` and `refactor_function_call`)
+- Extract function:
+  - Extract text into a function and replace it with a call to that function.
+  - Requires:
+    - Tree-sitter parser and queries (`refactor_reference`, `refactor_scope`, `refactor_output_function` and `refactor_input_function`)
+- Print location:
+  - Inserts a debug print statement with the location under cursor (e.g. `some_function#if#for`).
+  - Requires:
+    - Tree-sitter parser and queries (`refactor_comment` and `refactor_output_statement`)
+- Print variable:
+  - Inserts a debug print statement with **all** the variable and locations (e.g. `some_function#if#for`) in the selected range.
+  - Requires:
+    - Tree-sitter parser and queries (`refactor_comment`, `refactor_reference`, `refactor_output_statement` and `refactor_scope`)
+- Print expression:
+  - Inserts a debug print statement with the selected expression and location (e.g. `some_function#if#for`).
+  - Requires:
+    - Tree-sitter parser and queries (`refactor_comment` and `refactor_output_statement`)
+- Debug print cleanup:
+  - Cleanup the debug print statements in the selected range.
+  - Requires:
+    - Tree-sitter parser and queries (`refactor_comment`)
+
+> [!NOTE]
+> Tree-sitter queries for supported languages are bundled with `refactoring.nvim`
+
+## Installation
+
+`refactoring.nvim` requires Neovim `0.12`.
+
+<details>
+<summary>With <code>vim.pack</code></summary>
 
 ```lua
-use {
-    "ThePrimeagen/refactoring.nvim",
-    requires = {
-        {"nvim-lua/plenary.nvim"},
-        {"nvim-treesitter/nvim-treesitter"}
-    }
+vim.pack.add {
+  "https://github.com/lewis6991/async.nvim",
+  "https://github.com/theprimeagen/refactoring.nvim"
 }
+
+-- calling `require("refactoring").setup()` is not required for the plugin to work
 ```
 
-### Setup Using Lazy<a name="lazy"></a>
+</details>
+
+<details>
+<summary>With <a href="https://github.com/folke/lazy.nvim">folke/lazy.nvim</a></summary>
 
 ```lua
-  {
-    "ThePrimeagen/refactoring.nvim",
-    dependencies = {
-      "nvim-lua/plenary.nvim",
-      "nvim-treesitter/nvim-treesitter",
-    },
-    lazy = false,
-    opts = {},
+{
+  "ThePrimeagen/refactoring.nvim",
+  dependencies = {
+    "lewis6991/async.nvim",
   },
+  lazy = false,
+},
 ```
 
-### Quickstart<a name="quickstart"></a>
+</details>
+
+## Configuration
+
+The default configuration can be found at [./lua/refactoring/config.lua](./lua/refactoring/config.lua), any field can be overridden:
+
+- globally: `require("refactoring").setup({...})`
+- for a single call: `require("refactoring").inline_var({...})`
+- for a given buffer: `vim.b.refactor_config = {...}`
+
+No keymaps are created by default. These are the suggested keymaps:
+
+<details>
+<summary>Option 1: a dedicated keymap for each refactoring operation</summary>
 
 ```lua
-require('refactoring').setup()
+local keymap = vim.keymap
+
+keymap.set({ "n", "x" }, "<leader>re", function()
+  return require("refactoring").extract_func()
+end, { desc = "Extract Function", expr = true })
+-- `_` is the default textobject for "current line"
+keymap.set("n", "<leader>ree", function()
+  return require("refactoring").extract_func() .. "_"
+end, { desc = "Extract Function (line)", expr = true })
+
+keymap.set({ "n", "x" }, "<leader>rE", function()
+  return require("refactoring").extract_func_to_file()
+end, { desc = "Extract Function To File", expr = true })
+
+keymap.set({ "n", "x" }, "<leader>rv", function()
+  return require("refactoring").extract_var()
+end, { desc = "Extract Variable", expr = true })
+
+-- `_` is the default textobject for "current line"
+keymap.set("n", "<leader>rvv", function()
+  return require("refactoring").extract_var() .. "_"
+end, { desc = "Extract Variable (line)", expr = true })
+
+keymap.set({ "n", "x" }, "<leader>ri", function()
+  return require("refactoring").inline_var()
+end, { desc = "Inline Variable", expr = true })
+keymap.set({ "n", "x" }, "<leader>rI", function()
+  return require("refactoring").inline_func()
+end, { desc = "Inline function", expr = true })
+
+keymap.set({ "n", "x" }, "<leader>rs", function()
+  return require("refactoring").select_refactor()
+end, { desc = "Select refactor" })
+
+-- `iw` is the builtin textobject for "in word". You can use any other textobject or even create the keymap without any textobject if you prefer to provide one yourself each time that you use the keymap
+keymap.set({ "x", "n" }, "<leader>pv", function()
+  return require("refactoring.debug").print_var { output_location = "below" } .. "iw"
+end, { desc = "Debug print var below", expr = true })
+
+-- `iw` is the builtin textobject for "in word". You can use any other textobject or even create the keymap without any textobject if you prefer to provide one yourself each time that you use the keymap
+keymap.set({ "x", "n" }, "<leader>pV", function()
+  return require("refactoring.debug").print_var { output_location = "above" } .. "iw"
+end, { desc = "Debug print var above", expr = true })
+
+keymap.set({ "x", "n" }, "<leader>pe", function()
+  return require("refactoring.debug").print_exp { output_location = "below" }
+end, { desc = "Debug print exp below", expr = true })
+-- `_` is the default textobject for "current line"
+keymap.set("n", "<leader>pee", function()
+  return require("refactoring.debug").print_exp { output_location = "below" } .. "_"
+end, { desc = "Debug print exp below", expr = true })
+
+keymap.set({ "x", "n" }, "<leader>pE", function()
+  return require("refactoring.debug").print_exp { output_location = "above" }
+end, { desc = "Debug print exp above", expr = true })
+-- `_` is the default textobject for "current line"
+keymap.set("n", "<leader>pEE", function()
+  return require("refactoring.debug").print_exp { output_location = "above" } .. "_"
+end, { desc = "Debug print exp above", expr = true })
+
+keymap.set("n", "<leader>pP", function()
+  return require("refactoring.debug").print_loc { output_location = "above" }
+end, { desc = "Debug print location", expr = true })
+keymap.set("n", "<leader>pp", function()
+  return require("refactoring.debug").print_loc { output_location = "below" }
+end, { desc = "Debug print location", expr = true })
+
+keymap.set({ "x", "n" }, "<leader>pc", function()
+  -- `ag` is a custom textobject that selects the whole buffer. It's provided by plugins like `mini.ai` (requires manual configuration using `MiniExtra.gen_ai_spec.buffer()`).
+  -- return require("refactoring.debug").cleanup { restore_view = true } .. "ag"
+
+  -- this keymap doesn't select any textobject by default, so you need to provide one each time you use it.
+  return require("refactoring.debug").cleanup { restore_view = true }
+end, { desc = "Debug print clean", expr = true, remap = true })
 ```
 
-## Features<a name="features"></a>
+</details>
 
-### Supported Languages<a name="supported-languages"></a>
+<details>
+<summary>Option 2: single keymap to select refactor</summary>
 
-Given that this is a work in progress, the languages supported for the
-operations listed below is **constantly changing**. As of now, these languages
-are supported (with individual support for each function may vary):
+```lua
+local keymap = vim.keymap
 
-- TypeScript
-- JavaScript
-- Lua
-- C/C++
-- Golang
-- Python
-- Java
-- PHP
-- Ruby
+keymap.set({ "n", "x" }, "<leader>rs", function()
+  -- this keymap doesn't select any textobject by default, so you may need to provide one each time you use it.
+  require("refactoring").select_refactor()
+end, { desc = "Select refactor" })
+```
+
+</details>
+
+> [!NOTE]
+> The `:Refactor` command can be used instead of keymaps, its biggest selling point is the live previewing of changes. However, live previewing user commands doesn't seem to play nicely with async functions, so it is disabled for all [Features](#Features) that rely on LSP.
+
+## Supported languages
+
+- C
 - C#
-- Vimscript (only debugging features)
-- Powershell (only debugging features)
-
-### Refactoring Features<a name="refactoring-features"></a>
-
-- Support for various common refactoring operations
-  - **106: Extract Function**
-    - Extracts the last highlighted code from visual mode to a separate function
-    - Optionally prompts for function param types and return types (see
-      [configuration for type prompt operations](#config-prompt))
-    - Also possible to Extract Block.
-    - Both Extract Function and Extract Block have the capability to extract to
-      a separate file.
-  - **115: Inline Function**
-    - Inverse of extract function
-    - In normal mode, inline occurrences of the function under the cursor
-    - The function under the cursor has to be the declaration of the function
-  - **119: Extract Variable**
-    - In visual mode, extracts occurrences of a selected expression to its own
-      variable, replacing occurrences of that expression with the variable
-  - **123: Inline Variable**
-    - Inverse of extract variable
-    - Replaces all occurrences of a variable with its value
-    - Can be used in normal mode or visual mode
-      - Using this function in normal mode will automatically find the variable
-        under the cursor and inline it
-      - Using this function in visual mode will find the variable(s) in the
-        visual selection.
-        - If there is more than one variable in the selection, the plugin will
-          prompt for which variable to inline,
-        - If there is only one variable in the visual selection, it will
-          automatically inline that variable
-
-### Debug Features<a name="debug-features"></a>
-
-- Also comes with various useful features for debugging
-  - **Printf:** Automated insertion of print statement to mark the calling of a
-    function
-    - dot-repeatable
-  - **Print var:** Automated insertion of print statement to print a variable
-    at a given point in the code. This map can be made with either visual or
-    normal mode:
-    - Using this function in visual mode will print out whatever is in the
-      visual selection.
-    - Using this function in normal mode will print out the identifier
-      under the cursor
-    - dot-repeatable
-  - **Cleanup:** Automated cleanup of all print statements generated by the
-    plugin
-
-## Configuration<a name="configuration"></a>
-
-There are many ways to configure this plugin. Below are some example configurations.
-
-**Setup Function**
-
-No matter which configuration option you use, you must first call the
-setup function.
-
-```lua
-require('refactoring').setup({})
-```
-
-Here are all the available options for the setup function and their defaults:
-
-```lua
-require('refactoring').setup({
-    prompt_func_return_type = {
-        go = false,
-        java = false,
-
-        cpp = false,
-        c = false,
-        h = false,
-        hpp = false,
-        cxx = false,
-    },
-    prompt_func_param_type = {
-        go = false,
-        java = false,
-
-        cpp = false,
-        c = false,
-        h = false,
-        hpp = false,
-        cxx = false,
-    },
-    printf_statements = {},
-    print_var_statements = {},
-    show_success_message = false, -- shows a message with information about the refactor on success
-                                  -- i.e. [Refactor] Inlined 3 variable occurrences
-})
-```
-
-See each of the sections below for details on each configuration option.
-
-### Configuration for Refactoring Operations<a name="config-refactoring"></a>
-
-#### Ex Commands <a name="config-refactoring-command"></a>
-
-The plugin offers the `:Refactor` command as an alternative to the Lua API.
-
-The first argument to the command selects the type of refactor to perform.
-Additional arguments will be passed to each refactor if needed (e.g. the name
-of the extracted function for `extract`).
-
-The first argument can be tab completed, so there is no need to memorize them all.
-(e.g. `:Refactor e<tab>` will suggest `extract_block_to_file`, `extract`, `extract_block`,
-`extract_var` and `extract_to_file`).
-
-The main advantage of using an Ex command instead of the Lua API is that you
-will be able to preview the changes made by the refactor before committing to
-them.
-
-https://github.com/ThePrimeagen/refactoring.nvim/assets/53507599/6ad58376-c503-4504-ab07-3590ae9a6c75
-
-The command can also be used in mappings:
-
-```lua
-vim.keymap.set("x", "<leader>re", ":Refactor extract ")
-vim.keymap.set("x", "<leader>rf", ":Refactor extract_to_file ")
-
-vim.keymap.set("x", "<leader>rv", ":Refactor extract_var ")
-
-vim.keymap.set({ "n", "x" }, "<leader>ri", ":Refactor inline_var")
-
-vim.keymap.set( "n", "<leader>rI", ":Refactor inline_func")
-
-vim.keymap.set("n", "<leader>rb", ":Refactor extract_block")
-vim.keymap.set("n", "<leader>rbf", ":Refactor extract_block_to_file")
-
-```
-
-The ` ` (space) at the end of some mappings is intentional because those
-mappings expect an additional argument (all of these mappings leave the user in
-command mode to utilize the preview command feature).
-
-#### Lua API <a name="config-refactoring-direct"></a>
-
-If you want to make remaps for a specific refactoring operation, you can do so
-by configuring the plugin like this:
-
-```lua
-vim.keymap.set({ "n", "x" }, "<leader>re", function() return require('refactoring').refactor('Extract Function') end, { expr = true })
-vim.keymap.set({ "n", "x" }, "<leader>rf", function() return require('refactoring').refactor('Extract Function To File') end, { expr = true })
-vim.keymap.set({ "n", "x" }, "<leader>rv", function() return require('refactoring').refactor('Extract Variable') end, { expr = true })
-vim.keymap.set({ "n", "x" }, "<leader>rI", function() return require('refactoring').refactor('Inline Function') end, { expr = true })
-vim.keymap.set({ "n", "x" }, "<leader>ri", function() return require('refactoring').refactor('Inline Variable') end, { expr = true })
-
-vim.keymap.set({ "n", "x" }, "<leader>rbb", function() return require('refactoring').refactor('Extract Block') end, { expr = true })
-vim.keymap.set({ "n", "x" }, "<leader>rbf", function() return require('refactoring').refactor('Extract Block To File') end, { expr = true })
-```
-
-IMPORTANT: the keymaps **MUST** to be created using the `{ expr = true }` option and return the value of the `require('refactoring').refactor` function (like in the example above).
-
-#### Using Built-In Neovim Selection<a name="config-refactoring-builtin"></a>
-
-You can also set up the plugin to prompt for a refactoring operation to apply
-using Neovim's built in selection API (`:h vim.ui.select()`, the `kind` `"refactoring.nvim"` is used to allow user customization). Here is an example remap to demonstrate
-this functionality:
-
-```lua
--- prompt for a refactor to apply when the remap is triggered
-vim.keymap.set(
-    {"n", "x"},
-    "<leader>rr",
-    function() require('refactoring').select_refactor() end
-)
--- Note that not all refactor support both normal and visual mode
-```
-
-`select_refactor()` uses `vim.ui.input` by default to input the arguments (if
-needed). If you want to use the Ex command to get the preview of the changes
-you can use the `prefer_ex_cmd` option.
-
-```lua
-require('refactoring').select_refactor({prefer_ex_cmd = true})
-```
-
-#### Using Telescope<a name="config-refactoring-telescope"></a>
-
-If you would prefer to use Telescope to choose a refactor, you can do so
-using the **Telescope extension.** Here is an example
-config for this setup:
-
-```lua
--- load refactoring Telescope extension
-require("telescope").load_extension("refactoring")
-
-vim.keymap.set(
-	{"n", "x"},
-	"<leader>rr",
-	function() require('telescope').extensions.refactoring.refactors() end
-)
-```
-
-### Configuration for Debug Operations<a name="config-debug"></a>
-
-Finally, you can configure remaps for the debug operations of this plugin like
-this:
-
-```lua
--- You can also use below = true here to to change the position of the printf
--- statement (or set two remaps for either one). This remap must be made in normal mode.
-vim.keymap.set(
-	"n",
-	"<leader>rp",
-	function() require('refactoring').debug.printf({below = false}) end
-)
-
--- Print var
-
-vim.keymap.set({"x", "n"}, "<leader>rv", function() require('refactoring').debug.print_var() end)
--- Supports both visual and normal mode
-
-vim.keymap.set("n", "<leader>rc", function() require('refactoring').debug.cleanup({}) end)
--- Supports only normal mode
-```
-
-#### Customizing Printf and Print Var Statements<a name="config-debug-stringification"></a>
-
-It is possible to override the statements used in the printf and print var
-functionalities.
-
-##### Customizing Printf Statements<a name="config-debug-stringification-printf"></a>
-
-You can add to the printf statements for any language by adding something like
-the below to your configuration:
-
-```lua
-require('refactoring').setup({
-  -- overriding printf statement for cpp
-  printf_statements = {
-      -- add a custom printf statement for cpp
-      cpp = {
-          'std::cout << "%s" << std::endl;'
-      }
-  }
-})
-```
-
-In any custom printf statement, it is possible to optionally add a max of
-**one %s** pattern, which is where the debug path will go. For an example custom
-printf statement, go to [this folder](lua/refactoring/tests/debug/printf),
-select your language, and click on `multiple-statements/printf.config`.
-
-##### Customizing Print Var Statements<a name="config-debug-stringification-print-var"></a>
-
-The print var functionality can also be extended for any given language,
-as shown below:
-
-```lua
-require('refactoring').setup({
-  -- overriding printf statement for cpp
-  print_var_statements = {
-      -- add a custom print var statement for cpp
-      cpp = {
-          'printf("a custom statement %%s %s", %s)'
-      }
-  }
-})
-```
-
-In any custom print var statement, it is possible to optionally add a max of
-**two %s** patterns, which is where the debug path and the actual variable
-reference will go, respectively. To add a literal "%s" to the string, escape the
-sequence like this: `%%s`. For an example custom print var statement, go to
-[this folder](lua/refactoring/tests/debug/print_var), select your language, and
-view `multiple-statements/print_var.config`.
-
-**Note:** for either of these functions, if you have multiple custom
-statements, the plugin will prompt for which one should be inserted. If you
-just have one custom statement in your config, it will override the default
-automatically.
-
-### Customizing Extract variable Statements<a name="config-119-custom"></a>
-
-When performing an `extract_var` refactor operation, you can custom how the new
-variable would be declared by setting configuration like the below example.
-
-```lua
-require('refactoring').setup({
-  -- overriding extract statement for go
-  extract_var_statements = {
-    go = "%s := %s // poggers"
-  }
-})
-```
-
-### Configuration for Type Prompt Operations<a name="config-prompt"></a>
-
-For certain languages like Golang, types are required for functions that return
-an object(s) and parameters of functions. Unfortunately, for some parameters
-and functions there is no way to automatically find their type. In those
-instances, we want to provide a way to input a type instead of inserting a
-placeholder value.
-
-By default all prompts are turned off. The configuration below shows how to
-enable prompts for all the languages currently supported.
-
-```lua
-require('refactoring').setup({
-    -- prompt for return type
-    prompt_func_return_type = {
-        go = true,
-        cpp = true,
-        c = true,
-        java = true,
-    },
-    -- prompt for function parameters
-    prompt_func_param_type = {
-        go = true,
-        cpp = true,
-        c = true,
-        java = true,
-    },
-})
-```
+- C++
+- Go
+- Java
+- JavaScript/Typescript/Jsx/Tsx
+- Lua
+- Php
+- Powershell
+- Python
+- Ruby
+- Vimscript
+
+## Adding/improving support for a language
+
+To add/improve support for a language, first do it on your local config and daily drive it for a while. To do so:
+
+1. Create the required tree-sitter queries for the language in your config directory (`~/.config/nvim/queries/<lang>/<query_name>.scm`). You can find the name of the queries required for each feature in [Features](#features) and the structure of the queries in `./queries/`. The query files should start with `;; extends` (see `:h treesitter-query-modeline-extends`).
+2. Add code generation functions required by the feature to your global config. You can see the code generation functions required by each feature in `./lua/refactoring/config.lua`
+3. After daily driving your changes for a while, open a PR to the `refactoring.nvim` repo.
+
+> [!NOTE]
+> The goal of the plugin is to keep the Lua logic as generic and language agnostic as possible. That's why all of the input language specific information comes from LSP servers and tree-sitter queries. The better the tree-sitter queries are, the better the support for a given language will be.

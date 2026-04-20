@@ -3,136 +3,108 @@ local M = {}
 local api = vim.api
 local iter = vim.iter
 
----@alias refactor.command.Opts {name: string, args: string, fargs: string[], bang: boolean, line1: number, line2: number, range: number, count: number, reg: string, mods: string, smods: string[]}
-
 local DO_NOT_PREVIEW = 0
 local PREVIEW_IN_CURRENT_BUFFER = 1
 
-local _needed_args = {
-    inline_var = 0,
-    inline_func = 0,
-    extract_to_file = 2,
-    extract_block_to_file = 2,
-    default = 1,
-}
+---@param opts vim.api.keyset.create_user_command.command_args
+local function command(opts)
+  if #opts.fargs == 0 then return end
+  local refactor = opts.fargs[1]
+  ---@type nil|string[]
+  local input = opts.fargs[2] and { opts.fargs[2], opts.fargs[3] }
+  local refactor_opts = { input = input }
 
----@param opts refactor.command.Opts
----@param ns integer
-local function command_preview(opts, ns)
-    local refactors = require("refactoring.refactor")
-
-    local refactor = opts.fargs[1]
-
-    refactor = refactors[refactor] and refactor
-
-    if not refactor then
-        return DO_NOT_PREVIEW
-    end
-
-    local aditional_args = #opts.fargs - 1
-    local needed_args = _needed_args[refactor] or _needed_args.default
-
-    if aditional_args ~= needed_args then
-        return DO_NOT_PREVIEW
-    end
-
-    -- TODO (TheLeoP): remove this once a response is given on https://github.com/neovim/neovim/issues/24330
-    if refactor:find("file") then
-        return DO_NOT_PREVIEW
-    end
-
-    for i = 2, needed_args + 1 do
-        if opts.fargs[i] == "" then
-            return DO_NOT_PREVIEW
-        end
-    end
-
-    ---@type string[]
-    local args = {}
-    for i = 2, needed_args + 1 do
-        table.insert(args, opts.fargs[i])
-    end
-    require("refactoring.config"):get():automate_input(args)
-
-    local keys =
-        require("refactoring").refactor(refactor, { _preview_namespace = ns })
-    if keys == "g@" then
-        keys = "gvg@"
-    end
-    vim.cmd.normal(keys)
-
-    return PREVIEW_IN_CURRENT_BUFFER
+  if refactor == "inline_var" then vim.cmd.normal(require("refactoring").inline_var(refactor_opts)) end
+  if refactor == "extract_var" then vim.cmd.normal("gv" .. require("refactoring").extract_var(refactor_opts)) end
+  if refactor == "inline_func" then vim.cmd.normal(require("refactoring").inline_func(refactor_opts)) end
+  if refactor == "extract_func" then vim.cmd.normal("gv" .. require("refactoring").extract_func(refactor_opts)) end
+  if refactor == "extract_func_to_file" then
+    vim.cmd.normal("gv" .. require("refactoring").extract_func_to_file(refactor_opts))
+  end
 end
 
----@param opts refactor.command.Opts
-local function command(opts)
-    local refactor = opts.fargs[1]
+local required_input = {
+  inline_var = 0,
+  extract_var = 1,
+  inline_func = 0,
+  extract_func = 1,
+  extract_func_to_file = 2,
+}
 
-    if not refactor then
-        return
-    end
+---@param opts vim.api.keyset.create_user_command.command_args
+---@param ns integer
+local function preview(opts, ns)
+  if #opts.fargs == 0 then return DO_NOT_PREVIEW end
+  local refactor = opts.fargs[1]
+  local input = { opts.fargs[2], opts.fargs[3] }
 
-    local needed_args = _needed_args[refactor] or _needed_args.default
+  if not required_input[refactor] or #input < required_input[refactor] then return DO_NOT_PREVIEW end
 
-    ---@type string[]
-    local args = {}
-    for i = 2, needed_args + 1 do
-        table.insert(args, opts.fargs[i])
-    end
+  local refactor_opts = { input = input, preview_ns = ns }
 
-    require("refactoring.config"):get():automate_input(args)
-    local keys = require("refactoring").refactor(refactor)
-    if keys == "g@" then
-        keys = "gvg@"
-    end
-    vim.cmd.normal(keys)
+  -- TODO: `:h command-preview` seems to be broken with async code (it doesn't
+  -- show async updates to buffers and may crash Neovim (when modiying buffers
+  -- with outdated information?)). Look more into it and open an issue upstream
+  -- if refactor == "inline_var" then vim.cmd.normal(require("refactoring").inline_var(refactor_opts)) end
+  if refactor == "extract_var" then vim.cmd.normal("gv" .. require("refactoring").extract_var(refactor_opts)) end
+  -- if refactor == "inline_func" then vim.cmd.normal(require("refactoring").inline_func(refactor_opts)) end
+  if refactor == "extract_func" then vim.cmd.normal("gv" .. require("refactoring").extract_func(refactor_opts)) end
+  if refactor == "extract_func_to_file" then
+    vim.cmd.normal("gv" .. require("refactoring").extract_func_to_file(refactor_opts))
+  end
+
+  if
+    -- refactor == "inline_var" or
+    refactor == "extract_var"
+    -- or refactor == "inline_func"
+    or refactor == "extract_func"
+    or refactor == "extract_func_to_file"
+  then
+    return PREVIEW_IN_CURRENT_BUFFER
+  end
 end
 
 ---@param arg_lead string
 ---@param cmd_line string
----@param _cursor_pos integer
 ---@return string[]
-local function command_complete(arg_lead, cmd_line, _cursor_pos)
-    local refactors = require("refactoring.refactor")
+local function complete(arg_lead, cmd_line)
+  local fargs = vim.split(cmd_line, " ", { trimempty = true })
 
-    local number_of_arguments = #vim.split(cmd_line, " ", { trimempty = true })
-
-    if number_of_arguments > 2 then
-        return {}
-    end
-
-    local options = iter(vim.tbl_keys(refactors))
-        :filter(
-            ---@param option any
-            function(option)
-                return type(option) == "string"
-            end
-        )
-        :filter(
-            ---@param name string
-            function(name)
-                return vim.startswith(name, arg_lead)
-            end
-        )
-        :totable()
-
-    return options
+  if #fargs == 1 or (#fargs == 2 and arg_lead ~= "") then
+    return iter({
+        "inline_var",
+        "extract_var",
+        "inline_func",
+        "extract_func",
+        "extract_func_to_file",
+      })
+      :filter(
+        ---@param item string
+        function(item)
+          return vim.startswith(item, arg_lead)
+        end
+      )
+      :totable()
+  end
+  local refactor = fargs[2]
+  if
+    #fargs == 3 and (refactor == "extract_var" or refactor == "extract_func" or refactor == "extract_func_to_file")
+  then
+    return {}
+  end
+  if #fargs == 4 and refactor == "extract_func_to_file" then return vim.fn.getcompletion(arg_lead, "file") end
+  return {}
 end
 
 function M.setup()
-    api.nvim_create_user_command(
-        "Refactor",
-        command,
-        -- stylua: ignore start
-        {
-            nargs = "*",
-            range = "%",
-            preview = command_preview,
-            complete = command_complete,
-            desc = "Command entrypoint for refactoring.nvim",
-            force = true,
-        }
-    )
+  api.nvim_create_user_command("Refactor", command, {
+    nargs = "*",
+    range = "%",
+    preview = preview,
+    complete = complete,
+    desc = "Command entrypoint for refactoring.nvim",
+    force = true,
+  })
 end
 
 return M
