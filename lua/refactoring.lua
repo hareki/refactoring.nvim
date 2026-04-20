@@ -221,4 +221,13 @@ function M.select_refactor(opts)
   task:raise_on_error()
 end
 
+--- Change the default configuration of `refactoring.nvim`.
+---
+--- NOTE: there is no need to call this function if you are happy with the
+--- defaults.
+---@param opts? refactor.UserConfig
+function M.setup(opts)
+  require("refactoring.config").setup(opts)
+end
+
 return M

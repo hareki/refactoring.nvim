@@ -141,6 +141,16 @@ Use |vim.ui.select()| to select a refactor.
 Parameters ~
 {opts?} (`refactor.select_refactor.Opts`)
 
+------------------------------------------------------------------------------
+                                                                     *M.setup()*
+                               `M.setup`({opts})
+Change the default configuration of `refactoring.nvim`.
+
+NOTE: there is no need to call this function if you are happy with the
+defaults.
+Parameters ~
+{opts?} (`refactor.UserConfig`)
+
 
 ==============================================================================
 ------------------------------------------------------------------------------

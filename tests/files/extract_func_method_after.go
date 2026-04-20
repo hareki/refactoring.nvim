@@ -4,7 +4,7 @@ import "fmt"
 
 type Foo struct {}
 
-func (f *Foo) foo() () {
+func (f *Foo) foo() {
 	fmt.Println("foo")
 }
 

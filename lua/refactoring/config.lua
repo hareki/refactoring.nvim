@@ -248,8 +248,8 @@ public %s %s(%s) {
       local struct = (opts.struct_name and opts.struct_var_name)
           and (" (%s *%s)"):format(opts.struct_var_name, opts.struct_name)
         or ""
-      local return_type = opts.return_values == 0 and ""
-        or opts.return_values == 1 and (" %s"):format(opts.return_values[1].type or "P")
+      local return_type = #opts.return_values == 0 and ""
+        or #opts.return_values == 1 and (" %s"):format(opts.return_values[1].type or "P")
         or (" (%s)"):format(iter(opts.return_values)
           :map(
             ---@param v refactor.Variable
@@ -308,7 +308,7 @@ private %s %s(%s) {
 {
 %s
 }]]):format(
-          opts.return_values == 0 and "Void" or (opts.return_values[1].type or "P"),
+          #opts.return_values == 0 and "Void" or (opts.return_values[1].type or "P"),
           opts.name,
           args,
           opts.body
@@ -644,7 +644,7 @@ endfunction]]):format(opts.name, args, opts.body)
       return ("\n\nreturn (%s);"):format(return_values)
     end,
     javascript = function(opts)
-      if #opts.return_values == 1 then return ("\n\nreturn %s;"):format(opts.return_values[1]) end
+      if #opts.return_values == 1 then return ("\n\nreturn %s;"):format(opts.return_values[1].identifier) end
       local return_values = iter(opts.return_values)
         :map(
           ---@param v refactor.Variable
@@ -683,7 +683,7 @@ endfunction]]):format(opts.name, args, opts.body)
       return ("\n\nreturn [%s];"):format(return_values)
     end,
     powershell = function(opts)
-      if #opts.return_values == 1 then return ("\n\nreturn %s"):format(opts.return_values[1]) end
+      if #opts.return_values == 1 then return ("\n\nreturn %s"):format(opts.return_values[1].identifier) end
 
       local return_values = iter(opts.return_values)
         :map(
@@ -987,7 +987,7 @@ local user_config = vim.deepcopy(default_config)
 
 ---@param opts? refactor.UserConfig
 function M.setup(opts)
-  user_config = vim.tbl_deep_extend("force", default_config, opts)
+  user_config = vim.tbl_deep_extend("force", default_config, opts or {})
 end
 
 ---@param buf integer
