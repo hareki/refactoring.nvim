@@ -994,7 +994,6 @@ end
 ---@param opts? refactor.UserConfig
 ---@return refactor.Config
 function M.get_config(buf, opts)
-  -- TODO: document vim.b.refactor_config
   return vim.tbl_deep_extend("force", user_config, vim.b[buf].refactor_config or {}, opts or {})
 end
 
