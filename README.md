@@ -60,6 +60,8 @@ https://github.com/user-attachments/assets/70b15d18-197a-4135-abe0-1fb4a6c06319
 
 ## Installation
 
+`refactoring.nvim` requires Neovim `0.12`.
+
 <details>
 <summary>With <code>vim.pack</code></summary>
 
