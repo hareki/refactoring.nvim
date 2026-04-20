@@ -2,3 +2,4 @@
 .luarc.json
 .nvim.lua
 deps/
+doc/tags

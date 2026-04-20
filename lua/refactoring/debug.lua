@@ -4,6 +4,7 @@ local M = {}
 ---@field start string
 ---@field end string
 
+---@private
 ---@class refactor.debug.Markers
 ---@field print_var refactor.debug.Marker
 ---@field print_loc refactor.debug.Marker
@@ -14,6 +15,7 @@ local M = {}
 ---@field print_loc? refactor.debug.Marker
 ---@field print_exp? refactor.debug.Marker
 
+---@private
 ---@class refactor.debug.cleanup.Opts
 ---@field types ('print_var'|'print_loc'|'print_exp')[]
 ---@field restore_view boolean Does not work with dot-repeat
@@ -23,6 +25,7 @@ local M = {}
 ---@field types? ('print_var'|'print_loc'|'print_exp')[]
 ---@field restore_view? boolean
 
+---@private
 ---@class refactor.debug.print_var.Opts
 ---@field output_location 'above'|'below'
 ---@field code_generation refactor.print_var.CodeGeneration
@@ -32,6 +35,7 @@ local M = {}
 ---@field output_location? 'above'|'below'
 ---@field code_generation? refactor.print_var.UserCodeGeneration
 
+---@private
 ---@class refactor.debug.print_loc.Opts
 ---@field output_location 'above'|'below'
 ---@field code_generation refactor.print_loc.CodeGeneration
@@ -41,6 +45,7 @@ local M = {}
 ---@field output_location? 'above'|'below'
 ---@field code_generation? refactor.print_loc.UserCodeGeneration
 
+---@private
 ---@class refactor.debug.print_exp.Opts
 ---@field output_location 'above'|'below'
 ---@field code_generation refactor.print_exp.CodeGeneration
@@ -55,6 +60,7 @@ local M = {}
 local last_debug ---@type refactor.DebugFunc|nil
 local last_config ---@type refactor.Config|nil
 
+---@private
 ---@param type "line" | "char" | "block"
 function M.debug_operatorfunc(type)
   if not last_debug then return end
@@ -63,6 +69,11 @@ function M.debug_operatorfunc(type)
   last_debug(range_type, last_config)
 end
 
+--- Inserts a debug print statement with all the variable and locations
+--- (e.g. `some_function#if#for`) in the selected range.
+--- - Requires:
+---   - Tree-sitter parser and queries (`refactor_comment`,
+---   `refactor_reference`, `refactor_output_statement` and `refactor_scope`)
 ---@param opts refactor.debug.print_var.UserOpts?
 function M.print_var(opts)
   local config = require("refactoring.config").get_config(0, {
@@ -80,6 +91,9 @@ end
 
 M._last_view = nil ---@type vim.fn.winsaveview.ret|nil
 
+--- Cleanup the debug print statements in the selected range.
+--- - Requires:
+---   - Tree-sitter parser and queries (`refactor_comment`)
 ---@param opts refactor.debug.cleanup.UserOpts?
 function M.cleanup(opts)
   local config = require("refactoring.config").get_config(0, {
@@ -96,6 +110,11 @@ function M.cleanup(opts)
   return "g@"
 end
 
+--- Inserts a debug print statement with the location under cursor (e.g.
+--- `some_function#if#for`).
+--- - Requires:
+---   - Tree-sitter parser and queries (`refactor_comment` and
+---   `refactor_output_statement`)
 ---@param opts refactor.debug.print_loc.UserOpts?
 function M.print_loc(opts)
   local config = require("refactoring.config").get_config(0, {
@@ -111,6 +130,11 @@ function M.print_loc(opts)
   return "g@l"
 end
 
+--- Inserts a debug print statement with the selected expression and location
+--- (e.g. `some_function#if#for`).
+--- - Requires:
+---   - Tree-sitter parser and queries (`refactor_comment` and
+---   `refactor_output_statement`)
 ---@param opts refactor.debug.print_exp.UserOpts?
 function M.print_exp(opts)
   local config = require("refactoring.config").get_config(0, {
