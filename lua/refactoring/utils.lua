@@ -28,12 +28,16 @@ end
 
 ---@type async fun(opts: table): string
 M.input = async.wrap(2, function(opts, cb)
-  vim.ui.input(opts, cb)
+  vim.schedule(function()
+    vim.ui.input(opts, cb)
+  end)
 end)
 
 ---@type async fun(items: any[], opts: table)
 M.select = async.wrap(3, function(items, opts, on_choice)
-  vim.ui.select(items, opts, on_choice)
+  vim.schedule(function()
+    vim.ui.select(items, opts, on_choice)
+  end)
 end)
 
 ---@param missing_code_gen string
