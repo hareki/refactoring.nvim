@@ -23,7 +23,7 @@ local function get_definition_info(definition, variables_info)
   local definition_buf = vim.fn.bufadd(definition.filename)
 
   -- TODO: add pos.vimscript
-  local definition_start = pos(definition.lnum - 1, definition.col - 1, { buf = definition_buf })
+  local definition_start = pos(definition_buf, definition.lnum - 1, definition.col - 1)
   ---@type refactor.ProcessedVariableInfo
   local variable_info = iter(variables_info)
     :map(
@@ -34,8 +34,7 @@ local function get_definition_info(definition, variables_info)
             ---@param _ integer
             ---@param identifier TSNode
             function(_, identifier)
-              local srow, scol, erow, ecol = identifier:range()
-              local identifier_range = range(srow, scol, erow, ecol, { buf = definition_buf })
+              local identifier_range = range(definition_buf, identifier:range())
               return identifier_range:has(definition_start)
             end
           )
@@ -229,7 +228,7 @@ function M.inline_var(_, config)
     local definition, definition_info = definition_with_info.definition, definition_with_info.info
     local definition_buf = vim.fn.bufadd(definition.filename)
     -- TODO: add pos.vimscript
-    local definition_start = pos(definition.lnum - 1, definition.col - 1, { buf = definition_buf })
+    local definition_start = pos(definition_buf, definition.lnum - 1, definition.col - 1)
 
     ---@type {reference: refactor.QfItem, info: refactor.ReferenceInfo|nil}[]
     local references_with_info = iter(references)
@@ -246,7 +245,7 @@ function M.inline_var(_, config)
           if r_buf ~= definition_buf then return true end
 
           -- TODO: add range.vimscript
-          local r_range = range(r.lnum - 1, r.col - 1, r.end_lnum - 1, r.end_col - 1, { buf = r_buf })
+          local r_range = range(r_buf, r.lnum - 1, r.col - 1, r.end_lnum - 1, r.end_col - 1)
           return not r_range:has(definition_start)
         end
       )
@@ -255,15 +254,14 @@ function M.inline_var(_, config)
         function(r)
           local reference_buf = vim.fn.bufadd(r.filename)
           -- TODO: add range.vimscript
-          local reference_range = range(r.lnum - 1, r.col - 1, r.end_lnum - 1, r.end_col - 1, { buf = reference_buf })
+          local reference_range = range(reference_buf, r.lnum - 1, r.col - 1, r.end_lnum - 1, r.end_col - 1)
 
           local references_info = match_info_by_buf[reference_buf].references
           local reference_info = iter(references_info)
             :filter(
               ---@param ri refactor.ReferenceInfo
               function(ri)
-                local srow, scol, erow, ecol = ri.identifier:range()
-                local identifier_range = range(srow, scol, erow, ecol, { buf = reference_buf })
+                local identifier_range = range(reference_buf, ri.identifier:range())
                 return identifier_range:has(reference_range)
               end
             )
@@ -303,8 +301,7 @@ function M.inline_var(_, config)
       function(rwi)
         local reference = rwi.reference
         local buf = vim.fn.bufadd(reference.filename)
-        local srow, scol, erow, ecol = rwi.info.identifier:range()
-        local identifier_range = range(srow, scol, erow, ecol, { buf = buf })
+        local identifier_range = range(buf, rwi.info.identifier:range())
 
         text_edits_by_buf[buf] = text_edits_by_buf[buf] or {}
         table.insert(text_edits_by_buf[buf], {
@@ -327,8 +324,7 @@ function M.inline_var(_, config)
         :map(
           ---@param n TSNode
           function(n)
-            local srow, scol, erow, ecol = n:range()
-            return range(srow, scol, erow, ecol, { buf = definition_buf })
+            return range(definition_buf, n:range())
           end
         )
         :each(
@@ -350,7 +346,7 @@ function M.inline_var(_, config)
       local should_delete_leading_whitespace = scol > 0 and declaration_line:sub(1, scol):match "^%s+$" ~= nil
       if should_delete_leading_whitespace then scol = 0 end
 
-      local declaration_range = range(srow, scol, erow, ecol, { buf = definition_buf })
+      local declaration_range = range(definition_buf, srow, scol, erow, ecol)
       text_edits_by_buf[definition_buf] = text_edits_by_buf[definition_buf] or {}
       table.insert(text_edits_by_buf[definition_buf], { range = declaration_range, lines = {} })
     end

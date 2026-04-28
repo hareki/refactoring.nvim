@@ -15,8 +15,7 @@ function M.get_statement_output_range(buf, output_statements, output_location, r
     :filter(
       ---@param os refactor.OutputStatementInfo
       function(os)
-        local os_srow, os_scol, os_erow, os_ecol = os.output_statement:range()
-        local os_range = range(os_srow, os_scol, os_erow, os_ecol, { buf = buf })
+        local os_range = range(buf, os.output_statement:range())
         return os_range:has(reference_pos)
       end
     )
@@ -39,29 +38,27 @@ function M.get_statement_output_range(buf, output_statements, output_location, r
   end
 
   local o_srow, o_scol, o_erow, o_ecol = statement_for_range.output_statement:range()
-  local before_range = range(o_srow, o_scol, o_srow, o_scol, { buf = buf })
-  local after_range = range(o_erow, o_ecol, o_erow, o_ecol, { buf = buf })
+  local before_range = range(buf, o_srow, o_scol, o_srow, o_scol)
+  local after_range = range(buf, o_erow, o_ecol, o_erow, o_ecol)
   local output_range ---@type vim.Range
   local inserted_at ---@type 'start'|'end'
   if statement_for_range.inside and output_location == "above" then
-    local i_srow, i_scol, i_erow, i_ecol = statement_for_range.inside:range()
-    local inside_range = range(i_srow, i_scol, i_erow, i_ecol, { buf = buf })
+    local inside_range = range(buf, statement_for_range.inside:range())
 
     if reference_range > inside_range then
       local _, _, inside_erow, inside_ecol = inside_range:to_extmark()
-      output_range = range.extmark(inside_erow, inside_ecol, inside_erow, inside_ecol, { buf = buf })
+      output_range = range.extmark(buf, inside_erow, inside_ecol, inside_erow, inside_ecol)
       inserted_at = "end"
     else
       output_range = before_range
       inserted_at = "start"
     end
   elseif statement_for_range.inside and output_location == "below" then
-    local i_srow, i_scol, i_erow, i_ecol = statement_for_range.inside:range()
-    local inside_range = range(i_srow, i_scol, i_erow, i_ecol, { buf = buf })
+    local inside_range = range(buf, statement_for_range.inside:range())
 
     if reference_range < inside_range then
       local inside_srow, inside_scol = inside_range:to_extmark()
-      output_range = range.extmark(inside_srow, inside_scol, inside_srow, inside_scol, { buf = buf })
+      output_range = range.extmark(buf, inside_srow, inside_scol, inside_srow, inside_scol)
       inserted_at = "start"
     else
       output_range = after_range
