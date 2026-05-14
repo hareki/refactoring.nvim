@@ -785,6 +785,14 @@ local print_var_code_generation = {
         opts.identifier
       )
     end,
+    cpp = function(opts)
+      return ([[std::cout << "%s %s %s: " << %s << "\n";]]):format(
+        opts.debug_path,
+        opts.identifier_str,
+        opts.count,
+        opts.identifier
+      )
+    end,
     javascript = function(opts)
       return ([[console.log("%s %s %s:", %s)]]):format(
         opts.debug_path:gsub('"', '\\"'),
@@ -823,9 +831,16 @@ local print_var_code_generation = {
         opts.identifier
       )
     end,
+    php = function(opts)
+      return ([[printf('%s %s %s: %%s', %s);]]):format(
+        opts.debug_path,
+        opts.identifier_str,
+        opts.count,
+        opts.identifier
+      )
+    end,
   },
 }
-print_var_code_generation.print_var.cpp = print_var_code_generation.print_var.c
 print_var_code_generation.print_var.typescript = print_var_code_generation.print_var.javascript
 print_var_code_generation.print_var.tsx = print_var_code_generation.print_var.javascript
 
@@ -837,6 +852,9 @@ local print_loc_code_generation = {
     end,
     c = function(opts)
       return ([[printf("%s %s\n");]]):format(opts.debug_path, opts.count)
+    end,
+    cpp = function(opts)
+      return ([[std::cout << "%s %s\n";]]):format(opts.debug_path, opts.count)
     end,
     javascript = function(opts)
       return ([[console.log("%s %s")]]):format(opts.debug_path, opts.count)
@@ -855,6 +873,9 @@ local print_loc_code_generation = {
     end,
     c_sharp = function(opts)
       return ([[Console.WriteLine(@"%s %s");]]):format(opts.debug_path, opts.count)
+    end,
+    php = function(opts)
+      return ([[printf('%s %s ');]]):format(opts.debug_path, opts.count)
     end,
   },
 }
@@ -875,6 +896,14 @@ local print_exp_code_generation = {
     end,
     c = function(opts)
       return ([[printf("%s %s %s: %%s \n", %s);]]):format(
+        opts.debug_path,
+        opts.expression_str,
+        opts.count,
+        opts.expression
+      )
+    end,
+    cpp = function(opts)
+      return ([[std::cout << "%s %s %s: " << %s << "\n";]]):format(
         opts.debug_path,
         opts.expression_str,
         opts.count,
@@ -913,6 +942,14 @@ local print_exp_code_generation = {
     end,
     c_sharp = function(opts)
       return ([[Console.WriteLine($"%s %s %s: {%s}");]]):format(
+        opts.debug_path,
+        opts.expression_str,
+        opts.count,
+        opts.expression
+      )
+    end,
+    php = function(opts)
+      return ([[printf('%s %s %s: %%s', %s);]]):format(
         opts.debug_path,
         opts.expression_str,
         opts.count,
